@@ -1,0 +1,159 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>quiz-flow-check</title>
+<link rel="stylesheet" href="/src/index.css">
+<!--
+  Drives a whole test end to end against a seeded database: setup, answering
+  every question, the score, and "Test again".
+
+  It exists to make restructuring TestMode safe. Splitting a 500-line component
+  with four page layouts into a hook and four screens is exactly the kind of
+  change that typechecks and still loses a button, and nothing else in the suite
+  touches this screen.
+
+  No model call: the questions are seeded, which is the whole point of writing
+  them once and keeping them.
+
+    npx vite --port 5199 --strictPort
+    node tools/idb-collector.cjs result.txt
+    chrome --headless=new --user-data-dir=SHORT_PATH http://localhost:5199/tools/quiz-flow-check.html
+-->
+<pre id="report">running…</pre>
+<div id="root"></div>
+<script type="module">
+  const lines = [];
+  const log = (s) => { lines.push(s); document.getElementById('report').textContent = lines.join('\n'); };
+  let failures = 0;
+  const check = (label, ok, detail) => {
+    if (!ok) failures++;
+    log((ok ? '  ok   ' : '  FAIL ') + label + (detail ? '   ' + detail : ''));
+  };
+
+  const settle = (ms = 350) => new Promise((r) => setTimeout(r, ms));
+  const $ = (sel) => document.querySelector(sel);
+  const text = () => (document.getElementById('root').textContent || '').replace(/\s+/g, ' ');
+  const buttonWith = (label) =>
+    Array.from(document.querySelectorAll('#root button')).find((b) =>
+      (b.textContent || '').toLowerCase().includes(label.toLowerCase())
+    );
+
+  try {
+    const db = await import('/src/db/db.ts');
+    const React = await import('react');
+    const { createRoot } = await import('react-dom/client');
+    const TestMode = (await import('/src/components/TestMode.tsx')).default;
+    const { hashCard } = await import('/src/lib/quizGenerator.ts');
+
+    // The screen reads AI settings from localStorage; 'off' would gate the UI.
+    localStorage.setItem('flashcard-forge:ai', JSON.stringify({ mode: 'hosted' }));
+
+    const deckId = 'flow-deck';
+    const QUESTIONS = 4;
+    const cards = Array.from({ length: QUESTIONS }, (_, i) => ({
+      id: deckId + '-c' + i,
+      deckId,
+      front: 'Question about topic ' + i + '?',
+      back: 'The answer for topic ' + i,
+      sourceLabel: 'Page 1',
+      context: 'Topic ' + i,
+      status: 'new',
+      createdAt: i,
+    }));
+
+    await db.saveDeckWithCards(
+      { id: deckId, name: 'Flow Deck', sourceFileName: 'flow.md', sourceType: 'md', createdAt: 1, cardCount: cards.length },
+      cards
+    );
+
+    await db.saveQuestions(
+      cards.map((card, i) => ({
+        id: 'q-' + i,
+        deckId,
+        cardId: card.id,
+        stem: 'What is the answer for topic ' + i + '?',
+        correctAnswer: card.back,
+        distractors: ['Wrong A' + i, 'Wrong B' + i, 'Wrong C' + i],
+        explanation: 'Because topic ' + i + ' works that way.',
+        context: card.context,
+        sourceLabel: card.sourceLabel,
+        cardHash: hashCard(card),
+        createdAt: i,
+        timesAsked: 0,
+        lastAskedAt: null,
+        timesCorrect: 0,
+      }))
+    );
+
+    createRoot(document.getElementById('root')).render(
+      React.createElement(TestMode, { deckId, onExit: () => log('  (onExit called)') })
+    );
+
+    // ---- setup ----
+    await settle(900);
+    check('setup shows the deck name', text().includes('Flow Deck'), text().slice(0, 70));
+    check('setup does not claim questions are missing', !text().includes('no test question yet'));
+    const start = buttonWith('Start test');
+    check('the Start test button exists', Boolean(start));
+    check('Start test is enabled with a seeded pool', start && !start.disabled);
+
+    // ---- taking ----
+    start.click();
+    await settle();
+    check('the first question is shown', /Question 1 of \d/.test(text()), text().slice(0, 60));
+
+    let answered = 0;
+    for (let i = 0; i < QUESTIONS + 2; i++) {
+      const options = Array.from(document.querySelectorAll('#root .quiz-option'));
+      if (options.length === 0) break;
+      check('question ' + (answered + 1) + ' offers four options', options.length === 4, options.length + ' options');
+
+      // Pick the option whose text is the seeded correct answer, so the score
+      // is a known number rather than whatever the shuffle produced.
+      const correct = options.find((o) => (o.textContent || '').includes('The answer for topic'));
+      (correct ?? options[0]).click();
+      await settle(120);
+
+      const next = buttonWith('Finish test') ?? buttonWith('Next question');
+      if (!next) break;
+      const wasLast = (next.textContent || '').includes('Finish');
+      next.click();
+      answered++;
+      await settle(200);
+      if (wasLast) break;
+    }
+
+    check('every question was answered', answered === QUESTIONS, answered + '/' + QUESTIONS);
+
+    // ---- results ----
+    await settle(400);
+    check('the score is shown', /\d of \d/.test(text()), text().slice(0, 60));
+    check('a clean sheet is reported', text().includes('Clean sheet'), text().slice(0, 90));
+
+    const again = buttonWith('Test again');
+    check('Test again returns to setup', Boolean(again));
+    if (again) {
+      again.click();
+      await settle(300);
+      check('setup is back', Boolean(buttonWith('Start test')));
+    }
+
+    // ---- the answers were recorded ----
+    const after = await db.getQuestionsForDeck(deckId);
+    const asked = after.filter((q) => q.timesAsked > 0).length;
+    check('answers were written to the database', asked === QUESTIONS, asked + '/' + QUESTIONS + ' marked asked');
+
+    await db.deleteDeck(deckId);
+  } catch (err) {
+    failures++;
+    log('  THREW ' + (err && err.stack ? err.stack : String(err)));
+  }
+
+  log('');
+  log(failures === 0 ? 'RESULT: ALL PASSED' : 'RESULT: ' + failures + ' FAILED');
+
+  try {
+    await fetch('http://localhost:5200/result', { method: 'POST', mode: 'no-cors', body: lines.join('\n') });
+  } catch {
+    // The collector reports its own timeout.
+  }
+</script>
