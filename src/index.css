@@ -1122,3 +1122,205 @@ textarea {
     font-size: 0.74rem;
   }
 }
+
+/* ---------- Test mode ---------- */
+
+/* The standalone "+ Add card" button needs breathing room; the one in the
+   header action row does not, and inherits that margin without this. */
+.manager-actions .secondary-btn {
+  margin: 0;
+}
+
+.quiz {
+  max-width: 46rem;
+  margin: 0 auto;
+}
+
+.quiz-ai-gate {
+  padding: 1.25rem;
+  border: 1px solid var(--border-soft);
+  border-radius: 14px;
+  background: var(--panel);
+  margin-bottom: 1.5rem;
+}
+
+.quiz-ai-gate .muted {
+  margin-top: 0;
+}
+
+.quiz-count-row {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  flex-wrap: wrap;
+  margin: 1.5rem 0 0.5rem;
+}
+
+.quiz-count-row label {
+  font-family: var(--font-ui);
+  color: var(--text-secondary);
+}
+
+.quiz-count-row input[type='range'] {
+  flex: 1 1 14rem;
+  /* Without this the track renders in the browser's default blue, which is the
+     one colour nothing else on this page uses. */
+  accent-color: var(--accent);
+}
+
+.quiz-count-value {
+  font-family: var(--font-display);
+  font-size: 1.6rem;
+  font-weight: 600;
+  color: var(--accent);
+  min-width: 2.5ch;
+  text-align: right;
+}
+
+.quiz-question {
+  margin: 1.25rem 0 1.5rem;
+}
+
+.quiz-stem {
+  font-family: var(--font-read);
+  font-size: 1.35rem;
+  line-height: 1.45;
+  color: var(--text-primary);
+  margin: 0.4rem 0 1rem;
+}
+
+.quiz-options {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: grid;
+  gap: 0.6rem;
+}
+
+.quiz-option {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.85rem;
+  width: 100%;
+  padding: 0.9rem 1rem;
+  text-align: left;
+  font-family: var(--font-read);
+  font-size: 1rem;
+  line-height: 1.5;
+  color: var(--text-primary);
+  background: var(--panel);
+  border: 1px solid var(--border-soft);
+  border-radius: 12px;
+  cursor: pointer;
+  transition: border-color 0.15s ease, background 0.15s ease;
+}
+
+.quiz-option:hover {
+  border-color: rgba(255, 255, 255, 0.2);
+  background: var(--panel-raised);
+}
+
+.quiz-option.selected {
+  border-color: var(--accent);
+  background: var(--accent-soft);
+}
+
+.quiz-option-key {
+  flex: 0 0 auto;
+  font-family: var(--font-ui);
+  font-size: 0.78rem;
+  font-weight: 600;
+  line-height: 1.5rem;
+  width: 1.5rem;
+  text-align: center;
+  border-radius: 6px;
+  color: var(--text-secondary);
+  background: var(--ink);
+}
+
+.quiz-option.selected .quiz-option-key {
+  color: var(--ink-deepest);
+  background: var(--accent);
+}
+
+.quiz-score {
+  font-family: var(--font-display);
+  font-size: 2.6rem;
+  margin: 0;
+}
+
+.quiz-review {
+  list-style: none;
+  padding: 0;
+  margin: 0.75rem 0 0;
+  display: grid;
+  gap: 1rem;
+}
+
+.quiz-review-row {
+  padding: 1.1rem 1.25rem;
+  border: 1px solid var(--border-soft);
+  border-left: 3px solid var(--warm);
+  border-radius: 12px;
+  background: var(--panel);
+}
+
+.quiz-review-row .quiz-stem {
+  font-size: 1.1rem;
+  margin-top: 0;
+}
+
+.quiz-answer-line {
+  display: flex;
+  align-items: baseline;
+  gap: 0.6rem;
+  margin: 0.35rem 0;
+  font-family: var(--font-read);
+  line-height: 1.5;
+}
+
+.quiz-answer-tag {
+  flex: 0 0 auto;
+  font-family: var(--font-ui);
+  font-size: 0.68rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--text-faint);
+  min-width: 5.5rem;
+}
+
+.quiz-answer-line.picked {
+  color: var(--warm);
+}
+
+.quiz-answer-line.correct {
+  color: var(--calm);
+}
+
+.quiz-explanation {
+  margin: 0.75rem 0 0;
+  padding-top: 0.75rem;
+  border-top: 1px solid var(--border-soft);
+  font-family: var(--font-read);
+  line-height: var(--line-comfortable);
+  color: var(--text-secondary);
+}
+
+.quiz .centered {
+  text-align: center;
+}
+
+@media (max-width: 640px) {
+  .quiz-count-row {
+    gap: 0.6rem;
+  }
+
+  .quiz-stem {
+    font-size: 1.15rem;
+  }
+
+  .quiz-answer-line {
+    flex-direction: column;
+    gap: 0.15rem;
+  }
+}

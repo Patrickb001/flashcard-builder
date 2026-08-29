@@ -7,6 +7,7 @@ import Uploader from './components/Uploader';
 import type { SourceType } from './components/Uploader';
 import CandidateReview from './components/CandidateReview';
 import StudyMode from './components/StudyMode';
+import TestMode from './components/TestMode';
 import DeckManager from './components/DeckManager';
 import DeckLibrary from './components/DeckLibrary';
 
@@ -22,6 +23,7 @@ type View =
       notice?: string;
     }
   | { name: 'study'; deckId: string }
+  | { name: 'test'; deckId: string }
   | { name: 'manage'; deckId: string };
 
 export default function App() {
@@ -104,11 +106,16 @@ export default function App() {
           <StudyMode deckId={view.deckId} onExit={() => setView({ name: 'library' })} />
         )}
 
+        {view.name === 'test' && (
+          <TestMode deckId={view.deckId} onExit={() => setView({ name: 'library' })} />
+        )}
+
         {view.name === 'manage' && (
           <DeckManager
             deckId={view.deckId}
             onExit={() => setView({ name: 'library' })}
             onStudy={(deckId) => setView({ name: 'study', deckId })}
+            onTest={(deckId) => setView({ name: 'test', deckId })}
             onDeckDeleted={async () => {
               await refreshDecks();
               setView({ name: 'library' });

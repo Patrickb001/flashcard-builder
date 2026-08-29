@@ -57,3 +57,57 @@ export interface CandidateCard extends CardMedia {
   context?: string;
   include: boolean;
 }
+
+/**
+ * One multiple-choice question, written once from a flashcard and kept.
+ *
+ * Grading is a string comparison against `correctAnswer`, so taking a test costs
+ * no model call at all — which is the whole reason the pool is stored rather
+ * than drafted fresh each time.
+ *
+ * The right answer and the wrong ones are held apart rather than as an options
+ * array plus an index. An index is a second thing that can be wrong, and it has
+ * to survive the parser, the database round-trip and the shuffle before every
+ * draw. Kept apart, the record describes itself, and shuffling on presentation
+ * becomes the only thing the shape can express — so a model that habitually
+ * lists the correct answer first cannot leak that into the test.
+ */
+export interface TestQuestion {
+  id: string;
+  deckId: string;
+  /** The flashcard this came from. Deleting that card deletes this. */
+  cardId: string;
+
+  /** A self-contained question. Never "which of the above…". */
+  stem: string;
+  correctAnswer: string;
+  /** Wrong answers, each distinct from the others and from the correct one. */
+  distractors: string[];
+  /** One sentence, written with the question, shown only when it is missed. */
+  explanation: string;
+
+  /**
+   * Media copied straight from the source card, never routed through the model.
+   * A question about a program is unanswerable without the program in front of
+   * you, so the snippet travels with the question.
+   */
+  stemCode?: CardCode;
+  stemImage?: CardImage;
+  context?: string;
+  sourceLabel: string;
+
+  /**
+   * Fingerprint of the source card's front and back when this was written.
+   *
+   * A content hash rather than a timestamp: the deck manager saves a card on
+   * every textarea blur, including blurs that changed nothing, so a timestamp
+   * would call a question stale because somebody tabbed through the field.
+   */
+  cardHash: string;
+
+  createdAt: number;
+  /** How many times this has been put in front of the user; drives selection. */
+  timesAsked: number;
+  lastAskedAt: number | null;
+  timesCorrect: number;
+}

@@ -1,6 +1,7 @@
 import type { DocumentSection } from './documentModel';
 import type { CandidateCard, CardCode, CardImage } from '../types';
-import { CARD_SYSTEM_PROMPT, parseCardsResponse } from './cardPrompt';
+import { parseCardsResponse } from './cardPrompt';
+import { callModel } from './aiTransport';
 import { dedupeCards, isUsableCard } from './cardValidation';
 import { generateCandidates } from './flashcardGenerator';
 
@@ -115,60 +116,6 @@ function serializeBatch(sections: DocumentSection[]): { payload: unknown[]; asse
   return { payload, assets };
 }
 
-async function callHosted(payload: unknown): Promise<string> {
-  const res = await fetch('/api/generate', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ sections: payload }),
-  });
-  if (res.status === 404) {
-    throw new Error(
-      'The /api/generate endpoint was not found. Start the app with `npm run dev` from the project root so the dev server serves it.'
-    );
-  }
-  if (!res.ok) {
-    let detail = await res.text().catch(() => '');
-    try {
-      const parsed = JSON.parse(detail);
-      detail = [parsed.error, parsed.detail].filter(Boolean).join(' — ');
-    } catch {
-      // Keep the raw body when it is not JSON.
-    }
-    throw new Error(detail || `Drafting service returned ${res.status}.`);
-  }
-  const data = await res.json();
-  return typeof data.text === 'string' ? data.text : '';
-}
-
-async function callDirect(payload: unknown, apiKey: string): Promise<string> {
-  const res = await fetch('https://api.anthropic.com/v1/messages', {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'x-api-key': apiKey,
-      'anthropic-version': '2023-06-01',
-      // Required for browser-originated calls.
-      'anthropic-dangerous-direct-browser-access': 'true',
-    },
-    body: JSON.stringify({
-      model: 'claude-sonnet-5',
-      max_tokens: 4000,
-      system: CARD_SYSTEM_PROMPT,
-      messages: [{ role: 'user', content: JSON.stringify(payload) }],
-    }),
-  });
-
-  if (!res.ok) {
-    const detail = await res.text().catch(() => '');
-    throw new Error(`Anthropic API returned ${res.status}. ${detail}`.trim());
-  }
-
-  const data = await res.json();
-  return (data.content ?? [])
-    .map((part: { type: string; text?: string }) => (part.type === 'text' ? part.text ?? '' : ''))
-    .join('\n');
-}
-
 export interface AiProgress {
   done: number;
   total: number;
@@ -209,11 +156,7 @@ export async function generateCandidatesWithAi(
     const { payload, assets } = serializeBatch(batch);
 
     try {
-      const text =
-        settings.mode === 'byok' && settings.apiKey
-          ? await callDirect(payload, settings.apiKey)
-          : await callHosted(payload);
-
+      const text = await callModel('cards', payload, settings);
       const parsed = parseCardsResponse(text);
       if (parsed.length === 0) throw new Error('No cards returned');
 

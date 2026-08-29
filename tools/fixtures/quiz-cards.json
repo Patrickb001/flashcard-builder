@@ -1,0 +1,130 @@
+[
+  {
+    "id": "c1",
+    "deckId": "d1",
+    "front": "What does a for loop allow you to do in programming?",
+    "back": "Repeat a block of code a specific number of times.",
+    "sourceLabel": "For loops",
+    "context": "For loops",
+    "status": "new",
+    "createdAt": 1
+  },
+  {
+    "id": "c2",
+    "deckId": "d1",
+    "front": "What are the three main parts of a for loop in most languages?",
+    "back": "Initialization, condition, and update.",
+    "sourceLabel": "For loops",
+    "context": "For loops",
+    "status": "new",
+    "createdAt": 2
+  },
+  {
+    "id": "c3",
+    "deckId": "d1",
+    "front": "What does the initialization part of a for loop do?",
+    "back": "Sets the starting point of the loop.",
+    "sourceLabel": "For loops",
+    "context": "For loops",
+    "status": "new",
+    "createdAt": 3
+  },
+  {
+    "id": "c4",
+    "deckId": "d1",
+    "front": "What does the update part of a for loop do?",
+    "back": "Changes the loop counter after each iteration.",
+    "sourceLabel": "For loops",
+    "context": "For loops",
+    "status": "new",
+    "createdAt": 4
+  },
+  {
+    "id": "c5",
+    "deckId": "d1",
+    "front": "What is a for-each loop used for?",
+    "back": "To iterate directly over elements of a collection such as arrays or lists without using an index.",
+    "sourceLabel": "For loops",
+    "context": "For loops",
+    "status": "new",
+    "createdAt": 5
+  },
+  {
+    "id": "c6",
+    "deckId": "d1",
+    "front": "When is a while loop particularly useful?",
+    "back": "When the number of iterations is not known beforehand.",
+    "sourceLabel": "While loops",
+    "context": "While loops",
+    "status": "new",
+    "createdAt": 6
+  },
+  {
+    "id": "c7",
+    "deckId": "d1",
+    "front": "When is the condition checked in a while loop?",
+    "back": "Before each iteration; the loop stops once the condition becomes false.",
+    "sourceLabel": "While loops",
+    "context": "While loops",
+    "status": "new",
+    "createdAt": 7
+  },
+  {
+    "id": "c8",
+    "deckId": "d1",
+    "front": "What does this C++ program print?",
+    "back": "0 1 2 3 4, each on its own line.",
+    "sourceLabel": "While loops",
+    "context": "While loops",
+    "status": "new",
+    "createdAt": 8,
+    "frontCode": {
+      "language": "cpp",
+      "text": "#include <iostream>\nusing namespace std;\n\nint main() {\n    int count = 0;\n    while (count < 5) {\n        cout << count << endl;\n        count++;\n    }\n    return 0;\n}"
+    }
+  },
+  {
+    "id": "c9",
+    "deckId": "d1",
+    "front": "How do you write an infinite for loop in Java?",
+    "back": "Omit the initialization, condition, and update expressions.",
+    "sourceLabel": "For loops",
+    "context": "For loops",
+    "status": "new",
+    "createdAt": 9,
+    "backCode": {
+      "language": "java",
+      "text": "for (;;) {\n    // runs forever\n}"
+    }
+  },
+  {
+    "id": "c10",
+    "deckId": "d1",
+    "front": "What is the purpose of a break statement inside a switch case?",
+    "back": "It stops execution after a matching case runs, preventing fall-through to later cases.",
+    "sourceLabel": "Conditionals",
+    "context": "Switch statements",
+    "status": "new",
+    "createdAt": 10
+  },
+  {
+    "id": "c11",
+    "deckId": "d1",
+    "front": "What must switch case values be?",
+    "back": "Constant values.",
+    "sourceLabel": "Conditionals",
+    "context": "Switch statements",
+    "status": "new",
+    "createdAt": 11
+  },
+  {
+    "id": "c12",
+    "deckId": "d1",
+    "front": "Why is the ternary operator called ternary?",
+    "back": "Because each ternary expression uses three parts.",
+    "sourceLabel": "Conditionals",
+    "context": "Ternary operator",
+    "status": "new",
+    "createdAt": 12
+  }
+]

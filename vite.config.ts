@@ -1,7 +1,19 @@
 import { defineConfig, loadEnv, type Plugin } from 'vite';
 import react from '@vitejs/plugin-react';
 import { CARD_SYSTEM_PROMPT } from './src/lib/cardPrompt';
+import { QUIZ_SYSTEM_PROMPT } from './src/lib/quizPrompt';
 import { fetchPageHtml, PageFetchError } from './src/lib/fetchPage';
+
+/**
+ * The prompt each task is answered with, mirroring the Netlify function.
+ *
+ * A Map rather than an object literal, for the same reason it is one there: a
+ * client-supplied "__proto__" indexes an object literal to something truthy.
+ */
+const PROMPTS = new Map<string, string>([
+  ['cards', CARD_SYSTEM_PROMPT],
+  ['quiz', QUIZ_SYSTEM_PROMPT],
+]);
 
 /**
  * Serves /api/generate during `npm run dev`.
@@ -35,14 +47,23 @@ function apiDevServer(env: Record<string, string>): Plugin {
         for await (const chunk of req) raw += chunk;
 
         let sections: unknown;
+        let task: unknown;
         try {
-          ({ sections } = JSON.parse(raw));
+          ({ sections, task } = JSON.parse(raw));
         } catch {
           return send(400, { error: 'Invalid JSON body.' });
         }
         if (!Array.isArray(sections) || sections.length === 0) {
           return send(400, { error: 'Expected a non-empty "sections" array.' });
         }
+
+        const systemPrompt = PROMPTS.get(typeof task === 'string' && task ? task : 'cards');
+        if (!systemPrompt) return send(400, { error: 'Unknown task.' });
+
+        const payload = JSON.stringify(sections);
+        // Production enforces this; without it here, an oversized deck works
+        // locally and fails only once deployed.
+        if (payload.length > 120_000) return send(413, { error: 'Payload too large.' });
 
         try {
           const upstream = await fetch('https://api.anthropic.com/v1/messages', {
@@ -55,8 +76,8 @@ function apiDevServer(env: Record<string, string>): Plugin {
             body: JSON.stringify({
               model: env.ANTHROPIC_MODEL || 'claude-sonnet-5',
               max_tokens: 4000,
-              system: CARD_SYSTEM_PROMPT,
-              messages: [{ role: 'user', content: JSON.stringify(sections) }],
+              system: systemPrompt,
+              messages: [{ role: 'user', content: payload }],
             }),
           });
 

@@ -80,6 +80,45 @@ Every candidate then passes `src/lib/cardValidation.ts`, which rejects truncated
 
 Generation is rule-based, with no external AI call, so review the draft deck before saving — the review screen exists for exactly that.
 
+## Testing a deck
+
+A saved deck can be studied or **tested**. A test is multiple choice, four options,
+graded on the spot with no model call — which is the whole reason the questions are
+written once and kept rather than drafted each time. Once a deck has its questions,
+testing works offline and costs nothing.
+
+The questions themselves need the AI helper, so "Test this deck" opens a setup screen
+that carries the drafting-mode panel inline when AI is off; there is no need to go
+back to the upload screen to switch it on. The first launch writes one question per
+card and stores them, ten cards to a request, saving each batch as it lands so an
+interrupted run keeps everything it earned. Cards added later — or edited, which is
+noticed by a content hash rather than a save timestamp, since the deck manager writes
+a card on every blur — are offered on the next launch as "some questions are missing".
+Writing them is a button, never automatic: no test should wait on an API call because
+somebody fixed a typo.
+
+There is deliberately **no rule-based fallback**. Rules can pull a question and an
+answer out of a document, but nothing offline can invent three plausible-but-wrong
+answers, so a card that fails simply has no question and the screen says so.
+
+Two details do the work in `src/lib/quizPrompt.ts`. Wrong answers are drawn first
+from other answers in the same deck — the adjacent stage of a sequence, the next row
+of the same table — because a near miss tests whether you can tell two real things
+apart, while an unrelated fact is a giveaway. And every wrong answer must be
+*unambiguously* wrong: a distractor that is arguably also correct marks a student
+down for knowing the material, so a question the model cannot do this for is dropped
+rather than shipped. `parseQuizResponse` enforces what it can — three distinct
+options, none restating the answer — and recovers the intact questions from a reply
+that was cut off mid-array.
+
+Which questions a test asks is `src/lib/quizSelection.ts`. Questions are tiered by
+how often they have been asked and a tier is emptied before the next is touched, so
+nothing repeats until everything has been asked once, with the order random inside
+each tier. Option order is shuffled at presentation rather than stored, so a model
+that likes to list the answer first cannot put it in slot A for every sitting. The
+counter moves as each answer is committed, not at the end, so quitting a test part
+way still counts what you did and leaves the rest untouched.
+
 ## Inspecting the pipeline
 
 These harnesses run the real parsers over a file from Node:
@@ -97,7 +136,19 @@ node --experimental-strip-types --experimental-loader ./tools/ts-ext-hooks.mjs \
 URL=https://18.react.dev/learn/state-a-components-memory node \
   --experimental-strip-types --experimental-loader ./tools/ts-ext-hooks.mjs \
   tools/test-html.mjs
+
+# Test questions: parser and selection checks always run; add a key to also
+# generate real questions and read the wrong answers for yourself.
+node --experimental-strip-types --experimental-loader ./tools/ts-ext-hooks.mjs \
+  tools/test-quiz.mjs
 ```
+
+`tools/test-quiz.mjs` is the one to run after touching question generation. It
+asserts what can be asserted — that a truncated reply still yields its complete
+questions, that a distractor never restates the answer, that three tests of ten over
+a pool of thirty cover it exactly once before anything repeats, that the correct
+answer moves between option slots — and then prints the generated questions, because
+whether a wrong answer is *actually wrong* is the one thing no assertion can decide.
 
 Edit the `path` constant at the top of the PDF harnesses to point at your own file. These are the fastest way to see why a particular slide produced the cards it did.
 
@@ -109,6 +160,13 @@ Edit the `path` constant at the top of the PDF harnesses to point at your own fi
 - Very tight kerning between two full words can occasionally drop the space between them.
 - Diagrams on cards are stored by address, not copied into the deck. If the source site stops serving the file, the card falls back to the image's alt text.
 - All data lives in your browser's IndexedDB. Clearing site data deletes your decks.
+- Writing a deck's test questions needs the AI helper. Taking a test afterwards does not.
+- A test question is written once. If one comes out ambiguous there is no way to
+  regenerate just that question yet — deleting its card and adding it back is the
+  workaround.
+- If the app is open in two tabs when a new version upgrades the database, the upgrade
+  waits for the older tab to close. That is logged to the console; close the other
+  tabs and reload.
 
 ## Tech stack
 

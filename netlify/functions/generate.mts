@@ -1,11 +1,20 @@
 import type { Config, Context } from '@netlify/functions';
+import { CARD_SYSTEM_PROMPT } from '../../src/lib/cardPrompt';
+import { QUIZ_SYSTEM_PROMPT } from '../../src/lib/quizPrompt';
 
 /**
- * Server-side proxy for card drafting.
+ * Server-side proxy for drafting cards and writing test questions.
  *
  * Holding the Anthropic key here (not in the browser) is what makes a deployed
  * site usable by people who do not have a key of their own. The key never
  * reaches the client.
+ *
+ * The prompts are imported rather than kept here. This file used to hold its
+ * own copy of the card prompt, which fell behind the real one: it still
+ * described an output shape with no code or image fields, so snippets and
+ * diagrams attached to cards in local development and were silently dropped in
+ * production. Importing removes the whole class of problem rather than fixing
+ * one instance of it.
  */
 
 const MODEL = process.env.ANTHROPIC_MODEL ?? 'claude-sonnet-5';
@@ -24,28 +33,18 @@ function rateLimited(ip: string): boolean {
   return recent.length > RATE_LIMIT_PER_MINUTE;
 }
 
-const SYSTEM_PROMPT = `You write flashcards for a student who will study only from the cards, without re-reading the source. You are given structured blocks extracted from one section of a document.
-
-Write cards that satisfy ALL of these:
-
-1. ATOMIC — one fact per card. Split compound statements into separate cards.
-2. SELF-CONTAINED — the question must make sense with no other context. Never write "What is important about this?" or refer to "the above", "the following", "this example".
-3. REAL QUESTIONS — the front must read as a natural question a tutor would ask, not a label with a question mark appended. Prefer "What are the adult implications of avoidant attachment?" over "Avoidant — Adult Implications?".
-4. GROUNDED — use only facts present in the blocks. Never add outside knowledge, never guess, never fill gaps. If a block is navigation, boilerplate, a page header, a code caption, or a table of contents, skip it entirely.
-5. ANSWERABLE FROM RECALL — the back should be 1-2 sentences or a short list, under about 50 words. If a passage is too long, split it into several cards rather than pasting it.
-6. SPECIFIC TERMS — when the section defines a named concept, always produce a card for that definition.
-
-Also:
-- If a fact pairs a name with a range, quantity, or classification (a stage and its age range, a pattern and its prevalence), emit that as its own separate card.
-- For tables, emit one card per meaningful cell, phrased using the row and column headers.
-- For code blocks, ask what the snippet accomplishes, which API it uses, or how a task is done, and put the short answer — a phrase, an expression, or two or three lines of code copied verbatim — on the back. A snippet that only repeats an import or boilerplate setup is not worth a card.
-- Preserve exact numbers, percentages, and technical identifiers verbatim. Do not round or paraphrase them.
-- Skip anything that is not worth memorising. Returning few cards is better than returning filler.
-
-Return ONLY a JSON array, with no markdown fence and no commentary. Each element:
-{"front": string, "back": string, "context": string}
-
-"context" is a short topic label (2-5 words) naming what the card is about, used as a chip on the card. Return [] if the section has nothing worth learning.`;
+/**
+ * The prompt each task is answered with.
+ *
+ * The client names a task; it never sends a prompt. A Map rather than an object
+ * literal on purpose: indexing an object with a client-supplied string makes
+ * "__proto__" and "constructor" return truthy values that are not undefined, so
+ * a lookup guarded only by truthiness would wave them through.
+ */
+const PROMPTS = new Map<string, string>([
+  ['cards', CARD_SYSTEM_PROMPT],
+  ['quiz', QUIZ_SYSTEM_PROMPT],
+]);
 
 export default async (req: Request, context: Context) => {
   if (req.method !== 'POST') {
@@ -69,8 +68,9 @@ export default async (req: Request, context: Context) => {
   }
 
   let sections: unknown;
+  let task: unknown;
   try {
-    ({ sections } = await req.json());
+    ({ sections, task } = await req.json());
   } catch {
     return new Response(JSON.stringify({ error: 'Invalid JSON body.' }), {
       status: 400,
@@ -80,6 +80,15 @@ export default async (req: Request, context: Context) => {
 
   if (!Array.isArray(sections) || sections.length === 0) {
     return new Response(JSON.stringify({ error: 'Expected a non-empty "sections" array.' }), {
+      status: 400,
+      headers: { 'Content-Type': 'application/json' },
+    });
+  }
+
+  // An older client sends no task at all, so the default keeps it working.
+  const systemPrompt = PROMPTS.get(typeof task === 'string' && task ? task : 'cards');
+  if (!systemPrompt) {
+    return new Response(JSON.stringify({ error: 'Unknown task.' }), {
       status: 400,
       headers: { 'Content-Type': 'application/json' },
     });
@@ -105,7 +114,7 @@ export default async (req: Request, context: Context) => {
       body: JSON.stringify({
         model: MODEL,
         max_tokens: 4000,
-        system: SYSTEM_PROMPT,
+        system: systemPrompt,
         messages: [{ role: 'user', content: body }],
       }),
     });

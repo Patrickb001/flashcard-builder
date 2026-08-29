@@ -6,10 +6,11 @@ interface Props {
   deckId: string;
   onExit: () => void;
   onStudy: (deckId: string) => void;
+  onTest: (deckId: string) => void;
   onDeckDeleted: () => void;
 }
 
-export default function DeckManager({ deckId, onExit, onStudy, onDeckDeleted }: Props) {
+export default function DeckManager({ deckId, onExit, onStudy, onTest, onDeckDeleted }: Props) {
   const [deck, setDeck] = useState<Deck | null>(null);
   const [cards, setCards] = useState<Flashcard[]>([]);
   const [loading, setLoading] = useState(true);
@@ -93,6 +94,13 @@ export default function DeckManager({ deckId, onExit, onStudy, onDeckDeleted }: 
         <div className="manager-actions">
           <button className="primary-btn" onClick={() => onStudy(deckId)} disabled={cards.length === 0}>
             Study this deck
+          </button>
+          <button
+            className="secondary-btn"
+            onClick={() => onTest(deckId)}
+            disabled={cards.length === 0}
+          >
+            Test this deck
           </button>
           <button className="ghost-btn" onClick={onExit}>
             Back to library

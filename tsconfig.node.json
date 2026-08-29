@@ -18,6 +18,8 @@
   },
   "include": [
     "vite.config.ts",
-    "src/lib/cardPrompt.ts"
+    "src/lib/cardPrompt.ts",
+    "src/lib/quizPrompt.ts",
+    "netlify/functions"
   ]
 }
