@@ -35,6 +35,15 @@ export function isUpgradeBlocked(): boolean {
   return upgradeBlocked;
 }
 
+/**
+ * The open database, opened once and shared.
+ *
+ * The memoised promise is cleared again if the open fails. Without that, a
+ * single transient error - storage pressure, a private window refusing
+ * persistence - is cached as a rejection and every one of the exports below
+ * keeps rethrowing it for the rest of the session, with no way back short of
+ * a reload.
+ */
 function getDB() {
   if (!dbPromise) {
     dbPromise = openDB<FlashcardForgeDB>(DB_NAME, DB_VERSION, {
@@ -81,20 +90,31 @@ function getDB() {
       terminated() {
         dbPromise = null;
       },
+    }).catch((err) => {
+      dbPromise = null;
+      throw err;
     });
   }
   return dbPromise;
 }
 
+/**
+ * Writes a deck and its cards as one unit.
+ *
+ * Every put is issued before any is awaited. Awaiting each in turn hands
+ * control back to the event loop between writes, which is the documented way
+ * to find a transaction has gone inactive underneath you, and it costs one
+ * round trip per card rather than one for the batch.
+ */
 export async function saveDeckWithCards(deck: Deck, cards: Flashcard[]): Promise<void> {
   const db = await getDB();
   const tx = db.transaction(['decks', 'flashcards'], 'readwrite');
-  await tx.objectStore('decks').put(deck);
   const cardStore = tx.objectStore('flashcards');
-  for (const card of cards) {
-    await cardStore.put(card);
-  }
-  await tx.done;
+
+  const writes: Promise<unknown>[] = [tx.objectStore('decks').put(deck)];
+  for (const card of cards) writes.push(cardStore.put(card));
+
+  await Promise.all([...writes, tx.done]);
 }
 
 export async function getAllDecks(): Promise<Deck[]> {
@@ -119,14 +139,28 @@ export async function updateCard(card: Flashcard): Promise<void> {
   await db.put('flashcards', card);
 }
 
+/**
+ * Adds one card and keeps its deck's running count in step.
+ *
+ * One transaction across both stores, where this was three separate
+ * auto-commit transactions: put the card, read the deck, write the count.
+ * Two cards added at once would both read the same count and both write the
+ * same increment, so the deck would report one fewer card than it holds.
+ * deleteCard already had this shape - see the comment there.
+ */
 export async function addCard(card: Flashcard): Promise<void> {
   const db = await getDB();
-  await db.put('flashcards', card);
-  const deck = await db.get('decks', card.deckId);
+  const tx = db.transaction(['flashcards', 'decks'], 'readwrite');
+
+  const cardWrite = tx.objectStore('flashcards').put(card);
+  const deckStore = tx.objectStore('decks');
+  const deck = await deckStore.get(card.deckId);
   if (deck) {
     deck.cardCount += 1;
-    await db.put('decks', deck);
+    await deckStore.put(deck);
   }
+
+  await Promise.all([cardWrite, tx.done]);
 }
 
 /**
@@ -201,10 +235,8 @@ export async function saveQuestions(questions: TestQuestion[]): Promise<void> {
   if (questions.length === 0) return;
   const db = await getDB();
   const tx = db.transaction('testQuestions', 'readwrite');
-  for (const question of questions) {
-    await tx.store.put(question);
-  }
-  await tx.done;
+  const writes = questions.map((question) => tx.store.put(question));
+  await Promise.all([...writes, tx.done]);
 }
 
 /**
@@ -223,23 +255,37 @@ export async function recordQuestionsAsked(
   const tx = db.transaction('testQuestions', 'readwrite');
   const now = Date.now();
 
+  // Totalled per question first, so a question answered twice in one run is
+  // still counted twice once the reads below are issued together.
+  const tally = new Map<string, { asked: number; correct: number }>();
   for (const { questionId, correct } of results) {
-    const question = await tx.store.get(questionId);
-    if (!question) continue;
-    question.timesAsked += 1;
-    question.lastAskedAt = now;
-    if (correct) question.timesCorrect += 1;
-    await tx.store.put(question);
+    const entry = tally.get(questionId) ?? { asked: 0, correct: 0 };
+    entry.asked += 1;
+    if (correct) entry.correct += 1;
+    tally.set(questionId, entry);
   }
 
-  await tx.done;
+  // Every read is issued before any is awaited, then every write: two round
+  // trips rather than two per question, with no gap for the transaction to
+  // go inactive in.
+  const ids = [...tally.keys()];
+  const found = await Promise.all(ids.map((id) => tx.store.get(id)));
+
+  const writes: Promise<unknown>[] = [];
+  found.forEach((question, i) => {
+    // Skipped rather than recreated: another tab may have deleted the card
+    // this question came from while the test was running.
+    if (!question) return;
+    const entry = tally.get(ids[i])!;
+    question.timesAsked += entry.asked;
+    question.lastAskedAt = now;
+    question.timesCorrect += entry.correct;
+    writes.push(tx.store.put(question));
+  });
+
+  await Promise.all([...writes, tx.done]);
 }
 
-/** Removes one question, for a question the user reports as wrong. */
-export async function deleteQuestion(questionId: string): Promise<void> {
-  const db = await getDB();
-  await db.delete('testQuestions', questionId);
-}
 
 /**
  * Drops questions whose source card is gone, and reports how many.
@@ -270,11 +316,22 @@ export async function pruneOrphanQuestions(
   return removed;
 }
 
+/**
+ * Renames a deck.
+ *
+ * Read and write in one transaction. Apart, this read a whole deck object,
+ * held it across a gap, and wrote all of it back - so a cardCount written by
+ * an addCard in that gap was silently reverted to the value this read saw.
+ */
 export async function renameDeck(deckId: string, name: string): Promise<void> {
   const db = await getDB();
-  const deck = await db.get('decks', deckId);
+  const tx = db.transaction('decks', 'readwrite');
+
+  const deck = await tx.store.get(deckId);
   if (deck) {
     deck.name = name;
-    await db.put('decks', deck);
+    await tx.store.put(deck);
   }
+
+  await tx.done;
 }

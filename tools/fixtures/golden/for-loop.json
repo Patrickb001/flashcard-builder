@@ -1,0 +1,511 @@
+{
+  "sections": [
+    {
+      "label": "Section 1",
+      "title": "For loop in Programming",
+      "blocks": [
+        {
+          "kind": "paragraph",
+          "text": "A for loop allows you to repeat a block of code a specific number of times.",
+          "context": "For loop in Programming"
+        },
+        {
+          "kind": "list",
+          "items": [
+            "Widely used when the number of iterations is known in advance.",
+            "Makes it easy to iterate over arrays, lists, or sequences, generate number series, and perform repetitive tasks efficiently."
+          ],
+          "heading": "For loop in Programming",
+          "context": "For loop in Programming"
+        },
+        {
+          "kind": "code",
+          "language": "cpp",
+          "text": "#include <iostream>\nusing namespace std;\n\nint main() {\n    for(int i = 1; i <= 5; i++) {\n        cout << i << \" \";\n    }\n    cout << endl;\n    return 0;\n}",
+          "alsoIn": [
+            "c",
+            "java",
+            "python",
+            "csharp",
+            "javascript"
+          ],
+          "output": "1 2 3 4 5",
+          "heading": "For loop in Programming",
+          "context": "For loop in Programming"
+        }
+      ]
+    },
+    {
+      "label": "Section 2",
+      "title": "Flow of a For Loop",
+      "blocks": [
+        {
+          "kind": "heading",
+          "text": "Flow of a For Loop",
+          "level": 1
+        },
+        {
+          "kind": "paragraph",
+          "text": "A for loop has three main parts in most languages: initialization, condition, and update.",
+          "context": "Flow of a For Loop"
+        },
+        {
+          "kind": "list",
+          "items": [
+            "Initialization: sets the starting point of the loop.",
+            "Condition: is checked before each iteration; if true, the loop executes.",
+            "Update: changes the loop counter after each iteration."
+          ],
+          "heading": "Flow of a For Loop",
+          "context": "Flow of a For Loop"
+        },
+        {
+          "kind": "paragraph",
+          "text": "In Python, a for loop is slightly different. It loops directly over an iterable and has two main parts: variable and iterable.",
+          "context": "Flow of a For Loop"
+        },
+        {
+          "kind": "list",
+          "items": [
+            "Variable: holds the current element from the iterable during each iteration.",
+            "Iterable: the collection of elements the loop goes through (like a list, tuple, string, or range)."
+          ],
+          "heading": "Flow of a For Loop",
+          "context": "Flow of a For Loop"
+        }
+      ]
+    },
+    {
+      "label": "Section 3",
+      "title": "Types of For Loops",
+      "blocks": [
+        {
+          "kind": "heading",
+          "text": "Types of For Loops",
+          "level": 1
+        },
+        {
+          "kind": "paragraph",
+          "text": "For loops can appear in different forms depending on the programming language and the task being performed. The following are some common types of for loops.",
+          "context": "Types of For Loops"
+        }
+      ]
+    },
+    {
+      "label": "Section 4",
+      "title": "1. Basic For Loop",
+      "blocks": [
+        {
+          "kind": "heading",
+          "text": "Types of For Loops",
+          "level": 1
+        },
+        {
+          "kind": "heading",
+          "text": "1. Basic For Loop",
+          "level": 1
+        },
+        {
+          "kind": "paragraph",
+          "text": "The basic for loop is the most commonly used type. It contains initialization, condition, and update expressions and is used when the number of iterations is known.",
+          "context": "1. Basic For Loop"
+        },
+        {
+          "kind": "code",
+          "language": "cpp",
+          "text": "#include <iostream>\nusing namespace std;\n\nint main() {\n    for(int i = 2; i <= 10; i+=2) {\n        cout << i << \" \";\n    }\n}",
+          "alsoIn": [
+            "c",
+            "java",
+            "python",
+            "csharp",
+            "javascript"
+          ],
+          "output": "2 4 6 8 10",
+          "heading": "1. Basic For Loop",
+          "context": "1. Basic For Loop"
+        }
+      ]
+    },
+    {
+      "label": "Section 5",
+      "title": "2. For Each Loop",
+      "blocks": [
+        {
+          "kind": "heading",
+          "text": "Types of For Loops",
+          "level": 1
+        },
+        {
+          "kind": "heading",
+          "text": "2. For Each Loop",
+          "level": 1
+        },
+        {
+          "kind": "paragraph",
+          "text": "The for-each loop is used to iterate directly over elements of a collection such as arrays or lists without using an index.",
+          "context": "2. For Each Loop"
+        },
+        {
+          "kind": "code",
+          "language": "cpp",
+          "text": "#include <iostream>\nusing namespace std;\n\nint main() {\n    int numbers[] = {1, 2, 3, 4, 5};\n    for(int num : numbers) {\n        cout << num << \" \";\n    }\n}",
+          "alsoIn": [
+            "java",
+            "python",
+            "csharp",
+            "javascript"
+          ],
+          "output": "1 2 3 4 5",
+          "heading": "2. For Each Loop",
+          "context": "2. For Each Loop"
+        }
+      ]
+    },
+    {
+      "label": "Section 6",
+      "title": "3. For Loop with Multiple Variables",
+      "blocks": [
+        {
+          "kind": "heading",
+          "text": "Types of For Loops",
+          "level": 1
+        },
+        {
+          "kind": "heading",
+          "text": "3. For Loop with Multiple Variables",
+          "level": 1
+        },
+        {
+          "kind": "paragraph",
+          "text": "Some languages like C, C++, and Java allow multiple loop control variables in a for loop.",
+          "context": "3. For Loop with Multiple Variables"
+        },
+        {
+          "kind": "code",
+          "language": "cpp",
+          "text": "#include <iostream>\nusing namespace std;\n\nint main() {\n    for(int i=0, j=10; i<5 && j>0; i++, j--) {\n        cout << \"i=\" << i << \", j=\" << j << endl;\n    }\n}",
+          "alsoIn": [
+            "c",
+            "java",
+            "python",
+            "csharp",
+            "javascript"
+          ],
+          "output": "i=0, j=10\ni=1, j=9\ni=2, j=8\ni=3, j=7\ni=4, j=6",
+          "heading": "3. For Loop with Multiple Variables",
+          "context": "3. For Loop with Multiple Variables"
+        }
+      ]
+    },
+    {
+      "label": "Section 7",
+      "title": "4. Infinite For Loop",
+      "blocks": [
+        {
+          "kind": "heading",
+          "text": "Types of For Loops",
+          "level": 1
+        },
+        {
+          "kind": "heading",
+          "text": "4. Infinite For Loop",
+          "level": 1
+        },
+        {
+          "kind": "paragraph",
+          "text": "An infinite for loop runs indefinitely because it has no terminating condition.",
+          "context": "4. Infinite For Loop"
+        },
+        {
+          "kind": "code",
+          "language": "java",
+          "text": "for (;;) {\n    // Infinite loop\n}",
+          "alsoIn": [],
+          "heading": "4. Infinite For Loop",
+          "context": "4. Infinite For Loop"
+        }
+      ]
+    },
+    {
+      "label": "Section 8",
+      "title": "5. Nested For Loop",
+      "blocks": [
+        {
+          "kind": "heading",
+          "text": "Types of For Loops",
+          "level": 1
+        },
+        {
+          "kind": "heading",
+          "text": "5. Nested For Loop",
+          "level": 1
+        },
+        {
+          "kind": "paragraph",
+          "text": "A nested for loop is a loop inside another loop. It is used for multidimensional data or when multiple levels of iteration are needed.",
+          "context": "5. Nested For Loop"
+        },
+        {
+          "kind": "code",
+          "language": "cpp",
+          "text": "#include <iostream>\nusing namespace std;\n\nint main() {\n    for(int i = 1; i <= 3; i++) {\n        for(int j = 1; j <= 3; j++) {\n            cout << i * j << \" \";\n        }\n        cout << endl;\n    }\n    return 0;\n}",
+          "alsoIn": [
+            "c",
+            "java",
+            "python",
+            "csharp",
+            "javascript"
+          ],
+          "output": "1 2 3\n2 4 6\n3 6 9",
+          "heading": "5. Nested For Loop",
+          "context": "5. Nested For Loop"
+        }
+      ]
+    },
+    {
+      "label": "Section 9",
+      "title": "6. For Loop with Step/Stride",
+      "blocks": [
+        {
+          "kind": "heading",
+          "text": "Types of For Loops",
+          "level": 1
+        },
+        {
+          "kind": "heading",
+          "text": "6. For Loop with Step/Stride",
+          "level": 1
+        },
+        {
+          "kind": "paragraph",
+          "text": "Some programming languages allow you to specify a step or stride for the loop, letting you control the increment or decrement of the loop variable.",
+          "context": "6. For Loop with Step/Stride"
+        },
+        {
+          "kind": "code",
+          "language": "cpp",
+          "text": "#include <iostream>\nusing namespace std;\n\nint main() {\n    for(int i = 0; i < 10; i += 2) {\n        cout << i << \" \";\n    }\n}",
+          "alsoIn": [
+            "c",
+            "java",
+            "python",
+            "csharp",
+            "javascript"
+          ],
+          "output": "0 2 4 6 8",
+          "heading": "6. For Loop with Step/Stride",
+          "context": "6. For Loop with Step/Stride"
+        }
+      ]
+    }
+  ],
+  "cards": [
+    {
+      "front": "What is the for loop in programming?",
+      "back": "• Widely used when the number of iterations is known in advance.\n• Makes it easy to iterate over arrays, lists, or sequences, generate number series, and perform repetitive tasks efficiently.",
+      "sourceLabel": "Section 1",
+      "context": "For loop in Programming",
+      "include": true
+    },
+    {
+      "front": "For loop in Programming — what does this C++ program print?",
+      "back": "1 2 3 4 5",
+      "sourceLabel": "Section 1",
+      "context": "For loop in Programming",
+      "frontCode": {
+        "text": "#include <iostream>\nusing namespace std;\n\nint main() {\n    for(int i = 1; i <= 5; i++) {\n        cout << i << \" \";\n    }\n    cout << endl;\n    return 0;\n}",
+        "language": "cpp"
+      },
+      "include": true
+    },
+    {
+      "front": "For loop in Programming — how is this written in C++?",
+      "back": "A for loop allows you to repeat a block of code a specific number of times.",
+      "sourceLabel": "Section 1",
+      "context": "For loop in Programming",
+      "backCode": {
+        "text": "#include <iostream>\nusing namespace std;\n\nint main() {\n    for(int i = 1; i <= 5; i++) {\n        cout << i << \" \";\n    }\n    cout << endl;\n    return 0;\n}",
+        "language": "cpp"
+      },
+      "include": true
+    },
+    {
+      "front": "What is Initialization?",
+      "back": "sets the starting point of the loop.",
+      "sourceLabel": "Section 2",
+      "context": "Flow of a For Loop",
+      "include": true
+    },
+    {
+      "front": "What is Condition?",
+      "back": "is checked before each iteration; if true, the loop executes.",
+      "sourceLabel": "Section 2",
+      "context": "Flow of a For Loop",
+      "include": true
+    },
+    {
+      "front": "Flow of a For Loop — which item?",
+      "back": "Update: changes the loop counter after each iteration.",
+      "sourceLabel": "Section 2",
+      "context": "Flow of a For Loop",
+      "include": true
+    },
+    {
+      "front": "What is Variable?",
+      "back": "holds the current element from the iterable during each iteration.",
+      "sourceLabel": "Section 2",
+      "context": "Flow of a For Loop",
+      "include": true
+    },
+    {
+      "front": "What is Iterable?",
+      "back": "the collection of elements the loop goes through (like a list, tuple, string, or range).",
+      "sourceLabel": "Section 2",
+      "context": "Flow of a For Loop",
+      "include": true
+    },
+    {
+      "front": "What are Types of For Loops?",
+      "back": "The following are some common types of for loops.",
+      "sourceLabel": "Section 3",
+      "context": "Types of For Loops",
+      "include": true
+    },
+    {
+      "front": "What is basic for loop?",
+      "back": "the most commonly used type",
+      "sourceLabel": "Section 4",
+      "context": "1. Basic For Loop",
+      "include": true
+    },
+    {
+      "front": "Basic For Loop — what does this C++ program print?",
+      "back": "2 4 6 8 10",
+      "sourceLabel": "Section 4",
+      "context": "1. Basic For Loop",
+      "frontCode": {
+        "text": "#include <iostream>\nusing namespace std;\n\nint main() {\n    for(int i = 2; i <= 10; i+=2) {\n        cout << i << \" \";\n    }\n}",
+        "language": "cpp"
+      },
+      "include": true
+    },
+    {
+      "front": "Basic For Loop — how is this written in C++?",
+      "back": "The basic for loop is the most commonly used type. It contains initialization, condition, and update expressions and is used when the number of iterations is known.",
+      "sourceLabel": "Section 4",
+      "context": "1. Basic For Loop",
+      "backCode": {
+        "text": "#include <iostream>\nusing namespace std;\n\nint main() {\n    for(int i = 2; i <= 10; i+=2) {\n        cout << i << \" \";\n    }\n}",
+        "language": "cpp"
+      },
+      "include": true
+    },
+    {
+      "front": "For Each Loop — what does this C++ program print?",
+      "back": "1 2 3 4 5",
+      "sourceLabel": "Section 5",
+      "context": "2. For Each Loop",
+      "frontCode": {
+        "text": "#include <iostream>\nusing namespace std;\n\nint main() {\n    int numbers[] = {1, 2, 3, 4, 5};\n    for(int num : numbers) {\n        cout << num << \" \";\n    }\n}",
+        "language": "cpp"
+      },
+      "include": true
+    },
+    {
+      "front": "For Each Loop — how is this written in C++?",
+      "back": "The for-each loop is used to iterate directly over elements of a collection such as arrays or lists without using an index.",
+      "sourceLabel": "Section 5",
+      "context": "2. For Each Loop",
+      "backCode": {
+        "text": "#include <iostream>\nusing namespace std;\n\nint main() {\n    int numbers[] = {1, 2, 3, 4, 5};\n    for(int num : numbers) {\n        cout << num << \" \";\n    }\n}",
+        "language": "cpp"
+      },
+      "include": true
+    },
+    {
+      "front": "For Loop with Multiple Variables — what does this C++ program print?",
+      "back": "i=0, j=10\ni=1, j=9\ni=2, j=8\ni=3, j=7\ni=4, j=6",
+      "sourceLabel": "Section 6",
+      "context": "3. For Loop with Multiple Variables",
+      "frontCode": {
+        "text": "#include <iostream>\nusing namespace std;\n\nint main() {\n    for(int i=0, j=10; i<5 && j>0; i++, j--) {\n        cout << \"i=\" << i << \", j=\" << j << endl;\n    }\n}",
+        "language": "cpp"
+      },
+      "include": true
+    },
+    {
+      "front": "For Loop with Multiple Variables — how is this written in C++?",
+      "back": "Some languages like C, C++, and Java allow multiple loop control variables in a for loop.",
+      "sourceLabel": "Section 6",
+      "context": "3. For Loop with Multiple Variables",
+      "backCode": {
+        "text": "#include <iostream>\nusing namespace std;\n\nint main() {\n    for(int i=0, j=10; i<5 && j>0; i++, j--) {\n        cout << \"i=\" << i << \", j=\" << j << endl;\n    }\n}",
+        "language": "cpp"
+      },
+      "include": true
+    },
+    {
+      "front": "Infinite For Loop — how is this written in Java?",
+      "back": "An infinite for loop runs indefinitely because it has no terminating condition.",
+      "sourceLabel": "Section 7",
+      "context": "4. Infinite For Loop",
+      "backCode": {
+        "text": "for (;;) {\n    // Infinite loop\n}",
+        "language": "java"
+      },
+      "include": true
+    },
+    {
+      "front": "What is nested for loop?",
+      "back": "a loop inside another loop",
+      "sourceLabel": "Section 8",
+      "context": "5. Nested For Loop",
+      "include": true
+    },
+    {
+      "front": "Nested For Loop — what does this C++ program print?",
+      "back": "1 2 3\n2 4 6\n3 6 9",
+      "sourceLabel": "Section 8",
+      "context": "5. Nested For Loop",
+      "frontCode": {
+        "text": "#include <iostream>\nusing namespace std;\n\nint main() {\n    for(int i = 1; i <= 3; i++) {\n        for(int j = 1; j <= 3; j++) {\n            cout << i * j << \" \";\n        }\n        cout << endl;\n    }\n    return 0;\n}",
+        "language": "cpp"
+      },
+      "include": true
+    },
+    {
+      "front": "Nested For Loop — how is this written in C++?",
+      "back": "A nested for loop is a loop inside another loop. It is used for multidimensional data or when multiple levels of iteration are needed.",
+      "sourceLabel": "Section 8",
+      "context": "5. Nested For Loop",
+      "backCode": {
+        "text": "#include <iostream>\nusing namespace std;\n\nint main() {\n    for(int i = 1; i <= 3; i++) {\n        for(int j = 1; j <= 3; j++) {\n            cout << i * j << \" \";\n        }\n        cout << endl;\n    }\n    return 0;\n}",
+        "language": "cpp"
+      },
+      "include": true
+    },
+    {
+      "front": "For Loop with Step/Stride — what does this C++ program print?",
+      "back": "0 2 4 6 8",
+      "sourceLabel": "Section 9",
+      "context": "6. For Loop with Step/Stride",
+      "frontCode": {
+        "text": "#include <iostream>\nusing namespace std;\n\nint main() {\n    for(int i = 0; i < 10; i += 2) {\n        cout << i << \" \";\n    }\n}",
+        "language": "cpp"
+      },
+      "include": true
+    },
+    {
+      "front": "For Loop with Step/Stride — how is this written in C++?",
+      "back": "Some programming languages allow you to specify a step or stride for the loop, letting you control the increment or decrement of the loop variable.",
+      "sourceLabel": "Section 9",
+      "context": "6. For Loop with Step/Stride",
+      "backCode": {
+        "text": "#include <iostream>\nusing namespace std;\n\nint main() {\n    for(int i = 0; i < 10; i += 2) {\n        cout << i << \" \";\n    }\n}",
+        "language": "cpp"
+      },
+      "include": true
+    }
+  ]
+}

@@ -1,0 +1,60 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>screen-failure-check</title>
+<!--
+  Mounts each deck screen with IndexedDB forced to fail, and asserts none of
+  them is still showing a loading message. Each of these cleared its loading
+  flag only on the success path, so an unavailable database left the screen on
+  "Loading…" with nothing to explain itself.
+
+    npx vite --port 5199 --strictPort
+    chrome --headless=new --user-data-dir=SHORT_PATH --virtual-time-budget=20000 \
+      --dump-dom http://localhost:5199/tools/screen-failure-check.html
+-->
+<script>
+  window.indexedDB.open = function () {
+    throw new DOMException('stubbed: storage unavailable', 'UnknownError');
+  };
+</script>
+<pre id="report">running…</pre>
+<div id="mounts"></div>
+<script type="module">
+  const report = document.getElementById('report');
+  const lines = [];
+  let failures = 0;
+
+  try {
+    const React = await import('react');
+    const { createRoot } = await import('react-dom/client');
+    const DeckManager = (await import('/src/components/DeckManager.tsx')).default;
+    const StudyMode = (await import('/src/components/StudyMode.tsx')).default;
+    const TestMode = (await import('/src/components/TestMode.tsx')).default;
+
+    const noop = () => {};
+    const screens = [
+      ['DeckManager', DeckManager, { deckId: 'missing', onExit: noop, onStudy: noop, onTest: noop, onDeckDeleted: noop }],
+      ['StudyMode', StudyMode, { deckId: 'missing', onExit: noop }],
+      ['TestMode', TestMode, { deckId: 'missing', onExit: noop }],
+    ];
+
+    for (const [name, Comp, props] of screens) {
+      const host = document.createElement('div');
+      document.getElementById('mounts').appendChild(host);
+      createRoot(host).render(React.createElement(Comp, props));
+      // Let the failing load settle and React commit the result.
+      await new Promise((r) => setTimeout(r, 1200));
+
+      const text = (host.textContent || '').replace(/\s+/g, ' ').trim();
+      const stuck = /Loading/i.test(text);
+      if (stuck) failures++;
+      lines.push((stuck ? '  FAIL ' : '  ok   ') + name.padEnd(12) + ' -> ' + (text.slice(0, 90) || '(empty)'));
+    }
+  } catch (err) {
+    failures++;
+    lines.push('  THREW ' + (err && err.message ? err.message : String(err)));
+  }
+
+  lines.push('');
+  lines.push(failures === 0 ? 'RESULT: no screen left loading' : 'RESULT: ' + failures + ' screen(s) stuck');
+  report.textContent = lines.join('\n');
+</script>

@@ -1,15 +1,23 @@
-import { useCallback, useEffect, useState } from 'react';
+import { Suspense, lazy, useCallback, useEffect, useState } from 'react';
 import type { Deck } from './types';
 import type { DocumentSection } from './lib/documentModel';
 import type { AiSettings } from './lib/aiGenerator';
-import { getAllDecks } from './db/db';
-import Uploader from './components/Uploader';
+import { getAllDecks, isUpgradeBlocked } from './db/db';
 import type { SourceType } from './components/Uploader';
-import CandidateReview from './components/CandidateReview';
-import StudyMode from './components/StudyMode';
-import TestMode from './components/TestMode';
-import DeckManager from './components/DeckManager';
 import DeckLibrary from './components/DeckLibrary';
+
+/**
+ * Every screen but the landing one is fetched when first opened.
+ *
+ * The library is what a visitor always sees first, so it stays in the entry
+ * chunk. The rest - and, behind the uploader, the four document parsers and
+ * the page fetcher - are dead weight until someone navigates to them.
+ */
+const Uploader = lazy(() => import('./components/Uploader'));
+const CandidateReview = lazy(() => import('./components/CandidateReview'));
+const StudyMode = lazy(() => import('./components/StudyMode'));
+const TestMode = lazy(() => import('./components/TestMode'));
+const DeckManager = lazy(() => import('./components/DeckManager'));
 
 type View =
   | { name: 'library' }
@@ -30,17 +38,49 @@ export default function App() {
   const [view, setView] = useState<View>({ name: 'library' });
   const [decks, setDecks] = useState<Deck[]>([]);
   const [loadingDecks, setLoadingDecks] = useState(true);
+  const [decksError, setDecksError] = useState<string | null>(null);
 
+  // loading is cleared on both paths. Clearing it only on success is what
+  // left this screen spinning forever whenever IndexedDB was unavailable -
+  // a private window, a full disk, storage switched off.
   const refreshDecks = useCallback(async () => {
     setLoadingDecks(true);
-    const all = await getAllDecks();
-    setDecks(all);
-    setLoadingDecks(false);
+    setDecksError(null);
+    try {
+      const all = await getAllDecks();
+      setDecks(all);
+    } catch (err) {
+      console.error('[app] Could not read the deck list:', err);
+      setDecksError(
+        'Your decks could not be read from this browser. They are stored locally, so a private window or blocked site data will do this.'
+      );
+    } finally {
+      setLoadingDecks(false);
+    }
   }, []);
 
   useEffect(() => {
     refreshDecks();
   }, [refreshDecks]);
+
+  /**
+   * Reports an upgrade another tab is holding open.
+   *
+   * That case never rejects and never resolves - idb's open promise simply
+   * never settles - so the catch above cannot see it. Polling the flag is what
+   * turns a permanent spinner into a sentence telling you to close the tab.
+   */
+  useEffect(() => {
+    if (!loadingDecks) return;
+    const timer = setInterval(() => {
+      if (!isUpgradeBlocked()) return;
+      setDecksError(
+        'Another tab has an older version of this app open, which is blocking an upgrade. Close the other tabs and reload.'
+      );
+      setLoadingDecks(false);
+    }, 400);
+    return () => clearInterval(timer);
+  }, [loadingDecks]);
 
   return (
     <div className="app-shell">
@@ -67,10 +107,12 @@ export default function App() {
       </header>
 
       <main className="stage">
+        <Suspense fallback={<p className="muted">Loading…</p>}>
         {view.name === 'library' && (
           <DeckLibrary
             decks={decks}
             loading={loadingDecks}
+            error={decksError}
             onNewDeck={() => setView({ name: 'upload' })}
             onStudy={(deckId) => setView({ name: 'study', deckId })}
             onManage={(deckId) => setView({ name: 'manage', deckId })}
@@ -122,6 +164,7 @@ export default function App() {
             }}
           />
         )}
+        </Suspense>
       </main>
     </div>
   );

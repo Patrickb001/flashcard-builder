@@ -1,3 +1,5 @@
+import { stripJsonFence } from './textUtils';
+
 /**
  * The prompt is shared between the browser (bring-your-own-key mode) and the
  * serverless function (hosted mode) so both paths produce identical cards.
@@ -74,10 +76,7 @@ function assetRef(value: unknown): string | undefined {
 
 /** Parses a model response into cards, tolerating a stray markdown fence. */
 export function parseCardsResponse(text: string): LlmCard[] {
-  const cleaned = text
-    .replace(/^\s*```(?:json)?/i, '')
-    .replace(/```\s*$/, '')
-    .trim();
+  const cleaned = stripJsonFence(text);
 
   const start = cleaned.indexOf('[');
   const end = cleaned.lastIndexOf(']');

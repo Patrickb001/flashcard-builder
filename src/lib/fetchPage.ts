@@ -24,18 +24,25 @@
  * far under both: a large Wikipedia article is about 1.3 MB and arrives in
  * well under a second.
  */
-export const MAX_PAGE_BYTES = 2_000_000;
+const MAX_PAGE_BYTES = 2_000_000;
 const MAX_REDIRECTS = 4;
 const TIMEOUT_MS = 8_000;
 
-/** Carries the status the endpoint should answer with. */
+/**
+ * Carries the status the endpoint should answer with.
+ *
+ * The field is declared and assigned rather than written as a constructor
+ * parameter property: that syntax is not type erasure, so Node's strip-only
+ * mode refuses the whole module and the test harness cannot load anything that
+ * imports it.
+ */
 export class PageFetchError extends Error {
-  constructor(
-    message: string,
-    readonly status: number = 502
-  ) {
+  readonly status: number;
+
+  constructor(message: string, status: number = 502) {
     super(message);
     this.name = 'PageFetchError';
+    this.status = status;
   }
 }
 
@@ -95,7 +102,7 @@ function isPrivateAddress(host: string): boolean {
  * connection. For a personal deployment the trade-off is acceptable; a public
  * one should put an egress proxy in front of this.
  */
-export function assertFetchableUrl(raw: string): URL {
+function assertFetchableUrl(raw: string): URL {
   let url: URL;
   try {
     url = new URL(raw.trim());

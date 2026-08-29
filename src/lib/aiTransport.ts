@@ -34,9 +34,35 @@ const PROMPTS: Record<AiTask, string> = {
 };
 
 const MODEL = 'claude-sonnet-5';
-const MAX_TOKENS = 4000;
 
-async function callHosted(task: AiTask, payload: unknown, signal?: AbortSignal): Promise<string> {
+/**
+ * Response ceiling per task.
+ *
+ * A quiz question costs about five strings where a card costs two, so a quiz
+ * batch sits far closer to the ceiling. At 4000 a full batch came back
+ * truncated mid-JSON and the salvage pass quietly lost the tail — the cause of
+ * test generation only ever covering part of a deck. A batch of eight at the
+ * measured cost leaves a wide margin instead of sitting on a cliff.
+ */
+const MAX_TOKENS: Record<AiTask, number> = {
+  cards: 4000,
+  quiz: 8000,
+};
+
+/**
+ * The model's reply, with the reason it stopped.
+ *
+ * "stopReason" is what lets a caller tell a response that was cut off from one
+ * where the model genuinely had nothing to say. The two need different
+ * messages, and until now neither reached the client: the server returned only
+ * the text.
+ */
+export interface ModelReply {
+  text: string;
+  stopReason: string | null;
+}
+
+async function callHosted(task: AiTask, payload: unknown, signal?: AbortSignal): Promise<ModelReply> {
   const res = await fetch('/api/generate', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -61,8 +87,11 @@ async function callHosted(task: AiTask, payload: unknown, signal?: AbortSignal):
     }
     throw new Error(detail || `Drafting service returned ${res.status}.`);
   }
-  const data = await res.json();
-  return typeof data.text === 'string' ? data.text : '';
+  const data = (await res.json()) as { text?: unknown; stopReason?: unknown };
+  return {
+    text: typeof data.text === 'string' ? data.text : '',
+    stopReason: typeof data.stopReason === 'string' ? data.stopReason : null,
+  };
 }
 
 async function callDirect(
@@ -70,7 +99,7 @@ async function callDirect(
   payload: unknown,
   apiKey: string,
   signal?: AbortSignal
-): Promise<string> {
+): Promise<ModelReply> {
   const res = await fetch('https://api.anthropic.com/v1/messages', {
     method: 'POST',
     headers: {
@@ -82,7 +111,7 @@ async function callDirect(
     },
     body: JSON.stringify({
       model: MODEL,
-      max_tokens: MAX_TOKENS,
+      max_tokens: MAX_TOKENS[task],
       system: PROMPTS[task],
       messages: [{ role: 'user', content: JSON.stringify(payload) }],
     }),
@@ -94,10 +123,14 @@ async function callDirect(
     throw new Error(`Anthropic API returned ${res.status}. ${detail}`.trim());
   }
 
-  const data = await res.json();
-  return (data.content ?? [])
+  const data = (await res.json()) as {
+    content?: { type: string; text?: string }[];
+    stop_reason?: unknown;
+  };
+  const text = (data.content ?? [])
     .map((part: { type: string; text?: string }) => (part.type === 'text' ? part.text ?? '' : ''))
     .join('\n');
+  return { text, stopReason: typeof data.stop_reason === 'string' ? data.stop_reason : null };
 }
 
 /**
@@ -112,7 +145,7 @@ export function callModel(
   payload: unknown,
   settings: AiSettings,
   signal?: AbortSignal
-): Promise<string> {
+): Promise<ModelReply> {
   return settings.mode === 'byok' && settings.apiKey
     ? callDirect(task, payload, settings.apiKey, signal)
     : callHosted(task, payload, signal);

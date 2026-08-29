@@ -2,9 +2,24 @@ import * as pdfjsLib from 'pdfjs-dist';
 // Vite-friendly worker import: bundles the worker as its own asset.
 import PdfWorker from 'pdfjs-dist/build/pdf.worker.mjs?worker';
 import type { DocumentSection, PositionedItem } from './documentModel';
-import { analyzePage, stripRepeatedFurniture } from './layoutAnalysis';
+import { analyzePage } from './layoutAnalysis';
+import { stripRepeatedFurniture } from './sectioning';
 
-pdfjsLib.GlobalWorkerOptions.workerPort = new PdfWorker();
+let workerStarted = false;
+
+/**
+ * Starts the PDF worker, once, on first use.
+ *
+ * This ran at module scope, so merely importing this file spawned a 1.3MB
+ * worker - including for visitors who only ever paste a URL. Deferring it
+ * means the worker is created when a PDF is actually opened and never
+ * otherwise.
+ */
+function ensureWorker(): void {
+  if (workerStarted) return;
+  pdfjsLib.GlobalWorkerOptions.workerPort = new PdfWorker();
+  workerStarted = true;
+}
 
 /**
  * Reads a PDF into structured sections.
@@ -15,6 +30,7 @@ pdfjsLib.GlobalWorkerOptions.workerPort = new PdfWorker();
  * interleaved. Sorting the items by position would destroy that information.
  */
 export async function extractPdfSections(file: File): Promise<DocumentSection[]> {
+  ensureWorker();
   const buffer = await file.arrayBuffer();
   const pdf = await pdfjsLib.getDocument({ data: buffer }).promise;
 

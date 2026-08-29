@@ -145,7 +145,19 @@ export default function CandidateReview({
       createdAt: now,
     }));
 
-    await saveDeckWithCards(deck, cards);
+    try {
+      await saveDeckWithCards(deck, cards);
+    } catch (err) {
+      // Unguarded, a rejection here destroyed a whole hand-edited review
+      // session and left the button stuck on "Saving…".
+      console.error('[review] Saving the deck failed:', err);
+      setAiFailed(true);
+      setAiNotice(
+        'The deck could not be saved to this browser. Your edits are still here - try saving again.'
+      );
+      setSaving(false);
+      return;
+    }
     setSaving(false);
     onSaved(deckId);
   };

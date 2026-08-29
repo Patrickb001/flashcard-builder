@@ -1,6 +1,7 @@
 import JSZip from 'jszip';
 import type { Block, DocumentSection, ListBlock } from './documentModel';
-import { stripRepeatedFurniture } from './layoutAnalysis';
+import { applyContext } from './documentModel';
+import { stripRepeatedFurniture } from './sectioning';
 
 /**
  * Reads a .pptx into structured sections.
@@ -184,9 +185,7 @@ function parseSlide(xmlDoc: Document, label: string): DocumentSection {
   const titleBlock = blocks.find((b) => b.kind === 'heading' && b.level === 1);
   const title = titleBlock && titleBlock.kind === 'heading' ? titleBlock.text : undefined;
 
-  for (const b of blocks) {
-    if (b.kind !== 'heading' && !b.context) b.context = title;
-  }
+  applyContext(blocks, title);
 
   return { label, title, blocks };
 }

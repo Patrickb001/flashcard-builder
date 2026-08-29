@@ -1,4 +1,5 @@
 import type { Block, DocumentSection, PositionedItem } from './documentModel';
+import { applyContext } from './documentModel';
 
 /**
  * Turns positioned text fragments into structured blocks.
@@ -124,7 +125,7 @@ export interface Line {
  * adjacent. The adjacency test is what prevents text from the left column
  * merging with text from the right column just because they share a y value.
  */
-export function assembleLines(items: PositionedItem[]): Line[] {
+function assembleLines(items: PositionedItem[]): Line[] {
   const lines: Line[] = [];
 
   let cur: {
@@ -494,7 +495,7 @@ function segmentBlocks(
 
     // "Common features:" style inline labels also act as list headings.
     const isInlineLabel =
-      !entry.isBullet && /^[^.!?]{3,60}:$/.test(entry.text) && entry.text.length < 70;
+      !entry.isBullet && /^[^.!?]{3,60}:$/.test(entry.text);
 
     if (isHeading || isInlineLabel) {
       flushList();
@@ -583,72 +584,7 @@ export function analyzePage(items: PositionedItem[], label: string): DocumentSec
     blocks.push(...segmentBlocks(rest, titleSize, bodySize));
   }
 
-  for (const b of blocks) {
-    if (b.kind !== 'heading' && !b.context) b.context = title;
-  }
+  applyContext(blocks, title);
 
   return { label, title, blocks };
-}
-
-/**
- * Removes running headers/footers: any line that appears on more than 30% of
- * pages is page furniture, not content. This is what drops boilerplate like the
- * repeated "Clinical relevance:" footer.
- */
-export function stripRepeatedFurniture(sections: DocumentSection[]): DocumentSection[] {
-  if (sections.length < 4) return sections;
-
-  const counts = new Map<string, number>();
-  for (const section of sections) {
-    const seen = new Set<string>();
-    for (const block of section.blocks) {
-      const text = blockSignature(block);
-      if (text && !seen.has(text)) {
-        seen.add(text);
-        counts.set(text, (counts.get(text) ?? 0) + 1);
-      }
-    }
-  }
-
-  const threshold = Math.max(3, Math.ceil(sections.length * 0.3));
-  const furniture = new Set(
-    [...counts.entries()].filter(([, n]) => n >= threshold).map(([t]) => t)
-  );
-
-  // Printed web pages repeat the document's own section list in a sidebar or
-  // page footer. Those entries are titles of OTHER sections, so any short block
-  // whose text matches a different section's title is navigation, not content.
-  const titles = new Map<string, string>();
-  for (const s of sections) {
-    if (s.title) titles.set(normalizeTitle(s.title), s.label);
-  }
-
-  return sections.map((section) => ({
-    ...section,
-    blocks: section.blocks.filter((b) => {
-      if (furniture.has(blockSignature(b))) return false;
-      if (b.kind !== 'paragraph' && b.kind !== 'heading') return true;
-      const text = b.kind === 'paragraph' ? b.text : b.text;
-      if (text.length > 60) return true;
-      const owner = titles.get(normalizeTitle(text));
-      return !owner || owner === section.label;
-    }),
-  }));
-}
-
-function normalizeTitle(text: string): string {
-  return text.toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim();
-}
-
-function blockSignature(block: Block): string {
-  switch (block.kind) {
-    case 'paragraph':
-      return block.text.slice(0, 80).toLowerCase();
-    case 'heading':
-      return block.text.slice(0, 80).toLowerCase();
-    case 'list':
-      return block.items.join('|').slice(0, 80).toLowerCase();
-    default:
-      return '';
-  }
 }

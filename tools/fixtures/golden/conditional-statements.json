@@ -1,0 +1,617 @@
+{
+  "sections": [
+    {
+      "label": "Section 1",
+      "title": "Conditional Statements in Programming",
+      "blocks": [
+        {
+          "kind": "paragraph",
+          "text": "Conditional statements help a program make decisions. They check whether a condition is true or false and execute different blocks of code based on the result. This allows programs to behave differently in different situations.",
+          "context": "Conditional Statements in Programming"
+        }
+      ]
+    },
+    {
+      "label": "Section 2",
+      "title": "If Conditional Statement",
+      "blocks": [
+        {
+          "kind": "heading",
+          "text": "If Conditional Statement",
+          "level": 1
+        },
+        {
+          "kind": "paragraph",
+          "text": "The if statement checks a condition and executes a block of code only when the condition is true.",
+          "context": "If Conditional Statement"
+        },
+        {
+          "kind": "code",
+          "language": "cpp",
+          "text": "using namespace std;\n\nint main()\n{\n    int x = 7;\n    if (x > 0)\n    {\n        cout << \"x is positive\";\n    }\n    return 0;\n}",
+          "alsoIn": [
+            "c",
+            "java",
+            "python",
+            "csharp",
+            "javascript"
+          ],
+          "output": "x is positive",
+          "heading": "If Conditional Statement",
+          "context": "If Conditional Statement"
+        }
+      ]
+    },
+    {
+      "label": "Section 3",
+      "title": "If-Else Conditional Statement",
+      "blocks": [
+        {
+          "kind": "heading",
+          "text": "If-Else Conditional Statement",
+          "level": 1
+        },
+        {
+          "kind": "paragraph",
+          "text": "The if-else statement checks a condition and runs one block of code if the condition is true, and another block of code if the condition is false.",
+          "context": "If-Else Conditional Statement"
+        },
+        {
+          "kind": "heading",
+          "text": "Flowchart of If-Else Statement",
+          "level": 2
+        },
+        {
+          "kind": "image",
+          "src": "https://media.geeksforgeeks.org/wp-content/uploads/20260313173001834574/flowchart_of_if_else_in_c.png",
+          "alt": "flowchart_of_if_else_in_c",
+          "heading": "Flowchart of If-Else Statement",
+          "context": "If-Else Conditional Statement"
+        },
+        {
+          "kind": "code",
+          "language": "cpp",
+          "text": "using namespace std;\n\nint main()\n{\n    int x = 7;\n\n    if (x > 0)\n    {\n        cout << \"x is positive\";\n    }\n    else\n    {\n        cout << \"x is not positive\";\n    }\n    return 0;\n}",
+          "alsoIn": [
+            "c",
+            "java",
+            "python",
+            "csharp",
+            "javascript"
+          ],
+          "output": "x is positive",
+          "heading": "If-Else Conditional Statement",
+          "context": "If-Else Conditional Statement"
+        }
+      ]
+    },
+    {
+      "label": "Section 4",
+      "title": "if-Else if Conditional Statement",
+      "blocks": [
+        {
+          "kind": "heading",
+          "text": "if-Else if Conditional Statement",
+          "level": 1
+        },
+        {
+          "kind": "paragraph",
+          "text": "The if-else if statement is used to check multiple conditions. The program evaluates each condition one by one and executes the block of code for the first condition that is true.",
+          "context": "if-Else if Conditional Statement"
+        },
+        {
+          "kind": "heading",
+          "text": "Flowchart of If-Else if Statement",
+          "level": 2
+        },
+        {
+          "kind": "image",
+          "src": "https://media.geeksforgeeks.org/wp-content/uploads/20260313183453795894/statements_1.webp",
+          "alt": "statements_1",
+          "heading": "Flowchart of If-Else if Statement",
+          "context": "if-Else if Conditional Statement"
+        },
+        {
+          "kind": "code",
+          "language": "cpp",
+          "text": "using namespace std;\n\nint main()\n{\n    int x = 0;\n\n    if (x > 0)\n    {\n        cout << \"x is positive\";\n    }\n    else if (x < 0)\n    {\n        cout << \"x is negative\";\n    }\n    else\n    {\n        cout << \"x is zero\";\n    }\n    return 0;\n}",
+          "alsoIn": [
+            "c",
+            "java",
+            "python",
+            "csharp",
+            "javascript"
+          ],
+          "output": "x is zero",
+          "heading": "if-Else if Conditional Statement",
+          "context": "if-Else if Conditional Statement"
+        }
+      ]
+    },
+    {
+      "label": "Section 5",
+      "title": "Switch Conditional Statement",
+      "blocks": [
+        {
+          "kind": "heading",
+          "text": "Switch Conditional Statement",
+          "level": 1
+        },
+        {
+          "kind": "paragraph",
+          "text": "The switch statement checks a variable against multiple possible values. Each option is written as a case, and the program executes the matching case. A break statement is usually used to stop execution after a case runs.",
+          "context": "Switch Conditional Statement"
+        },
+        {
+          "kind": "heading",
+          "text": "Flowchart of Switch Statement",
+          "level": 2
+        },
+        {
+          "kind": "image",
+          "src": "https://media.geeksforgeeks.org/wp-content/uploads/20260312121710527203/switch-case-in-c.png",
+          "alt": "switch-case-in-c",
+          "heading": "Flowchart of Switch Statement",
+          "context": "Switch Conditional Statement"
+        },
+        {
+          "kind": "heading",
+          "text": "Rules of the Switch Statement",
+          "level": 2
+        },
+        {
+          "kind": "paragraph",
+          "text": "When using switch statements, there are a few important rules.",
+          "context": "Switch Conditional Statement"
+        },
+        {
+          "kind": "list",
+          "items": [
+            "Case values must be constant values.",
+            "Duplicate case values are not allowed.",
+            "A switch statement can contain multiple case blocks.",
+            "The break statement is optional, but recommended to prevent fall-through.",
+            "The default case is optional but useful for handling unexpected values"
+          ],
+          "heading": "Rules of the Switch Statement",
+          "context": "Switch Conditional Statement"
+        },
+        {
+          "kind": "code",
+          "language": "cpp",
+          "text": "using namespace std;\n\nint main()\n{\n    int day = 2;\n\n    switch (day)\n    {\n    case 1:\n        cout << \"Monday\" << endl;\n        break;\n    case 2:\n        cout << \"Tuesday\" << endl;\n        break;\n    case 3:\n        cout << \"Wednesday\" << endl;\n        break;\n\n    default:\n        cout << \"Invalid day!\" << endl;\n    }\n\n    return 0;\n}",
+          "alsoIn": [
+            "c",
+            "java",
+            "python",
+            "csharp",
+            "javascript"
+          ],
+          "output": "Tuesday",
+          "heading": "Rules of the Switch Statement",
+          "context": "Switch Conditional Statement"
+        }
+      ]
+    },
+    {
+      "label": "Section 6",
+      "title": "Key Considerations for Switch Case Statements",
+      "blocks": [
+        {
+          "kind": "heading",
+          "text": "Key Considerations for Switch Case Statements",
+          "level": 1
+        },
+        {
+          "kind": "paragraph",
+          "heading": "Constant Expression:",
+          "text": "A switch expression must evaluate to a constant value. This can include constants or arithmetic operations.",
+          "context": "Key Considerations for Switch Case Statements"
+        },
+        {
+          "kind": "code",
+          "language": "cpp",
+          "text": "using namespace std;\n\nint main()\n{\n    const int x = 10;\n    const int y = 5;\n\n    switch (x + y)\n    {\n    case 15:\n        cout << \"Result is 15.\" << endl;\n        break;\n    case 20:\n        cout << \"Result is 20.\" << endl;\n        break;\n    default:\n        cout << \"No match found.\" << endl;\n    }\n\n    return 0;\n}",
+          "alsoIn": [
+            "c",
+            "java",
+            "python",
+            "csharp",
+            "javascript"
+          ],
+          "output": "Result is 15.",
+          "heading": "Constant Expression:",
+          "context": "Key Considerations for Switch Case Statements"
+        },
+        {
+          "kind": "paragraph",
+          "heading": "Limited to Certain Types:",
+          "text": "Switch statements are mainly designed for int, char, or string values depending on the language.",
+          "context": "Key Considerations for Switch Case Statements"
+        },
+        {
+          "kind": "code",
+          "language": "cpp",
+          "text": "#include <iostream>\nusing namespace std;\n\nint main()\n{\n    char grade = 'B';\n\n    switch (grade)\n    {\n    case 'A':\n        cout << \"Excellent!\" << endl;\n        break;\n    case 'B':\n        cout << \"Good!\" << endl;\n        break;\n    default:\n        cout << \"Not specified.\" << endl;\n    }\n\n    return 0;\n}",
+          "alsoIn": [
+            "c",
+            "java",
+            "python",
+            "csharp",
+            "javascript"
+          ],
+          "output": "Good!",
+          "heading": "Limited to Certain Types:",
+          "context": "Key Considerations for Switch Case Statements"
+        }
+      ]
+    },
+    {
+      "label": "Section 7",
+      "title": "Ternary Expression Conditional Statement",
+      "blocks": [
+        {
+          "kind": "heading",
+          "text": "Ternary Expression Conditional Statement",
+          "level": 1
+        },
+        {
+          "kind": "paragraph",
+          "text": "The ternary operator is a short way to write an if-else statement. It evaluates a condition and returns one value if the condition is true, and another value if the condition is false.",
+          "context": "Ternary Expression Conditional Statement"
+        },
+        {
+          "kind": "list",
+          "items": [
+            "It is called a ternary operator because each ternary expression uses three parts.",
+            "Multiple ternary expressions can also be nested to check more conditions."
+          ],
+          "heading": "Ternary Expression Conditional Statement",
+          "context": "Ternary Expression Conditional Statement"
+        },
+        {
+          "kind": "heading",
+          "text": "Flowchart of Ternary Condition",
+          "level": 2
+        },
+        {
+          "kind": "image",
+          "src": "https://media.geeksforgeeks.org/wp-content/uploads/20230302093722/syntax-of-conditional-or-ternary-operator-in-c.png",
+          "alt": "conditional or ternary operator in c",
+          "heading": "Flowchart of Ternary Condition",
+          "context": "Ternary Expression Conditional Statement"
+        },
+        {
+          "kind": "code",
+          "language": "cpp",
+          "text": "using namespace std;\n\nint main()\n{\n\n    int x = 10;\n    cout << (x > 0 ? \"x is positive\" : \"x is not positive\");\n    return 0;\n}",
+          "alsoIn": [
+            "c",
+            "java",
+            "python",
+            "csharp",
+            "javascript"
+          ],
+          "output": "x is positive",
+          "heading": "Ternary Expression Conditional Statement",
+          "context": "Ternary Expression Conditional Statement"
+        },
+        {
+          "kind": "paragraph",
+          "heading": "Nested Ternary Condition:",
+          "text": "A nested ternary condition is a ternary operator placed inside another ternary operator. It is used when you need to check multiple conditions in a single line. The inner ternary executes only if required by the outer condition.",
+          "context": "Ternary Expression Conditional Statement"
+        },
+        {
+          "kind": "heading",
+          "text": "Flowchart of Nested Ternary Condition",
+          "level": 2
+        },
+        {
+          "kind": "image",
+          "src": "https://media.geeksforgeeks.org/wp-content/uploads/20260316170531402633/resultant_value.webp",
+          "alt": "resultant_value",
+          "heading": "Flowchart of Nested Ternary Condition",
+          "context": "Ternary Expression Conditional Statement"
+        },
+        {
+          "kind": "code",
+          "language": "cpp",
+          "text": "using namespace std;\n\nint main()\n{\n\n    int x = 0;\n    cout << (x > 0 ? \"x is positive\" : (x < 0 ? \"x is not positive\" : \"x is zero\"));\n    return 0;\n}",
+          "alsoIn": [
+            "c",
+            "java",
+            "python",
+            "csharp",
+            "javascript"
+          ],
+          "output": "x is zero",
+          "heading": "Nested Ternary Condition:",
+          "context": "Ternary Expression Conditional Statement"
+        }
+      ]
+    }
+  ],
+  "cards": [
+    {
+      "front": "If Conditional Statement — what does this C++ program print?",
+      "back": "x is positive",
+      "sourceLabel": "Section 2",
+      "context": "If Conditional Statement",
+      "frontCode": {
+        "text": "using namespace std;\n\nint main()\n{\n    int x = 7;\n    if (x > 0)\n    {\n        cout << \"x is positive\";\n    }\n    return 0;\n}",
+        "language": "cpp"
+      },
+      "include": true
+    },
+    {
+      "front": "If Conditional Statement — how is this written in C++?",
+      "back": "The if statement checks a condition and executes a block of code only when the condition is true.",
+      "sourceLabel": "Section 2",
+      "context": "If Conditional Statement",
+      "backCode": {
+        "text": "using namespace std;\n\nint main()\n{\n    int x = 7;\n    if (x > 0)\n    {\n        cout << \"x is positive\";\n    }\n    return 0;\n}",
+        "language": "cpp"
+      },
+      "include": true
+    },
+    {
+      "front": "Flowchart of If-Else Statement — what does it look like?",
+      "back": "The if-else statement checks a condition and runs one block of code if the condition is true, and another block of code if the condition is false.",
+      "sourceLabel": "Section 3",
+      "context": "If-Else Conditional Statement",
+      "image": {
+        "src": "https://media.geeksforgeeks.org/wp-content/uploads/20260313173001834574/flowchart_of_if_else_in_c.png",
+        "alt": "flowchart_of_if_else_in_c"
+      },
+      "include": true
+    },
+    {
+      "front": "If-Else Conditional Statement — what does this C++ program print?",
+      "back": "x is positive",
+      "sourceLabel": "Section 3",
+      "context": "If-Else Conditional Statement",
+      "frontCode": {
+        "text": "using namespace std;\n\nint main()\n{\n    int x = 7;\n\n    if (x > 0)\n    {\n        cout << \"x is positive\";\n    }\n    else\n    {\n        cout << \"x is not positive\";\n    }\n    return 0;\n}",
+        "language": "cpp"
+      },
+      "include": true
+    },
+    {
+      "front": "If-Else Conditional Statement — how is this written in C++?",
+      "back": "The if-else statement checks a condition and runs one block of code if the condition is true, and another block of code if the condition is false.",
+      "sourceLabel": "Section 3",
+      "context": "If-Else Conditional Statement",
+      "backCode": {
+        "text": "using namespace std;\n\nint main()\n{\n    int x = 7;\n\n    if (x > 0)\n    {\n        cout << \"x is positive\";\n    }\n    else\n    {\n        cout << \"x is not positive\";\n    }\n    return 0;\n}",
+        "language": "cpp"
+      },
+      "include": true
+    },
+    {
+      "front": "Flowchart of If-Else if Statement — what does it look like?",
+      "back": "The if-else if statement is used to check multiple conditions. The program evaluates each condition one by one and executes the block of code for the first condition that is true.",
+      "sourceLabel": "Section 4",
+      "context": "if-Else if Conditional Statement",
+      "image": {
+        "src": "https://media.geeksforgeeks.org/wp-content/uploads/20260313183453795894/statements_1.webp",
+        "alt": "statements_1"
+      },
+      "include": true
+    },
+    {
+      "front": "if-Else if Conditional Statement — what does this C++ program print?",
+      "back": "x is zero",
+      "sourceLabel": "Section 4",
+      "context": "if-Else if Conditional Statement",
+      "frontCode": {
+        "text": "using namespace std;\n\nint main()\n{\n    int x = 0;\n\n    if (x > 0)\n    {\n        cout << \"x is positive\";\n    }\n    else if (x < 0)\n    {\n        cout << \"x is negative\";\n    }\n    else\n    {\n        cout << \"x is zero\";\n    }\n    return 0;\n}",
+        "language": "cpp"
+      },
+      "include": true
+    },
+    {
+      "front": "if-Else if Conditional Statement — how is this written in C++?",
+      "back": "The if-else if statement is used to check multiple conditions. The program evaluates each condition one by one and executes the block of code for the first condition that is true.",
+      "sourceLabel": "Section 4",
+      "context": "if-Else if Conditional Statement",
+      "backCode": {
+        "text": "using namespace std;\n\nint main()\n{\n    int x = 0;\n\n    if (x > 0)\n    {\n        cout << \"x is positive\";\n    }\n    else if (x < 0)\n    {\n        cout << \"x is negative\";\n    }\n    else\n    {\n        cout << \"x is zero\";\n    }\n    return 0;\n}",
+        "language": "cpp"
+      },
+      "include": true
+    },
+    {
+      "front": "Flowchart of Switch Statement — what does it look like?",
+      "back": "The switch statement checks a variable against multiple possible values. Each option is written as a case, and the program executes the matching case. A break statement is usually used to stop execution after a case runs.",
+      "sourceLabel": "Section 5",
+      "context": "Switch Conditional Statement",
+      "image": {
+        "src": "https://media.geeksforgeeks.org/wp-content/uploads/20260312121710527203/switch-case-in-c.png",
+        "alt": "switch-case-in-c"
+      },
+      "include": true
+    },
+    {
+      "front": "What characterizes Rules of the Switch Statement?",
+      "back": "When using switch statements, there are a few important rules.",
+      "sourceLabel": "Section 5",
+      "context": "Switch Conditional Statement",
+      "include": true
+    },
+    {
+      "front": "What is the rules of the switch statement?",
+      "back": "• Case values must be constant values.\n• Duplicate case values are not allowed.\n• A switch statement can contain multiple case blocks.\n• The break statement is optional, but recommended to prevent fall-through.\n• The default case is optional but useful for handling unexpected values",
+      "sourceLabel": "Section 5",
+      "context": "Switch Conditional Statement",
+      "include": true
+    },
+    {
+      "front": "Rules of the Switch Statement — what does this C++ program print?",
+      "back": "Tuesday",
+      "sourceLabel": "Section 5",
+      "context": "Switch Conditional Statement",
+      "frontCode": {
+        "text": "using namespace std;\n\nint main()\n{\n    int day = 2;\n\n    switch (day)\n    {\n    case 1:\n        cout << \"Monday\" << endl;\n        break;\n    case 2:\n        cout << \"Tuesday\" << endl;\n        break;\n    case 3:\n        cout << \"Wednesday\" << endl;\n        break;\n\n    default:\n        cout << \"Invalid day!\" << endl;\n    }\n\n    return 0;\n}",
+        "language": "cpp"
+      },
+      "include": true
+    },
+    {
+      "front": "Rules of the Switch Statement — how is this written in C++?",
+      "back": "When using switch statements, there are a few important rules.",
+      "sourceLabel": "Section 5",
+      "context": "Switch Conditional Statement",
+      "backCode": {
+        "text": "using namespace std;\n\nint main()\n{\n    int day = 2;\n\n    switch (day)\n    {\n    case 1:\n        cout << \"Monday\" << endl;\n        break;\n    case 2:\n        cout << \"Tuesday\" << endl;\n        break;\n    case 3:\n        cout << \"Wednesday\" << endl;\n        break;\n\n    default:\n        cout << \"Invalid day!\" << endl;\n    }\n\n    return 0;\n}",
+        "language": "cpp"
+      },
+      "include": true
+    },
+    {
+      "front": "What is important about Constant Expression?",
+      "back": "A switch expression must evaluate to a constant value. This can include constants or arithmetic operations.",
+      "sourceLabel": "Section 6",
+      "context": "Key Considerations for Switch Case Statements",
+      "include": true
+    },
+    {
+      "front": "Constant Expression — what does this C++ program print?",
+      "back": "Result is 15.",
+      "sourceLabel": "Section 6",
+      "context": "Key Considerations for Switch Case Statements",
+      "frontCode": {
+        "text": "using namespace std;\n\nint main()\n{\n    const int x = 10;\n    const int y = 5;\n\n    switch (x + y)\n    {\n    case 15:\n        cout << \"Result is 15.\" << endl;\n        break;\n    case 20:\n        cout << \"Result is 20.\" << endl;\n        break;\n    default:\n        cout << \"No match found.\" << endl;\n    }\n\n    return 0;\n}",
+        "language": "cpp"
+      },
+      "include": true
+    },
+    {
+      "front": "Constant Expression — how is this written in C++?",
+      "back": "A switch expression must evaluate to a constant value. This can include constants or arithmetic operations.",
+      "sourceLabel": "Section 6",
+      "context": "Key Considerations for Switch Case Statements",
+      "backCode": {
+        "text": "using namespace std;\n\nint main()\n{\n    const int x = 10;\n    const int y = 5;\n\n    switch (x + y)\n    {\n    case 15:\n        cout << \"Result is 15.\" << endl;\n        break;\n    case 20:\n        cout << \"Result is 20.\" << endl;\n        break;\n    default:\n        cout << \"No match found.\" << endl;\n    }\n\n    return 0;\n}",
+        "language": "cpp"
+      },
+      "include": true
+    },
+    {
+      "front": "What is important about Limited to Certain Types?",
+      "back": "Switch statements are mainly designed for int, char, or string values depending on the language.",
+      "sourceLabel": "Section 6",
+      "context": "Key Considerations for Switch Case Statements",
+      "include": true
+    },
+    {
+      "front": "Limited to Certain Types — what does this C++ program print?",
+      "back": "Good!",
+      "sourceLabel": "Section 6",
+      "context": "Key Considerations for Switch Case Statements",
+      "frontCode": {
+        "text": "#include <iostream>\nusing namespace std;\n\nint main()\n{\n    char grade = 'B';\n\n    switch (grade)\n    {\n    case 'A':\n        cout << \"Excellent!\" << endl;\n        break;\n    case 'B':\n        cout << \"Good!\" << endl;\n        break;\n    default:\n        cout << \"Not specified.\" << endl;\n    }\n\n    return 0;\n}",
+        "language": "cpp"
+      },
+      "include": true
+    },
+    {
+      "front": "Limited to Certain Types — how is this written in C++?",
+      "back": "Switch statements are mainly designed for int, char, or string values depending on the language.",
+      "sourceLabel": "Section 6",
+      "context": "Key Considerations for Switch Case Statements",
+      "backCode": {
+        "text": "#include <iostream>\nusing namespace std;\n\nint main()\n{\n    char grade = 'B';\n\n    switch (grade)\n    {\n    case 'A':\n        cout << \"Excellent!\" << endl;\n        break;\n    case 'B':\n        cout << \"Good!\" << endl;\n        break;\n    default:\n        cout << \"Not specified.\" << endl;\n    }\n\n    return 0;\n}",
+        "language": "cpp"
+      },
+      "include": true
+    },
+    {
+      "front": "What is ternary operator?",
+      "back": "a short way to write an if-else statement",
+      "sourceLabel": "Section 7",
+      "context": "Ternary Expression Conditional Statement",
+      "include": true
+    },
+    {
+      "front": "What is the ternary expression conditional statement?",
+      "back": "• It is called a ternary operator because each ternary expression uses three parts.\n• Multiple ternary expressions can also be nested to check more conditions.",
+      "sourceLabel": "Section 7",
+      "context": "Ternary Expression Conditional Statement",
+      "include": true
+    },
+    {
+      "front": "Flowchart of Ternary Condition — what does it look like?",
+      "back": "The ternary operator is a short way to write an if-else statement. It evaluates a condition and returns one value if the condition is true, and another value if the condition is false.",
+      "sourceLabel": "Section 7",
+      "context": "Ternary Expression Conditional Statement",
+      "image": {
+        "src": "https://media.geeksforgeeks.org/wp-content/uploads/20230302093722/syntax-of-conditional-or-ternary-operator-in-c.png",
+        "alt": "conditional or ternary operator in c"
+      },
+      "include": true
+    },
+    {
+      "front": "Ternary Expression Conditional Statement — what does this C++ program print?",
+      "back": "x is positive",
+      "sourceLabel": "Section 7",
+      "context": "Ternary Expression Conditional Statement",
+      "frontCode": {
+        "text": "using namespace std;\n\nint main()\n{\n\n    int x = 10;\n    cout << (x > 0 ? \"x is positive\" : \"x is not positive\");\n    return 0;\n}",
+        "language": "cpp"
+      },
+      "include": true
+    },
+    {
+      "front": "Ternary Expression Conditional Statement — how is this written in C++?",
+      "back": "The ternary operator is a short way to write an if-else statement. It evaluates a condition and returns one value if the condition is true, and another value if the condition is false.",
+      "sourceLabel": "Section 7",
+      "context": "Ternary Expression Conditional Statement",
+      "backCode": {
+        "text": "using namespace std;\n\nint main()\n{\n\n    int x = 10;\n    cout << (x > 0 ? \"x is positive\" : \"x is not positive\");\n    return 0;\n}",
+        "language": "cpp"
+      },
+      "include": true
+    },
+    {
+      "front": "What is important about Nested Ternary Condition?",
+      "back": "A nested ternary condition is a ternary operator placed inside another ternary operator. It is used when you need to check multiple conditions in a single line. The inner ternary executes only if required by the outer condition.",
+      "sourceLabel": "Section 7",
+      "context": "Ternary Expression Conditional Statement",
+      "include": true
+    },
+    {
+      "front": "Flowchart of Nested Ternary Condition — what does it look like?",
+      "back": "A nested ternary condition is a ternary operator placed inside another ternary operator. It is used when you need to check multiple conditions in a single line. The inner ternary executes only if required by the outer condition.",
+      "sourceLabel": "Section 7",
+      "context": "Ternary Expression Conditional Statement",
+      "image": {
+        "src": "https://media.geeksforgeeks.org/wp-content/uploads/20260316170531402633/resultant_value.webp",
+        "alt": "resultant_value"
+      },
+      "include": true
+    },
+    {
+      "front": "Nested Ternary Condition — what does this C++ program print?",
+      "back": "x is zero",
+      "sourceLabel": "Section 7",
+      "context": "Ternary Expression Conditional Statement",
+      "frontCode": {
+        "text": "using namespace std;\n\nint main()\n{\n\n    int x = 0;\n    cout << (x > 0 ? \"x is positive\" : (x < 0 ? \"x is not positive\" : \"x is zero\"));\n    return 0;\n}",
+        "language": "cpp"
+      },
+      "include": true
+    },
+    {
+      "front": "Nested Ternary Condition — how is this written in C++?",
+      "back": "A nested ternary condition is a ternary operator placed inside another ternary operator. It is used when you need to check multiple conditions in a single line. The inner ternary executes only if required by the outer condition.",
+      "sourceLabel": "Section 7",
+      "context": "Ternary Expression Conditional Statement",
+      "backCode": {
+        "text": "using namespace std;\n\nint main()\n{\n\n    int x = 0;\n    cout << (x > 0 ? \"x is positive\" : (x < 0 ? \"x is not positive\" : \"x is zero\"));\n    return 0;\n}",
+        "language": "cpp"
+      },
+      "include": true
+    }
+  ]
+}
