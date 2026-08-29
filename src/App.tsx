@@ -1,15 +1,23 @@
-import { useCallback, useEffect, useState } from 'react';
+import { Suspense, lazy, useCallback, useEffect, useState } from 'react';
 import type { Deck } from './types';
 import type { DocumentSection } from './lib/documentModel';
 import type { AiSettings } from './lib/aiGenerator';
 import { getAllDecks, isUpgradeBlocked } from './db/db';
-import Uploader from './components/Uploader';
 import type { SourceType } from './components/Uploader';
-import CandidateReview from './components/CandidateReview';
-import StudyMode from './components/StudyMode';
-import TestMode from './components/TestMode';
-import DeckManager from './components/DeckManager';
 import DeckLibrary from './components/DeckLibrary';
+
+/**
+ * Every screen but the landing one is fetched when first opened.
+ *
+ * The library is what a visitor always sees first, so it stays in the entry
+ * chunk. The rest - and, behind the uploader, the four document parsers and
+ * the page fetcher - are dead weight until someone navigates to them.
+ */
+const Uploader = lazy(() => import('./components/Uploader'));
+const CandidateReview = lazy(() => import('./components/CandidateReview'));
+const StudyMode = lazy(() => import('./components/StudyMode'));
+const TestMode = lazy(() => import('./components/TestMode'));
+const DeckManager = lazy(() => import('./components/DeckManager'));
 
 type View =
   | { name: 'library' }
@@ -99,6 +107,7 @@ export default function App() {
       </header>
 
       <main className="stage">
+        <Suspense fallback={<p className="muted">Loading…</p>}>
         {view.name === 'library' && (
           <DeckLibrary
             decks={decks}
@@ -155,6 +164,7 @@ export default function App() {
             }}
           />
         )}
+        </Suspense>
       </main>
     </div>
   );

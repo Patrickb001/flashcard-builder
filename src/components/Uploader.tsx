@@ -3,10 +3,7 @@ import AiSettingsPanel from './AiSettingsPanel';
 import type { AiSettings } from '../lib/aiGenerator';
 import { loadAiSettings } from '../lib/aiGenerator';
 import type { DocumentSection } from '../lib/documentModel';
-import { extractPdfSections } from '../lib/pdfParser';
-import { extractPptxSections } from '../lib/pptxParser';
-import { extractMarkdownSections } from '../lib/markdownParser';
-import { extractHtmlSections } from '../lib/htmlParser';
+
 import type { PageProgress } from '../lib/pageSource';
 import { MAX_PAGES, deckNameForUrl, describeFailures, fetchPagesSections, parseUrlList } from '../lib/pageSource';
 
@@ -63,13 +60,19 @@ export default function Uploader({ onParsed, onCancel }: Props) {
       setStatus('parsing');
       setError(null);
       try {
-        const sections = isPdf
-          ? await extractPdfSections(file)
-          : isPptx
-            ? await extractPptxSections(file)
-            : isMarkdown
-              ? await extractMarkdownSections(file)
-              : await extractHtmlSections(file);
+        // Each parser is fetched only when a file of that type is chosen.
+        // Imported statically, all four rode in the entry chunk, so every
+        // visitor downloaded pdf.js and JSZip before seeing the deck list.
+        let sections;
+        if (isPdf) {
+          sections = await (await import('../lib/pdfParser')).extractPdfSections(file);
+        } else if (isPptx) {
+          sections = await (await import('../lib/pptxParser')).extractPptxSections(file);
+        } else if (isMarkdown) {
+          sections = await (await import('../lib/markdownParser')).extractMarkdownSections(file);
+        } else {
+          sections = await (await import('../lib/htmlParser')).extractHtmlSections(file);
+        }
         if (sections.length === 0) {
           setError(
             isPdf
