@@ -1,0 +1,23 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>db-failure-check</title>
+<!--
+  Loads the real app with IndexedDB forced to fail, to prove no screen is left
+  spinning. Every load path used to clear its loading flag only on success, so
+  an unavailable database - a private window, blocked site data, a full disk -
+  showed "Loading…" forever with nothing to explain it.
+
+    npx vite --port 5199 --strictPort
+    chrome --headless=new --user-data-dir=SHORT_PATH --virtual-time-budget=15000 \
+      --dump-dom http://localhost:5199/tools/db-failure-check.html
+
+  The stub throws synchronously, so the failure path renders without waiting on
+  any real database work and the DOM dump catches it.
+-->
+<script>
+  window.indexedDB.open = function () {
+    throw new DOMException('stubbed: storage unavailable', 'UnknownError');
+  };
+</script>
+<div id="root"></div>
+<script type="module" src="/src/main.tsx"></script>

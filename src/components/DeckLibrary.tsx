@@ -1,21 +1,40 @@
+import { useState } from 'react';
 import type { Deck } from '../types';
 import { deleteDeck } from '../db/db';
 
 interface Props {
   decks: Deck[];
   loading: boolean;
+  /** Why the deck list could not be read, if it could not be. */
+  error?: string | null;
   onNewDeck: () => void;
   onStudy: (deckId: string) => void;
   onManage: (deckId: string) => void;
   onDeckChange: () => void;
 }
 
-export default function DeckLibrary({ decks, loading, onNewDeck, onStudy, onManage, onDeckChange }: Props) {
+export default function DeckLibrary({
+  decks,
+  loading,
+  error,
+  onNewDeck,
+  onStudy,
+  onManage,
+  onDeckChange,
+}: Props) {
+  const [deleteError, setDeleteError] = useState<string | null>(null);
+
   const handleDelete = async (e: React.MouseEvent, deckId: string, name: string) => {
     e.stopPropagation();
     if (!confirm(`Delete "${name}" and all its flashcards? This can't be undone.`)) return;
-    await deleteDeck(deckId);
-    onDeckChange();
+    try {
+      setDeleteError(null);
+      await deleteDeck(deckId);
+      onDeckChange();
+    } catch (err) {
+      console.error('[library] Deleting the deck failed:', err);
+      setDeleteError(`"${name}" could not be deleted.`);
+    }
   };
 
   return (
@@ -32,7 +51,20 @@ export default function DeckLibrary({ decks, loading, onNewDeck, onStudy, onMana
 
       {loading && <p className="muted">Loading your decks…</p>}
 
-      {!loading && decks.length === 0 && (
+      {error && (
+        <div className="ai-notice failed">
+          <strong>Your decks could not be loaded</strong>
+          <p>{error}</p>
+        </div>
+      )}
+
+      {deleteError && (
+        <div className="ai-notice failed">
+          <p>{deleteError}</p>
+        </div>
+      )}
+
+      {!loading && !error && decks.length === 0 && (
         <div className="empty-state">
           <div className="chalk-doodle" aria-hidden="true">
             ✎
@@ -45,7 +77,7 @@ export default function DeckLibrary({ decks, loading, onNewDeck, onStudy, onMana
         </div>
       )}
 
-      {!loading && decks.length > 0 && (
+      {!loading && !error && decks.length > 0 && (
         <div className="deck-grid">
           {decks.map((deck) => (
             <div key={deck.id} className="deck-card" onClick={() => onManage(deck.id)}>

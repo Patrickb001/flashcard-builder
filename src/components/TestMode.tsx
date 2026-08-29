@@ -140,14 +140,23 @@ export default function TestMode({ deckId, onExit }: Props) {
     let cancelled = false;
 
     (async () => {
-      const { cards: loadedCards, pool: loadedPool } = await load();
-      if (cancelled) return;
+      try {
+        const { cards: loadedCards, pool: loadedPool } = await load();
+        if (cancelled) return;
 
-      const settings = loadAiSettings();
-      if (loadedPool.length === 0 && loadedCards.length > 0 && settings.mode !== 'off') {
-        const name = (await getDeck(deckId))?.name ?? 'this deck';
-        if (!cancelled) await generate(loadedCards, loadedCards, name, settings);
-      } else {
+        const settings = loadAiSettings();
+        if (loadedPool.length === 0 && loadedCards.length > 0 && settings.mode !== 'off') {
+          const name = (await getDeck(deckId))?.name ?? 'this deck';
+          if (!cancelled) await generate(loadedCards, loadedCards, name, settings);
+        } else {
+          setPhase('setup');
+        }
+      } catch (err) {
+        // Without this the screen stayed on the loading phase for good.
+        if (cancelled) return;
+        console.error('[test] Could not open the deck:', err);
+        setNoticeFailed(true);
+        setNotice('This deck could not be read from the browser database.');
         setPhase('setup');
       }
     })();
@@ -205,6 +214,16 @@ export default function TestMode({ deckId, onExit }: Props) {
   // -------------------------------------------------------------------------
 
   if (phase === 'loading') return <p className="muted">Loading deck…</p>;
+  // A deck that is absent and a deck that could not be read are different
+  // things, and saying "couldn't be found" for a storage failure sends people
+  // looking for a deck that is sitting right there.
+  if (!deck && noticeFailed && notice)
+    return (
+      <div className="ai-notice failed">
+        <strong>This deck could not be opened</strong>
+        <p>{notice}</p>
+      </div>
+    );
   if (!deck) return <p className="muted">This deck couldn't be found.</p>;
 
   if (phase === 'generating') {

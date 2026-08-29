@@ -15,13 +15,23 @@ export default function DeckManager({ deckId, onExit, onStudy, onTest, onDeckDel
   const [cards, setCards] = useState<Flashcard[]>([]);
   const [loading, setLoading] = useState(true);
   const [nameDraft, setNameDraft] = useState('');
+  const [error, setError] = useState<string | null>(null);
 
+  // Every one of these handlers is fired from an onClick and its promise is
+  // dropped, so anything that throws inside would otherwise surface only as an
+  // unhandled rejection in the console. Each one reports instead.
   const load = async () => {
-    const [d, c] = await Promise.all([getDeck(deckId), getCardsForDeck(deckId)]);
-    setDeck(d ?? null);
-    setCards(c);
-    setNameDraft(d?.name ?? '');
-    setLoading(false);
+    try {
+      const [d, c] = await Promise.all([getDeck(deckId), getCardsForDeck(deckId)]);
+      setDeck(d ?? null);
+      setCards(c);
+      setNameDraft(d?.name ?? '');
+    } catch (err) {
+      console.error('[manager] Could not read the deck:', err);
+      setError('This deck could not be read from the browser database.');
+    } finally {
+      setLoading(false);
+    }
   };
 
   useEffect(() => {
@@ -34,7 +44,12 @@ export default function DeckManager({ deckId, onExit, onStudy, onTest, onDeckDel
   };
 
   const persistCard = async (card: Flashcard) => {
-    await updateCard(card);
+    try {
+      await updateCard(card);
+    } catch (err) {
+      console.error('[manager] Saving the card failed:', err);
+      setError('That edit could not be saved.');
+    }
   };
 
   const handleAdd = async () => {
@@ -48,36 +63,69 @@ export default function DeckManager({ deckId, onExit, onStudy, onTest, onDeckDel
       status: 'new',
       createdAt: Date.now(),
     };
-    await addCard(newCard);
-    await load();
+    try {
+      await addCard(newCard);
+      await load();
+    } catch (err) {
+      console.error('[manager] Adding a card failed:', err);
+      setError('The card could not be added.');
+    }
   };
 
   const handleDelete = async (cardId: string) => {
-    await deleteCard(cardId, deckId);
-    await load();
+    try {
+      await deleteCard(cardId, deckId);
+      await load();
+    } catch (err) {
+      console.error('[manager] Deleting the card failed:', err);
+      setError('The card could not be deleted.');
+    }
   };
 
   const handleDeleteDeck = async () => {
     if (!deck) return;
     if (!confirm(`Delete "${deck.name}" and all its flashcards? This can't be undone.`)) return;
-    await deleteDeck(deckId);
-    onDeckDeleted();
+    try {
+      await deleteDeck(deckId);
+      onDeckDeleted();
+    } catch (err) {
+      console.error('[manager] Deleting the deck failed:', err);
+      setError('The deck could not be deleted.');
+    }
   };
 
   const commitName = async () => {
     if (!deck) return;
     const trimmed = nameDraft.trim() || 'Untitled deck';
     if (trimmed !== deck.name) {
-      await renameDeck(deckId, trimmed);
-      setDeck({ ...deck, name: trimmed });
+      try {
+        await renameDeck(deckId, trimmed);
+        setDeck({ ...deck, name: trimmed });
+      } catch (err) {
+        console.error('[manager] Renaming the deck failed:', err);
+        setError('The deck could not be renamed.');
+        setNameDraft(deck.name);
+      }
     }
   };
 
   if (loading) return <p className="muted">Loading deck…</p>;
+  if (error && !deck)
+    return (
+      <div className="ai-notice failed">
+        <strong>This deck could not be opened</strong>
+        <p>{error}</p>
+      </div>
+    );
   if (!deck) return <p className="muted">This deck couldn't be found.</p>;
 
   return (
     <div className="manager">
+      {error && (
+        <div className="ai-notice failed">
+          <p>{error}</p>
+        </div>
+      )}
       <div className="manager-header">
         <div>
           <p className="eyebrow">Manage cards</p>

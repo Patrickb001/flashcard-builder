@@ -43,14 +43,23 @@ export default function StudyMode({ deckId, onExit }: Props) {
   const [known, setKnown] = useState(0);
   const [unknown, setUnknown] = useState(0);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     (async () => {
-      const [d, c] = await Promise.all([getDeck(deckId), getCardsForDeck(deckId)]);
-      setDeck(d ?? null);
-      setCards(c);
-      setOrder(c);
-      setLoading(false);
+      try {
+        const [d, c] = await Promise.all([getDeck(deckId), getCardsForDeck(deckId)]);
+        setDeck(d ?? null);
+        setCards(c);
+        setOrder(c);
+      } catch (err) {
+        console.error('[study] Could not read the deck:', err);
+        setError('This deck could not be read from the browser database.');
+      } finally {
+        // Cleared on both paths: clearing it only on success left this screen
+        // on "Loading deck…" forever whenever IndexedDB was unavailable.
+        setLoading(false);
+      }
     })();
   }, [deckId]);
 
@@ -68,7 +77,14 @@ export default function StudyMode({ deckId, onExit }: Props) {
     if (status === 'known') setKnown((k) => k + 1);
     else setUnknown((u) => u + 1);
     const updated: Flashcard = { ...current, status };
-    await updateCard(updated);
+    try {
+      await updateCard(updated);
+    } catch (err) {
+      // The card still advances: losing a status write is not worth
+      // interrupting a study run over, but it should not be silent either.
+      console.error('[study] Could not save the card status:', err);
+      setError('Your progress on that card could not be saved.');
+    }
     setCards((prev) => prev.map((c) => (c.id === updated.id ? updated : c)));
     setFlipped(false);
     setPosition((p) => p + 1);
@@ -83,6 +99,13 @@ export default function StudyMode({ deckId, onExit }: Props) {
   };
 
   if (loading) return <p className="muted">Loading deck…</p>;
+  if (error && !deck)
+    return (
+      <div className="ai-notice failed">
+        <strong>This deck could not be opened</strong>
+        <p>{error}</p>
+      </div>
+    );
   if (!deck) return <p className="muted">This deck couldn't be found.</p>;
   if (cards.length === 0) {
     return (
