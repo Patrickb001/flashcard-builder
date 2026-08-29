@@ -12,6 +12,8 @@ interface Props {
   fileName: string;
   sourceType: SourceType;
   ai: AiSettings;
+  /** Set when some sources were skipped, e.g. a page that could not be read. */
+  notice?: string;
   onSaved: (deckId: string) => void;
   onCancel: () => void;
 }
@@ -33,6 +35,7 @@ export default function CandidateReview({
   fileName,
   sourceType,
   ai,
+  notice,
   onSaved,
   onCancel,
 }: Props) {
@@ -159,6 +162,13 @@ export default function CandidateReview({
             Claude is drafting cards
             {progress ? ` — batch ${progress.done} of ${progress.total}` : '…'}
           </span>
+        </div>
+      )}
+
+      {notice && (
+        <div className="ai-notice partial" role="status">
+          <strong>Some sources were skipped</strong>
+          <span>{notice}</span>
         </div>
       )}
 

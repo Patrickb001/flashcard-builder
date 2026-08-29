@@ -229,7 +229,7 @@ function stripNoise(root: Element): void {
  * `main` usually contains `article` plus the page's own furniture, so
  * preferring the outer one would pull the furniture back in.
  */
-export function findContentRoot(doc: Document): Element {
+function findContentRoot(doc: Document): Element {
   const body = contentBody(doc);
   for (const selector of CONTENT_SELECTORS) {
     for (const candidate of Array.from(body.querySelectorAll(selector))) {
@@ -535,13 +535,15 @@ export function sectionsFromDocument(
   });
 }
 
-export function parseHtmlSections(html: string, options: HtmlParseOptions = {}): DocumentSection[] {
-  const doc = new DOMParser().parseFromString(html, 'text/html');
-  return sectionsFromDocument(doc, options);
-}
-
+/**
+ * Reads a saved page from disk.
+ *
+ * The document's own `<title>` wins over the file name: a page saved from a
+ * browser is often called "Untitled document.html" or worse, while the title
+ * inside it is the real topic label.
+ */
 export async function extractHtmlSections(file: File): Promise<DocumentSection[]> {
-  return parseHtmlSections(await file.text(), {
-    pageTitle: file.name.replace(/\.(html?|xhtml)$/i, ''),
-  });
+  const doc = new DOMParser().parseFromString(await file.text(), 'text/html');
+  const title = cleanPageTitle(doc.title ?? '') || file.name.replace(/\.(html?|xhtml)$/i, '');
+  return sectionsFromDocument(doc, { pageTitle: title });
 }

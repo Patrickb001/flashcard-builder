@@ -142,9 +142,15 @@ export async function generateCandidatesWithAi(
   totalBatches: number;
   firstError: string | null;
 }> {
+  // Batches never span two source documents: every card in a batch is
+  // attributed to the batch's first section, so a mixed batch would file
+  // half its cards under the wrong page.
   const batches: DocumentSection[][] = [];
-  for (let i = 0; i < sections.length; i += BATCH_SIZE) {
-    batches.push(sections.slice(i, i + BATCH_SIZE));
+  for (const section of sections) {
+    const current = batches[batches.length - 1];
+    const sameSource = current && current[0].group === section.group;
+    if (current && sameSource && current.length < BATCH_SIZE) current.push(section);
+    else batches.push([section]);
   }
 
   const all: CandidateCard[] = [];

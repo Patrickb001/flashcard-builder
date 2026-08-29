@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import AiSettingsPanel from './AiSettingsPanel';
 import type { AiSettings } from '../lib/aiGenerator';
 import { loadAiSettings } from '../lib/aiGenerator';
@@ -7,7 +7,8 @@ import { extractPdfSections } from '../lib/pdfParser';
 import { extractPptxSections } from '../lib/pptxParser';
 import { extractMarkdownSections } from '../lib/markdownParser';
 import { extractHtmlSections } from '../lib/htmlParser';
-import { fetchPageSections } from '../lib/pageSource';
+import type { PageProgress } from '../lib/pageSource';
+import { MAX_PAGES, deckNameForUrl, describeFailures, fetchPagesSections, parseUrlList } from '../lib/pageSource';
 
 export type SourceType = 'pdf' | 'pptx' | 'md' | 'html';
 
@@ -16,7 +17,9 @@ interface Props {
     sections: DocumentSection[],
     fileName: string,
     sourceType: SourceType,
-    ai: AiSettings
+    ai: AiSettings,
+    /** Shown on the review screen when some sources were skipped. */
+    notice?: string
   ) => void;
   onCancel: () => void;
 }
@@ -28,7 +31,8 @@ export default function Uploader({ onParsed, onCancel }: Props) {
   const [error, setError] = useState<string | null>(null);
   const [isDragging, setIsDragging] = useState(false);
   const [ai, setAi] = useState<AiSettings>({ mode: 'off' });
-  const [url, setUrl] = useState('');
+  const [urlText, setUrlText] = useState('');
+  const [progress, setProgress] = useState<PageProgress | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
@@ -36,6 +40,7 @@ export default function Uploader({ onParsed, onCancel }: Props) {
   }, []);
 
   const busy = status === 'parsing' || status === 'fetching';
+  const pendingUrls = useMemo(() => parseUrlList(urlText), [urlText]);
 
   const handleFile = useCallback(
     async (file: File) => {
@@ -85,29 +90,46 @@ export default function Uploader({ onParsed, onCancel }: Props) {
     [onParsed, ai]
   );
 
-  const handleUrl = useCallback(async () => {
-    const trimmed = url.trim();
-    if (!trimmed) return;
+  const handleUrls = useCallback(async () => {
+    const urls = parseUrlList(urlText);
+    if (urls.length === 0) return;
 
     setStatus('fetching');
     setError(null);
+    setProgress({ done: 0, total: Math.min(urls.length, MAX_PAGES), url: urls[0] });
+
     try {
-      // A bare "react.dev/learn" is what people paste; assume https.
-      const withScheme = /^https?:\/\//i.test(trimmed) ? trimmed : `https://${trimmed}`;
-      const { sections, name } = await fetchPageSections(withScheme);
+      const { sections, name, failures, pages } = await fetchPagesSections(urls, setProgress);
+
       if (sections.length === 0) {
+        setProgress(null);
         setError(
-          "That page had no readable article text. Pages that build themselves entirely in the browser can't be read this way."
+          failures.length === 1
+            ? failures[0].error
+            : `None of those ${failures.length} pages could be read. ${failures
+                .slice(0, 3)
+                .map((f) => `${deckNameForUrl(f.url)} — ${f.error}`)
+                .join('; ')}`
         );
         setStatus('error');
         return;
       }
-      onParsed(sections, name, 'html', ai);
+
+      // Some pages read, some did not: the deck is still worth building, but
+      // the gap has to be visible on the review screen rather than silent.
+      onParsed(
+        sections,
+        name,
+        'html',
+        ai,
+        failures.length > 0 ? describeFailures(failures, pages) : undefined
+      );
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Could not read that page.');
+      setProgress(null);
+      setError(err instanceof Error ? err.message : 'Could not read those pages.');
       setStatus('error');
     }
-  }, [url, onParsed, ai]);
+  }, [urlText, onParsed, ai]);
 
   const onDrop = (e: React.DragEvent) => {
     e.preventDefault();
@@ -150,7 +172,7 @@ export default function Uploader({ onParsed, onCancel }: Props) {
         {busy ? (
           <>
             <div className="chalk-spinner" aria-hidden="true" />
-            <p>{status === 'fetching' ? 'Reading that page…' : 'Reading through the pages…'}</p>
+            <p>{status === 'fetching' ? 'Reading those pages…' : 'Reading through the pages…'}</p>
           </>
         ) : (
           <>
@@ -164,27 +186,43 @@ export default function Uploader({ onParsed, onCancel }: Props) {
       </div>
 
       <div className="url-section">
-        <p className="eyebrow">Or study a web page</p>
-        <div className="url-row">
-          <input
-            type="url"
-            inputMode="url"
-            value={url}
-            onChange={(e) => setUrl(e.target.value)}
-            onKeyDown={(e) => {
-              if (e.key === 'Enter') handleUrl();
-            }}
-            placeholder="https://18.react.dev/learn/state-a-components-memory"
-            aria-label="Web page address"
-            disabled={busy}
-          />
-          <button className="ghost-btn" onClick={handleUrl} disabled={busy || !url.trim()}>
-            {status === 'fetching' ? 'Reading…' : 'Read page'}
+        <p className="eyebrow">Or study web pages</p>
+        <textarea
+          className="url-input"
+          value={urlText}
+          onChange={(e) => setUrlText(e.target.value)}
+          onKeyDown={(e) => {
+            // Enter belongs to the field — the list is multi-line. Ctrl or
+            // Cmd with Enter is the shortcut for submitting it.
+            if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) {
+              e.preventDefault();
+              handleUrls();
+            }
+          }}
+          rows={3}
+          placeholder={'https://18.react.dev/learn/state-a-components-memory\nhttps://18.react.dev/learn/render-and-commit'}
+          aria-label="Web page addresses, one per line"
+          disabled={busy}
+        />
+        <div className="url-actions">
+          <span className="muted small">
+            {pendingUrls.length > 0
+              ? `${pendingUrls.length} page${pendingUrls.length === 1 ? '' : 's'}${
+                  pendingUrls.length > MAX_PAGES ? ` — only the first ${MAX_PAGES} will be read` : ''
+                }`
+              : 'One address per line — several pages become one deck.'}
+          </span>
+          <button className="ghost-btn" onClick={handleUrls} disabled={busy || pendingUrls.length === 0}>
+            {status === 'fetching'
+              ? `Reading ${Math.min((progress?.done ?? 0) + 1, progress?.total ?? 1)} of ${progress?.total ?? 1}…`
+              : pendingUrls.length > 1
+                ? `Read ${Math.min(pendingUrls.length, MAX_PAGES)} pages`
+                : 'Read page'}
           </button>
         </div>
         <p className="muted small">
-          The page is fetched by this app's own server so your browser is allowed to read it — only the
-          address leaves your machine, and the text is turned into cards locally.
+          Pages are fetched by this app's own server so your browser is allowed to read them — only the
+          addresses leave your machine, and the text is turned into cards locally.
         </p>
       </div>
 

@@ -56,6 +56,12 @@ export interface DocumentSection {
   label: string;
   /** The page/slide title, if one was detected. */
   title?: string;
+  /**
+   * Which document this section came from, when a deck is built from several
+   * at once. Drafting batches never mix groups, so every card in a batch can be
+   * attributed to the right source.
+   */
+  group?: string;
   blocks: Block[];
 }
 

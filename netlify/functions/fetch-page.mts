@@ -12,7 +12,9 @@ import { fetchPageHtml, PageFetchError } from '../../src/lib/fetchPage';
 
 // Crude in-memory throttle, matching generate.mts: function instances are
 // recycled, so this is a speed bump against casual abuse, not a real quota.
-const RATE_LIMIT_PER_MINUTE = 10;
+// A deck can be built from up to ten pages at once, so the limit has to sit
+// above that or the last page of a legitimate batch is refused.
+const RATE_LIMIT_PER_MINUTE = 30;
 const hits = new Map<string, number[]>();
 
 function rateLimited(ip: string): boolean {

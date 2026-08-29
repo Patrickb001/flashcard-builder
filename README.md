@@ -51,6 +51,8 @@ A web page needs a different kind of work: the structure is there, but so is eve
 
 Pages are fetched by the app's own server, because a browser is not allowed to read another site's HTML. That endpoint is the one piece of this app with a security story worth reading: see `src/lib/fetchPage.ts` and the deployment notes.
 
+Several addresses can go in at once — one per line — and become a single deck. They are read one at a time, a page that fails is reported rather than sinking the batch, and each card's source label names the page it came from. Ten pages is the maximum for one deck.
+
 ## How cards are generated
 
 `src/lib/flashcardGenerator.ts` walks the typed blocks, with a rule per block type:

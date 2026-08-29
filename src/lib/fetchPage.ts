@@ -14,9 +14,19 @@
  * because a public URL is free to redirect to a private one.
  */
 
-export const MAX_PAGE_BYTES = 3_000_000;
+/**
+ * Ceilings chosen for the tightest place this runs: a Netlify synchronous
+ * function, which is killed at 10 seconds and cannot return more than 6 MB.
+ *
+ * The timeout sits below the platform's so a slow site produces this module's
+ * own message rather than an opaque platform error, and the size cap leaves
+ * room for JSON escaping to inflate the body on the way back. Real pages are
+ * far under both: a large Wikipedia article is about 1.3 MB and arrives in
+ * well under a second.
+ */
+export const MAX_PAGE_BYTES = 2_000_000;
 const MAX_REDIRECTS = 4;
-const TIMEOUT_MS = 15_000;
+const TIMEOUT_MS = 8_000;
 
 /** Carries the status the endpoint should answer with. */
 export class PageFetchError extends Error {

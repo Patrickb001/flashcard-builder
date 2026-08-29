@@ -19,6 +19,7 @@ type View =
       fileName: string;
       sourceType: SourceType;
       ai: AiSettings;
+      notice?: string;
     }
   | { name: 'study'; deckId: string }
   | { name: 'manage'; deckId: string };
@@ -77,8 +78,8 @@ export default function App() {
 
         {view.name === 'upload' && (
           <Uploader
-            onParsed={(sections, fileName, sourceType, ai) =>
-              setView({ name: 'review', sections, fileName, sourceType, ai })
+            onParsed={(sections, fileName, sourceType, ai, notice) =>
+              setView({ name: 'review', sections, fileName, sourceType, ai, notice })
             }
             onCancel={() => setView({ name: 'library' })}
           />
@@ -90,6 +91,7 @@ export default function App() {
             fileName={view.fileName}
             sourceType={view.sourceType}
             ai={view.ai}
+            notice={view.notice}
             onSaved={async (deckId) => {
               await refreshDecks();
               setView({ name: 'manage', deckId });
