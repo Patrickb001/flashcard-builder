@@ -28,14 +28,21 @@ export const MAX_PAGE_BYTES = 2_000_000;
 const MAX_REDIRECTS = 4;
 const TIMEOUT_MS = 8_000;
 
-/** Carries the status the endpoint should answer with. */
+/**
+ * Carries the status the endpoint should answer with.
+ *
+ * The field is declared and assigned rather than written as a constructor
+ * parameter property: that syntax is not type erasure, so Node's strip-only
+ * mode refuses the whole module and the test harness cannot load anything that
+ * imports it.
+ */
 export class PageFetchError extends Error {
-  constructor(
-    message: string,
-    readonly status: number = 502
-  ) {
+  readonly status: number;
+
+  constructor(message: string, status: number = 502) {
     super(message);
     this.name = 'PageFetchError';
+    this.status = status;
   }
 }
 

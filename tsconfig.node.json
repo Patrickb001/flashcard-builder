@@ -20,6 +20,7 @@
     "vite.config.ts",
     "src/lib/cardPrompt.ts",
     "src/lib/quizPrompt.ts",
+    "src/server",
     "netlify/functions"
   ]
 }
