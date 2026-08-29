@@ -981,3 +981,144 @@ textarea {
 .url-actions button {
   white-space: nowrap;
 }
+
+/* ---------- Snippets and diagrams on cards ---------- */
+
+/* A card face is centred, but its body is not: a program read down the middle
+   of the card is unreadable, and so is a paragraph that shifts left and right
+   as the answer changes length. The face centres the body as a block; the body
+   lays its own contents out from the left. */
+.face-body {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 0.9rem;
+  width: 100%;
+  max-width: 46ch;
+  min-height: 0;
+  max-height: 100%;
+  overflow-y: auto;
+  text-align: left;
+}
+
+.flip-card-front .face-body {
+  align-items: center;
+}
+
+.flip-card-front .face-body p {
+  text-align: center;
+}
+
+/* A card carrying a snippet or a diagram needs room that a two-line question
+   does not, so the extra height is asked for only when there is something to
+   put in it. */
+.flip-card.has-media {
+  height: 480px;
+}
+
+.card-code {
+  position: relative;
+  border: 1px solid var(--border-soft);
+  border-radius: 10px;
+  background: var(--ink-deepest);
+  overflow: hidden;
+}
+
+.card-code pre {
+  margin: 0;
+  padding: 0.85rem 0.9rem;
+  overflow-x: auto;
+  /* The snippet keeps the spacing it was published with. Wrapping a program to
+     fit the card would put its indentation in the wrong place, which is the one
+     thing a reader uses to follow it. */
+  white-space: pre;
+  tab-size: 2;
+}
+
+.card-code code {
+  font-family: 'IBM Plex Mono', ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 0.82rem;
+  line-height: 1.55;
+  color: var(--text-primary);
+}
+
+.card-code-lang {
+  position: absolute;
+  top: 0;
+  right: 0;
+  padding: 0.15rem 0.5rem;
+  font-family: var(--font-ui);
+  font-size: 0.65rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--text-faint);
+  background: var(--panel);
+  border-bottom-left-radius: 8px;
+}
+
+.card-image {
+  display: block;
+  max-width: 100%;
+  max-height: 260px;
+  margin: 0 auto;
+  object-fit: contain;
+  border-radius: 10px;
+  /* Diagrams on tutorial sites are drawn for a white page, so a dark card would
+     show them as a bright rectangle with a hard edge. The mat gives them a page
+     of their own to sit on. */
+  background: #f6f4ef;
+  padding: 0.6rem;
+}
+
+.card-image-missing {
+  font-family: var(--font-ui);
+  font-size: 0.85rem;
+  color: var(--text-faint);
+  font-style: italic;
+}
+
+/* ---------- Attachments in the review list ---------- */
+
+.candidate-media {
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+  margin: 0.5rem 0 0.15rem;
+}
+
+.candidate-attachment {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.35rem;
+  padding: 0.6rem;
+  border: 1px solid var(--border-soft);
+  border-radius: 10px;
+  background: var(--ink);
+}
+
+.candidate-attachment .card-code {
+  width: 100%;
+}
+
+.candidate-attachment .card-image {
+  max-height: 180px;
+}
+
+.attachment-tag {
+  font-family: var(--font-ui);
+  font-size: 0.68rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--text-faint);
+}
+
+@media (max-width: 640px) {
+  .flip-card.has-media {
+    height: 400px;
+  }
+
+  .card-code code {
+    font-size: 0.74rem;
+  }
+}

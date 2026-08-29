@@ -5,6 +5,7 @@ import { generateCandidates } from '../lib/flashcardGenerator';
 import type { AiSettings, AiProgress } from '../lib/aiGenerator';
 import { generateCandidatesWithAi } from '../lib/aiGenerator';
 import { saveDeckWithCards } from '../db/db';
+import { Diagram, Snippet } from './CardMedia';
 import type { SourceType } from './Uploader';
 
 interface Props {
@@ -135,6 +136,11 @@ export default function CandidateReview({
       back: c.back.trim(),
       sourceLabel: c.sourceLabel,
       context: c.context,
+      // Snippets and diagrams travel with the card into the deck; the review
+      // screen is where an unwanted one is taken off.
+      frontCode: c.frontCode,
+      backCode: c.backCode,
+      image: c.image,
       status: 'new',
       createdAt: now,
     }));
@@ -227,6 +233,46 @@ export default function CandidateReview({
                 placeholder="Back (answer / definition)"
                 rows={2}
               />
+              {(c.frontCode || c.backCode || c.image) && (
+                <div className="candidate-media">
+                  {c.frontCode && (
+                    <div className="candidate-attachment">
+                      <span className="attachment-tag">Shown with the question</span>
+                      <Snippet code={c.frontCode} />
+                      <button
+                        className="ghost-btn small"
+                        onClick={() => updateCandidate(i, { frontCode: undefined })}
+                      >
+                        Remove snippet
+                      </button>
+                    </div>
+                  )}
+                  {c.backCode && (
+                    <div className="candidate-attachment">
+                      <span className="attachment-tag">Shown with the answer</span>
+                      <Snippet code={c.backCode} />
+                      <button
+                        className="ghost-btn small"
+                        onClick={() => updateCandidate(i, { backCode: undefined })}
+                      >
+                        Remove snippet
+                      </button>
+                    </div>
+                  )}
+                  {c.image && (
+                    <div className="candidate-attachment">
+                      <span className="attachment-tag">Shown with the answer</span>
+                      <Diagram image={c.image} />
+                      <button
+                        className="ghost-btn small"
+                        onClick={() => updateCandidate(i, { image: undefined })}
+                      >
+                        Remove diagram
+                      </button>
+                    </div>
+                  )}
+                </div>
+              )}
               <span className="candidate-meta">
                 {c.context && <span className="topic-chip">{c.context}</span>}
                 <span className="source-label">{c.sourceLabel}</span>

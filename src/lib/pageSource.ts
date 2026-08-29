@@ -176,7 +176,9 @@ async function fetchPageSections(rawUrl: string): Promise<PageResult> {
   // the noise strip touches the document.
   const doc = new DOMParser().parseFromString(data.html, 'text/html');
   const title = cleanPageTitle(doc.title ?? '');
-  const sections = sectionsFromDocument(doc, { pageTitle: title });
+  // The address after redirects, so a diagram referenced by a relative path
+  // resolves against the site it came from rather than against this app.
+  const sections = sectionsFromDocument(doc, { pageTitle: title, baseUrl: finalUrl });
 
   return { sections, name: title || deckNameForUrl(finalUrl), url: finalUrl };
 }

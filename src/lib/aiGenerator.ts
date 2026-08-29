@@ -1,5 +1,5 @@
 import type { DocumentSection } from './documentModel';
-import type { CandidateCard } from '../types';
+import type { CandidateCard, CardCode, CardImage } from '../types';
 import { CARD_SYSTEM_PROMPT, parseCardsResponse } from './cardPrompt';
 import { dedupeCards, isUsableCard } from './cardValidation';
 import { generateCandidates } from './flashcardGenerator';
@@ -46,9 +46,30 @@ export function saveAiSettings(settings: AiSettings): void {
   }
 }
 
-/** Compact JSON payload for one section — structure preserved, noise dropped. */
-function serializeSection(section: DocumentSection) {
-  return {
+/**
+ * The snippets and diagrams a batch offers the model, by id.
+ *
+ * Ids run across the whole batch rather than per section: the model answers for
+ * the batch as a whole, and two sections in it would otherwise both claim "c1".
+ */
+interface AssetTable {
+  code: Map<string, CardCode>;
+  images: Map<string, CardImage>;
+}
+
+/**
+ * Compact JSON payload for one batch — structure preserved, noise dropped.
+ *
+ * Snippets and images go over with an id beside them. The model attaches one to
+ * a card by naming its id and the real content is put back here afterwards, so
+ * a program is never routed through the model's own output — where a single
+ * typo would land in the one part of a card that has to be exact, and where an
+ * image address would simply be invented.
+ */
+function serializeBatch(sections: DocumentSection[]): { payload: unknown[]; assets: AssetTable } {
+  const assets: AssetTable = { code: new Map(), images: new Map() };
+
+  const payload = sections.map((section) => ({
     source: section.label,
     title: section.title ?? null,
     blocks: section.blocks.map((b) => {
@@ -61,11 +82,37 @@ function serializeSection(section: DocumentSection) {
           return { type: 'list', label: b.heading ?? null, items: b.items };
         case 'table':
           return { type: 'table', headers: b.headers, rows: b.rows };
-        case 'code':
-          return { type: 'code', language: b.language ?? null, label: b.heading ?? null, text: b.text };
+        case 'code': {
+          const id = `c${assets.code.size + 1}`;
+          assets.code.set(id, { text: b.text, language: b.language });
+          return {
+            type: 'code',
+            id,
+            language: b.language ?? null,
+            label: b.heading ?? null,
+            text: b.text,
+            output: b.output ?? null,
+            alsoIn: b.alsoIn?.length ? b.alsoIn : null,
+          };
+        }
+        case 'image': {
+          const id = `i${assets.images.size + 1}`;
+          assets.images.set(id, { src: b.src, alt: b.alt });
+          // The address is withheld on purpose: it is of no use to the model
+          // and every byte of it would be spent for nothing.
+          return {
+            type: 'image',
+            id,
+            label: b.heading ?? null,
+            alt: b.alt ?? null,
+            caption: b.caption ?? null,
+          };
+        }
       }
     }),
-  };
+  }));
+
+  return { payload, assets };
 }
 
 async function callHosted(payload: unknown): Promise<string> {
@@ -159,7 +206,7 @@ export async function generateCandidatesWithAi(
 
   for (let i = 0; i < batches.length; i++) {
     const batch = batches[i];
-    const payload = batch.map(serializeSection);
+    const { payload, assets } = serializeBatch(batch);
 
     try {
       const text =
@@ -179,6 +226,11 @@ export async function generateCandidatesWithAi(
           // Cards are attributed to the batch's first section; the model is not
           // asked to echo per-card page numbers it could get wrong.
           sourceLabel: label,
+          // An id the model invented resolves to nothing and is dropped, which
+          // is the whole point of handing over ids rather than content.
+          frontCode: card.frontCode ? assets.code.get(card.frontCode) : undefined,
+          backCode: card.backCode ? assets.code.get(card.backCode) : undefined,
+          image: card.image ? assets.images.get(card.image) : undefined,
           include: true,
         });
       }

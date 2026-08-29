@@ -9,7 +9,35 @@ export interface Deck {
 
 export type CardStatus = 'new' | 'known' | 'unknown';
 
-export interface Flashcard {
+/**
+ * A snippet shown on a card face.
+ *
+ * Code is carried beside the text rather than pasted into it. A question like
+ * "what does this print?" needs the program laid out with its indentation
+ * intact, and a card that has folded it into a sentence cannot show that.
+ */
+export interface CardCode {
+  text: string;
+  language?: string;
+}
+
+/** A diagram shown on the answer side, carried by address. */
+export interface CardImage {
+  src: string;
+  alt?: string;
+}
+
+/** The parts a card can carry beyond its two lines of text. */
+interface CardMedia {
+  /** A snippet the question is about — the program a card asks you to read. */
+  frontCode?: CardCode;
+  /** A snippet that is the answer — the syntax a card asks you to recall. */
+  backCode?: CardCode;
+  /** A diagram that answers the question, shown on the back. */
+  image?: CardImage;
+}
+
+export interface Flashcard extends CardMedia {
   id: string;
   deckId: string;
   front: string;
@@ -21,7 +49,7 @@ export interface Flashcard {
   createdAt: number;
 }
 
-export interface CandidateCard {
+export interface CandidateCard extends CardMedia {
   front: string;
   back: string;
   sourceLabel: string;

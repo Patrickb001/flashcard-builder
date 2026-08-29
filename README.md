@@ -47,7 +47,16 @@ Two decisions do most of the work on a large file:
 - **Code is content.** In a technical document the snippet *is* the answer to "how do I do this?". Dropping fenced code left whole sections as a heading with nothing under it, and the drafter had nothing to work from.
 - **Sections are size-bounded.** The file is split at its shallowest heading level, and any section still over ~1200 characters is split again one level down. This matters because the model returns roughly the same number of cards per section whether that section is three paragraphs or a whole chapter — so section size, not document size, is what sets the yield. An 11 KB reference document goes from 5 sections to 22.
 
-A web page needs a different kind of work: the structure is there, but so is everything else. `src/lib/htmlParser.ts` is mostly subtractive — strip scripts, navigation, banners and complementary landmarks; pick the element that holds the article (`article`, then `main`, then the usual CMS containers) rather than the largest one, since `main` normally contains the article *and* the page's furniture; then map the surviving elements onto the same blocks. Along the way it drops link-only rows (pagers, breadcrumbs), demotes callout headings like "Note" and "Pitfall" so they cannot name a section, keeps code line breaks that editors render as separate elements, and cuts appendices — "References", "External links", "See also" — which otherwise become sections asking what citation 47 was.
+A web page needs a different kind of work: the structure is there, but so is everything else. `src/lib/htmlParser.ts` is mostly subtractive — strip scripts, navigation, banners and complementary landmarks; pick the element that holds the article (`article`, then `main`, then the usual CMS containers) rather than the largest one, since `main` normally contains the article *and* the page's furniture; then map the surviving elements onto the same blocks. Along the way it drops link-only rows (pagers, breadcrumbs), demotes callout headings like "Note" and "Pitfall" so they cannot name a section, and cuts appendices — "References", "External links", "See also" — which otherwise become sections asking what citation 47 was.
+
+Tutorial sites need four more things on top of that, and a deck built from one is poor without them:
+
+- **A snippet has to stay a snippet.** `<code>` is an inline tag, but a `<code>` wrapping a `<pre>` is how several sites mark up a code panel. Read as prose, a program loses its line breaks and gains a space at every highlight span — `System. out. print`. Only the whole subtree tells the two apart.
+- **A language tab strip is one snippet, not six.** Sites publish the same example in C++, C, Java, Python, C# and JavaScript behind a row of tabs. All six sit in the markup, so a plain DOM walk emits six snippets where the page shows one — sixfold payload, six near-identical cards. A strip is recognised structurally (every child is a panel declaring its language, or a short tab label), the page's own first tab is kept, and the rest are recorded by name.
+- **A bold line is a heading.** Pages written in a visual editor carry two or three real headings and mark every other subtopic as a bolded line. Left as paragraphs they leave the whole article as one undivided section: the six kinds of `for` loop went from one section to six once those lines were promoted.
+- **"Output" belongs to the program above it.** A tutorial publishes the program, the word "Output", and what it prints as three separate blocks. Folded back together they are one good card; apart, they are three poor ones.
+
+Diagrams are kept too — a flowchart is often the clearest answer a page has. An image survives only if it looks like content rather than furniture (name, alt text and declared size all get a say), and its address is made absolute against the page it came from, because a card outlives the page and a relative path would resolve against this app later and load nothing.
 
 Pages are fetched by the app's own server, because a browser is not allowed to read another site's HTML. That endpoint is the one piece of this app with a security story worth reading: see `src/lib/fetchPage.ts` and the deployment notes.
 
@@ -98,6 +107,7 @@ Edit the `path` constant at the top of the PDF harnesses to point at your own fi
 - A page that builds itself in the browser (an app shell with no server-rendered text) comes back empty; the reader fetches HTML, it does not run JavaScript.
 - Pages behind a login or a bot check cannot be read.
 - Very tight kerning between two full words can occasionally drop the space between them.
+- Diagrams on cards are stored by address, not copied into the deck. If the source site stops serving the file, the card falls back to the image's alt text.
 - All data lives in your browser's IndexedDB. Clearing site data deletes your decks.
 
 ## Tech stack

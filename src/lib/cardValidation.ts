@@ -15,7 +15,7 @@ const BOILERPLATE_FRONT =
  * functions" must not become a card.
  */
 const DISCOURSE_MARKERS =
-  /^(for example|for instance|e\.?g|i\.?e|note|notes|remember|tip|warning|caution|important|anyway|however|therefore|thus|so|and|but|or|also|in short|in summary|in other words|in this case|in contrast|for reference|see also|as follows|the following|example|examples|result|results|conclusion|summary|question|answer|hint|reminder|aside|caveat|disclaimer|update|edit|source|sources|via|from|to|by|with|about)$/i;
+  /^(for example|for instance|e\.?g|i\.?e|note|notes|remember|tip|warning|caution|important|anyway|however|therefore|thus|so|and|but|or|also|in short|in summary|in other words|in this case|in contrast|for reference|see also|as follows|the following|example|examples|result|results|conclusion|summary|question|answer|hint|reminder|aside|caveat|disclaimer|update|edit|source|sources|via|from|to|by|with|about|explanation|explanations|working|output|code|program|definition)$/i;
 
 /** Chrome that appears on printed web pages. */
 const WEB_CHROME =
@@ -82,9 +82,13 @@ export function isUsableCard(card: CandidateCard): boolean {
   if (!front || !back) return false;
   if (back.length < MIN_BACK_CHARS) return false;
 
-  // Truncated fragments: "…impulse control =".
-  if (/[=+\-–—:;,/]$/.test(front.replace(/\.\.\.\?$/, '').replace(/\?$/, ''))) return false;
-  if (/[=+]$/.test(back)) return false;
+  // Truncated fragments: "…impulse control =". The operator has to be standing
+  // on its own to count: a language name ends in one — "how is this written in
+  // C++?" — and testing the character alone threw away every card about C++
+  // and C# in a deck built from a programming tutorial.
+  const stem = front.replace(/\.\.\.\?$/, '').replace(/\?$/, '');
+  if (/[:;,/]$/.test(stem) || /(^|\s)[=+\-–—]$/.test(stem)) return false;
+  if (/(^|\s)[=+]$/.test(back)) return false;
 
   if (front.split(/\s+/).length > MAX_FRONT_WORDS) return false;
   if (back.split(/\s+/).length > MAX_BACK_WORDS) return false;

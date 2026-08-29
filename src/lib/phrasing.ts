@@ -128,7 +128,7 @@ export function reverseTableQuestion(
 
 /** Question for a section heading that introduces explanatory prose. */
 export function headingQuestion(heading: string): string {
-  const h = heading.trim().replace(/[:?]+$/, '');
+  const h = stripOrdinal(heading).replace(/[:?]+$/, '');
   if (/^(what|which|who|when|where|why|how)\b/i.test(h)) return `${h}?`;
   if (PREPOSITION_ENDINGS.test(h)) return `${h}...?`;
   return `What characterizes ${h}?`;
@@ -136,7 +136,7 @@ export function headingQuestion(heading: string): string {
 
 /** Question for an inline label such as "Substance use vulnerability:". */
 export function labelQuestion(label: string): string {
-  const l = label.trim().replace(/[:?]+$/, '');
+  const l = stripOrdinal(label).replace(/[:?]+$/, '');
   if (/^(what|which|who|when|where|why|how)\b/i.test(l)) return `${l}?`;
   if (PREPOSITION_ENDINGS.test(l)) return `${l}...?`;
   // Casing is preserved: acronyms and proper nouns must not be flattened.
@@ -171,7 +171,7 @@ export function softenAllCaps(text: string): string {
 }
 
 export function listQuestion(heading: string): string {
-  const h = heading.trim().replace(/[:?]+$/, '');
+  const h = stripOrdinal(heading).replace(/[:?]+$/, '');
   if (/^(what|which|who|when|where|why|how)\b/i.test(h)) return `${h}?`;
   if (PREPOSITION_ENDINGS.test(h)) return `${h}...?`;
   return `What ${be(h)} the ${lower(h)}?`;
@@ -185,4 +185,96 @@ export function termQuestion(term: string): string {
   // would be ungrammatical.
   if (/^(on|in|at|by|for|with|during|after|before)\b/i.test(t)) return `${t} — what was found?`;
   return `What ${be(t)} ${t}?`;
+}
+
+// ---------------------------------------------------------------------------
+// Code and diagrams
+// ---------------------------------------------------------------------------
+
+/** Display names for the language tags parsers record. */
+const LANGUAGE_NAMES: Record<string, string> = {
+  bash: 'Bash',
+  c: 'C',
+  cpp: 'C++',
+  csharp: 'C#',
+  css: 'CSS',
+  dart: 'Dart',
+  go: 'Go',
+  graphql: 'GraphQL',
+  html: 'HTML',
+  java: 'Java',
+  javascript: 'JavaScript',
+  json: 'JSON',
+  jsx: 'JSX',
+  kotlin: 'Kotlin',
+  markdown: 'Markdown',
+  php: 'PHP',
+  python: 'Python',
+  ruby: 'Ruby',
+  rust: 'Rust',
+  scala: 'Scala',
+  scss: 'Sass',
+  sh: 'Shell',
+  shell: 'Shell',
+  sql: 'SQL',
+  swift: 'Swift',
+  tsx: 'TSX',
+  typescript: 'TypeScript',
+  xml: 'XML',
+  yaml: 'YAML',
+};
+
+/** "cpp" -> "C++". Null for a tag with no name worth printing. */
+export function languageName(language?: string): string | null {
+  if (!language) return null;
+  return LANGUAGE_NAMES[language.toLowerCase()] ?? null;
+}
+
+/**
+ * Drops a list marker from the front of a label.
+ *
+ * Numbered subheadings are ordinary on tutorial pages — "1. Basic For Loop" —
+ * and the number belongs to the article's running order, not to the concept.
+ * Left in place it reads back as "What characterizes 1. Basic For Loop?".
+ */
+export function stripOrdinal(label: string): string {
+  return label.trim().replace(/^\(?\d{1,2}[.)]\s+/, '').trim() || label.trim();
+}
+
+/**
+ * Question for a snippet the student should be able to write.
+ *
+ * The label is kept as its own noun phrase and the question asked after it,
+ * rather than folded into "How do you write ...?". A label is a fragment with
+ * no article of its own, and every attempt to build one produced a question
+ * like "How do you write basic for loop in C++?".
+ */
+export function codeQuestion(label: string, language?: string): string {
+  const l = stripOrdinal(label).replace(/[:?]+$/, '');
+  const name = languageName(language);
+  const suffix = name ? ` in ${name}` : '';
+  if (/^(what|which|who|when|where|why|how)\b/i.test(l)) return `${l}?`;
+  return `${l} — how is this written${suffix}?`;
+}
+
+/**
+ * Question for a snippet whose printed output is the answer.
+ *
+ * The label leads, because a deck built from a tutorial holds a dozen of these
+ * and "What does this program print?" is the same question every time — the
+ * duplicate filter would keep one of them and drop the rest.
+ */
+export function outputQuestion(label?: string, language?: string): string {
+  const name = languageName(language);
+  const question = name ? `what does this ${name} program print?` : 'what does this program print?';
+  const topic = label ? stripOrdinal(label).replace(/[:?]+$/, '') : '';
+  if (!topic) return question.charAt(0).toUpperCase() + question.slice(1);
+  return `${topic} — ${question}`;
+}
+
+/** Question for a diagram, where the picture itself is the answer. */
+export function diagramQuestion(label: string): string {
+  const l = stripOrdinal(label).replace(/[:?]+$/, '');
+  if (/^(what|which|who|when|where|why|how)\b/i.test(l)) return `${l}?`;
+  return `${l} — what does it look like?`;
 }

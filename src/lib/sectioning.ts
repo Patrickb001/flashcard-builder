@@ -40,7 +40,11 @@ function blockLength(block: Block): number {
     case 'paragraph':
       return block.text.length;
     case 'code':
-      return block.text.length;
+      return block.text.length + (block.output?.length ?? 0);
+    case 'image':
+      // A picture costs the drafter almost nothing to read: it arrives as an
+      // id, its alt text and its caption, not as pixels.
+      return (block.alt?.length ?? 0) + (block.caption?.length ?? 0);
     case 'list':
       return block.items.join(' ').length;
     case 'table':
@@ -125,32 +129,57 @@ export function sectionsFromBlocks(blocks: Block[], options: SectionOptions = {}
   for (const run of runs) {
     if (run.blocks.length === 0) continue;
 
-    const title = run.titles[run.titles.length - 1];
+    // A document that opens with prose before its first heading — an
+    // encyclopedia lead, a blog intro — leaves this run untitled. The file name
+    // or page title is the topic label it should carry, and it is resolved here
+    // rather than afterwards because the labelling below reads it.
+    const title = run.titles[run.titles.length - 1] ?? options.fallbackTitle;
     const body = run.blocks.map((b) =>
       // Headings that survive inside a section are subheadings, whatever their
       // original depth: level 1 means "page title" to the card generator.
       b.kind === 'heading' ? { ...b, level: 2 } : b
     );
 
-    // A list sitting directly under the section heading has no nearer label,
-    // and the heading is exactly the question it answers.
-    if (title) {
-      for (const b of body) {
-        if (b.kind === 'list' && !b.heading) b.heading = title;
+    // A list, a snippet and a diagram all arrive unlabelled: nothing in the
+    // markup says what they are for. The nearest heading above is what names
+    // them — "Flowchart of If-Else Statement" rather than the whole section —
+    // and that label becomes the card front.
+    //
+    // A label is consumed by the first block it introduces. Without that, the
+    // caption above a diagram went on to title the code sample after it, and
+    // the snippet was offered to the reader as a flowchart.
+    let nearest = title;
+    for (let i = 0; i < body.length; i++) {
+      const b = body[i];
+
+      if (b.kind === 'heading') {
+        const next = body[i + 1];
+        // A bold line sitting directly above a figure is its caption, not a
+        // heading over everything that follows. Read as a heading it went on to
+        // title the code sample after the picture, and the snippet was offered
+        // to the reader as a flowchart.
+        if (next && next.kind === 'image') {
+          if (!next.heading) next.heading = b.text;
+          i += 1;
+          continue;
+        }
+        nearest = b.text;
+        continue;
+      }
+
+      // A labelled paragraph names its subtopic as surely as a heading does.
+      if (b.kind === 'paragraph') {
+        if (b.heading) nearest = b.heading;
+        continue;
+      }
+
+      if (b.kind === 'list' || b.kind === 'code' || b.kind === 'image') {
+        if (!b.heading) b.heading = nearest;
       }
     }
 
     sections.push({ label: `Section ${sections.length + 1}`, title, blocks: body });
     chains.push(run.titles);
-  }
-
-  // A document that opens with prose before its first heading — an
-  // encyclopedia lead, a blog intro — leaves that section untitled. The file
-  // name or page title is the topic label it should carry.
-  if (options.fallbackTitle) {
-    for (const section of sections) {
-      if (!section.title) section.title = options.fallbackTitle;
-    }
   }
 
   // Furniture is detected on body blocks only, before the heading path is added

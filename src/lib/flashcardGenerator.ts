@@ -1,10 +1,13 @@
-import type { Block, DocumentSection, TableBlock } from './documentModel';
-import type { CandidateCard } from '../types';
+import type { Block, CodeBlock, DocumentSection, ImageBlock, TableBlock } from './documentModel';
+import type { CandidateCard, CardCode, CardImage } from '../types';
 import { dedupeCards, isUsableCard, isMeaningfulLabel } from './cardValidation';
 import {
+  codeQuestion,
+  diagramQuestion,
   headingQuestion,
   labelQuestion,
   listQuestion,
+  outputQuestion,
   reverseTableQuestion,
   softenAllCaps,
   splitHeadingAge,
@@ -201,6 +204,93 @@ function cardsFromTable(table: TableBlock, label: string, context?: string): Can
 }
 
 // ---------------------------------------------------------------------------
+// Snippets and diagrams
+// ---------------------------------------------------------------------------
+
+/** The optional parts of a card, so `push` can carry them without new callers. */
+type CardMedia = Pick<CandidateCard, 'frontCode' | 'backCode' | 'image'>;
+
+/** Longer than this and a paragraph is a passage, not an answer. */
+const MAX_PROSE_WORDS = 45;
+
+/**
+ * Cards for one snippet.
+ *
+ * Two different things are worth learning from a program, so it can yield two
+ * cards: what it prints, which is a reading exercise with the code on the
+ * front; and how it is written, which is a recall exercise with the code on the
+ * back. The second needs a sentence to answer with, and only the page can
+ * supply that — inventing one is what the drafting model is for.
+ */
+function cardsFromCode(
+  block: CodeBlock,
+  label: string,
+  context: string | undefined,
+  pendingHeading: string | null,
+  prose: string | null
+): CandidateCard[] {
+  const cards: CandidateCard[] = [];
+  const topic = block.heading ?? pendingHeading ?? context;
+  const code: CardCode = { text: block.text, language: block.language };
+
+  if (block.output) {
+    cards.push({
+      front: outputQuestion(topic, block.language),
+      back: block.output,
+      sourceLabel: label,
+      context,
+      frontCode: code,
+      include: true,
+    });
+  }
+
+  if (topic && isMeaningfulLabel(topic) && prose) {
+    cards.push({
+      front: codeQuestion(topic, block.language),
+      back: prose,
+      sourceLabel: label,
+      context,
+      backCode: code,
+      include: true,
+    });
+  }
+
+  return cards;
+}
+
+/**
+ * A card for one diagram.
+ *
+ * The picture is the answer, but a card still needs words on its back: a
+ * diagram alone cannot be checked against what the student recalled. The
+ * sentence that introduced it does that job, so a diagram with no prose around
+ * it is left out rather than turned into a card that answers nothing.
+ */
+function cardFromImage(
+  block: ImageBlock,
+  label: string,
+  context: string | undefined,
+  pendingHeading: string | null,
+  prose: string | null
+): CandidateCard | null {
+  const topic = block.heading ?? pendingHeading ?? context;
+  if (!topic || !isMeaningfulLabel(topic)) return null;
+
+  const back = block.caption ?? prose;
+  if (!back) return null;
+
+  const image: CardImage = { src: block.src, alt: block.alt };
+  return {
+    front: diagramQuestion(topic),
+    back,
+    sourceLabel: label,
+    context,
+    image,
+    include: true,
+  };
+}
+
+// ---------------------------------------------------------------------------
 // Section walk
 // ---------------------------------------------------------------------------
 
@@ -209,15 +299,28 @@ export function cardsFromSection(section: DocumentSection): CandidateCard[] {
   const blocks = section.blocks;
   const ctx = section.title;
 
-  const hasStructure = blocks.some((b) => b.kind === 'table' || b.kind === 'list');
+  const hasStructure = blocks.some(
+    (b) => b.kind === 'table' || b.kind === 'list' || b.kind === 'code' || b.kind === 'image'
+  );
   if (!section.title && !hasStructure) return [];
 
   let pendingHeading: string | null = null;
   let pendingChip: string | null = null;
 
-  const push = (front: string, back: string) => {
-    cards.push({ front, back, sourceLabel: section.label, context: ctx, include: true });
+  const push = (front: string, back: string, media: CardMedia = {}) => {
+    cards.push({ front, back, sourceLabel: section.label, context: ctx, include: true, ...media });
   };
+
+  /**
+   * The last paragraph seen, kept as the answer text for the snippet or diagram
+   * that follows it.
+   *
+   * A snippet is not an answer on its own: "how is a for-each loop written?"
+   * needs a sentence saying what it does, with the code beside it. The sentence
+   * introducing the snippet is exactly that, and on a tutorial page it is
+   * always the paragraph directly above.
+   */
+  let lastProse: string | null = null;
 
   for (const block of blocks as Block[]) {
     if (block.kind === 'heading') {
@@ -238,6 +341,7 @@ export function cardsFromSection(section: DocumentSection): CandidateCard[] {
 
     if (block.kind === 'paragraph') {
       const text = tidy(block.text);
+      if (text.split(/\s+/).length <= MAX_PROSE_WORDS) lastProse = text;
 
       if (/^\s*\d/.test(text) && text.length <= 24 && /\d/.test(text) && !/[.!?]$/.test(text)) {
         // A short age or number chip labels the heading that follows it.
@@ -270,6 +374,19 @@ export function cardsFromSection(section: DocumentSection): CandidateCard[] {
       for (const def of definitionsFromProse(text)) {
         push(termQuestion(def.term), def.def);
       }
+      continue;
+    }
+
+    if (block.kind === 'code') {
+      cards.push(...cardsFromCode(block, section.label, ctx, pendingHeading, lastProse));
+      pendingHeading = null;
+      continue;
+    }
+
+    if (block.kind === 'image') {
+      const card = cardFromImage(block, section.label, ctx, pendingHeading, lastProse);
+      if (card) cards.push(card);
+      pendingHeading = null;
       continue;
     }
 

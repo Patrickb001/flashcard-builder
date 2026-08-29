@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import type { Deck, Flashcard } from '../types';
 import { getCardsForDeck, getDeck, updateCard } from '../db/db';
+import { Diagram, Snippet } from './CardMedia';
 
 interface Props {
   deckId: string;
@@ -63,6 +64,7 @@ export default function StudyMode({ deckId, onExit }: Props) {
 
   const current = order[position];
   const finished = order.length > 0 && position >= order.length;
+  const hasMedia = Boolean(current?.frontCode || current?.backCode || current?.image);
 
   const progressPct = useMemo(() => {
     if (order.length === 0) return 0;
@@ -131,7 +133,7 @@ export default function StudyMode({ deckId, onExit }: Props) {
           </p>
 
           <div
-            className={`flip-card ${flipped ? 'is-flipped' : ''}`}
+            className={`flip-card ${flipped ? 'is-flipped' : ''} ${hasMedia ? 'has-media' : ''}`}
             onClick={() => setFlipped((f) => !f)}
             role="button"
             tabIndex={0}
@@ -146,13 +148,20 @@ export default function StudyMode({ deckId, onExit }: Props) {
               <div className="flip-card-face flip-card-front">
                 {current.context && <span className="topic-chip">{current.context}</span>}
                 <span className="face-tag">Front</span>
-                <p>{current.front}</p>
+                <div className="face-body">
+                  <p>{current.front}</p>
+                  {current.frontCode && <Snippet code={current.frontCode} />}
+                </div>
                 <span className="tap-hint">Click or press space to flip</span>
               </div>
               <div className="flip-card-face flip-card-back">
                 {current.context && <span className="topic-chip">{current.context}</span>}
                 <span className="face-tag">Back</span>
-                <p>{current.back}</p>
+                <div className="face-body">
+                  <p>{current.back}</p>
+                  {current.backCode && <Snippet code={current.backCode} />}
+                  {current.image && <Diagram image={current.image} />}
+                </div>
               </div>
             </div>
           </div>
