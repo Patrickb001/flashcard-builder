@@ -75,7 +75,15 @@ Restart the dev server after editing `.env` — it is read once at startup.
 
 The Netlify CLI is optional. If you want to exercise the real function before deploying, `npm install -g netlify-cli && netlify dev` also works, but note it serves on port 8888 rather than 5173.
 
-## 4. Custom domain (optional)
+## 4. The page reader
+
+`netlify/functions/fetch-page.mts` deploys alongside the drafting function and answers at `/api/fetch-page`. It needs no key and no configuration: it fetches the address the user pasted and hands the HTML back to the browser, which does the parsing.
+
+It is worth knowing what this endpoint is, though. Anything that fetches a URL on request can be pointed at addresses only your server can reach — the classic target is a cloud provider's metadata service. `src/lib/fetchPage.ts` refuses private, loopback, link-local and metadata addresses, re-checks every redirect hop, caps the response at 3 MB, times out at 15 seconds, and the function rate-limits to 10 pages per minute per IP.
+
+One limit remains: the guard reads the address as written, so a public hostname that *resolves* to a private IP is not caught. That needs a DNS lookup with the connection pinned to the address that was checked, which is not something a Netlify function can do cleanly. For a personal site this is a reasonable trade-off. If you make yours public and this matters to you, put the fetch behind an egress proxy that enforces the same rules, or drop `netlify/functions/fetch-page.mts` — the rest of the app works without it, and files still open normally.
+
+## 5. Custom domain (optional)
 
 **Domain management** → **Add a domain**. Netlify provisions HTTPS automatically. Point your registrar's nameservers at Netlify, or add the CNAME it shows you.
 

@@ -1,6 +1,6 @@
 # Flashcard Forge
 
-Turn a PDF, PowerPoint, or Markdown file into a deck of flashcards, entirely in your browser. No backend, no account, no API key. Decks are saved to IndexedDB.
+Turn a PDF, PowerPoint, Markdown file, or web page into a deck of flashcards, in your browser. No backend, no account, no API key. Decks are saved to IndexedDB.
 
 ## Quick start
 
@@ -47,6 +47,10 @@ Two decisions do most of the work on a large file:
 - **Code is content.** In a technical document the snippet *is* the answer to "how do I do this?". Dropping fenced code left whole sections as a heading with nothing under it, and the drafter had nothing to work from.
 - **Sections are size-bounded.** The file is split at its shallowest heading level, and any section still over ~1200 characters is split again one level down. This matters because the model returns roughly the same number of cards per section whether that section is three paragraphs or a whole chapter — so section size, not document size, is what sets the yield. An 11 KB reference document goes from 5 sections to 22.
 
+A web page needs a different kind of work: the structure is there, but so is everything else. `src/lib/htmlParser.ts` is mostly subtractive — strip scripts, navigation, banners and complementary landmarks; pick the element that holds the article (`article`, then `main`, then the usual CMS containers) rather than the largest one, since `main` normally contains the article *and* the page's furniture; then map the surviving elements onto the same blocks. Along the way it drops link-only rows (pagers, breadcrumbs), demotes callout headings like "Note" and "Pitfall" so they cannot name a section, keeps code line breaks that editors render as separate elements, and cuts appendices — "References", "External links", "See also" — which otherwise become sections asking what citation 47 was.
+
+Pages are fetched by the app's own server, because a browser is not allowed to read another site's HTML. That endpoint is the one piece of this app with a security story worth reading: see `src/lib/fetchPage.ts` and the deployment notes.
+
 ## How cards are generated
 
 `src/lib/flashcardGenerator.ts` walks the typed blocks, with a rule per block type:
@@ -74,9 +78,14 @@ npx tsx tools/test-layout.mjs        # dump the block structure per page
 npx tsx tools/test-layout.mjs 13     # just page 13
 npx tsx tools/test-cards.mjs         # dump every generated card
 
-# Markdown, with no extra install — Node runs the real .ts modules
+# Markdown and HTML, with no extra install — Node runs the real .ts modules
 node --experimental-strip-types --experimental-loader ./tools/ts-ext-hooks.mjs \
   tools/test-md.mjs notes.md
+node --experimental-strip-types --experimental-loader ./tools/ts-ext-hooks.mjs \
+  tools/test-html.mjs saved-page.html
+URL=https://18.react.dev/learn/state-a-components-memory node \
+  --experimental-strip-types --experimental-loader ./tools/ts-ext-hooks.mjs \
+  tools/test-html.mjs
 ```
 
 Edit the `path` constant at the top of the PDF harnesses to point at your own file. These are the fastest way to see why a particular slide produced the cards it did.
@@ -84,12 +93,14 @@ Edit the `path` constant at the top of the PDF harnesses to point at your own fi
 ## Limitations
 
 - Scanned/image-only PDFs have no text layer and cannot be read; there is no OCR step.
+- A page that builds itself in the browser (an app shell with no server-rendered text) comes back empty; the reader fetches HTML, it does not run JavaScript.
+- Pages behind a login or a bot check cannot be read.
 - Very tight kerning between two full words can occasionally drop the space between them.
 - All data lives in your browser's IndexedDB. Clearing site data deletes your decks.
 
 ## Tech stack
 
-React + TypeScript + Vite, `pdfjs-dist` for PDF text, `jszip` for `.pptx`, a hand-rolled reader for `.md`, `idb` for IndexedDB.
+React + TypeScript + Vite, `pdfjs-dist` for PDF text, `jszip` for `.pptx`, hand-rolled readers for `.md` and HTML (the browser's own `DOMParser` does the tokenizing), `idb` for IndexedDB. `linkedom` is a devDependency only: it stands in for the DOM so the test harnesses can run the real parsers under Node.
 
 ## Build for production
 

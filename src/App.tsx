@@ -4,6 +4,7 @@ import type { DocumentSection } from './lib/documentModel';
 import type { AiSettings } from './lib/aiGenerator';
 import { getAllDecks } from './db/db';
 import Uploader from './components/Uploader';
+import type { SourceType } from './components/Uploader';
 import CandidateReview from './components/CandidateReview';
 import StudyMode from './components/StudyMode';
 import DeckManager from './components/DeckManager';
@@ -16,7 +17,7 @@ type View =
       name: 'review';
       sections: DocumentSection[];
       fileName: string;
-      sourceType: 'pdf' | 'pptx' | 'md';
+      sourceType: SourceType;
       ai: AiSettings;
     }
   | { name: 'study'; deckId: string }

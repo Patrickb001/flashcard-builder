@@ -1,5 +1,5 @@
 import type { Block, CodeBlock, DocumentSection, ListBlock, TableBlock } from './documentModel';
-import { stripRepeatedFurniture } from './layoutAnalysis';
+import { sectionsFromBlocks, truncateCode } from './sectioning';
 
 /**
  * Reads a Markdown file into structured sections.
@@ -14,20 +14,6 @@ import { stripRepeatedFurniture } from './layoutAnalysis';
  * block structure only, and every extra dependency ships to the browser.
  */
 
-/**
- * A section longer than this is split again at its next heading level.
- *
- * Section size is the biggest lever on how many cards a document yields: the
- * model is asked for the facts worth learning in a section, and it answers at
- * roughly the same length whether that section is three paragraphs or a whole
- * chapter. A reference document with 3000-word top-level headings was being
- * summarised into a handful of cards. Splitting down to a few paragraphs per
- * section is what makes the yield track the document's actual content.
- */
-const SECTION_CHAR_BUDGET = 1200;
-
-/** Longer snippets are truncated; the opening lines carry the idea. */
-const MAX_CODE_CHARS = 1200;
 
 // ---------------------------------------------------------------------------
 // Inline syntax
@@ -174,34 +160,6 @@ function normalize(markdown: string): string[] {
   return out;
 }
 
-/**
- * Heading level per line, or null where there is none.
- *
- * Lines inside a fence never count: `# Update single entry` is a comment in a
- * snippet, and treating it as a heading would cut that snippet in half.
- */
-function headingLevels(lines: string[]): (number | null)[] {
-  const levels: (number | null)[] = [];
-  let fence: string | null = null;
-
-  for (const line of lines) {
-    if (fence) {
-      levels.push(null);
-      if (closesFence(line, fence)) fence = null;
-      continue;
-    }
-    const m = line.match(FENCE_RE);
-    if (m) {
-      fence = m[1];
-      levels.push(null);
-      continue;
-    }
-    levels.push(headingLevel(line));
-  }
-
-  return levels;
-}
-
 // ---------------------------------------------------------------------------
 // Code
 // ---------------------------------------------------------------------------
@@ -211,13 +169,6 @@ function dedent(body: string[]): string[] {
   const indents = body.filter((l) => l.trim()).map((l) => l.match(/^\s*/)![0].length);
   const shared = indents.length > 0 ? Math.min(...indents) : 0;
   return body.map((l) => l.slice(shared));
-}
-
-function truncateCode(text: string): string {
-  if (text.length <= MAX_CODE_CHARS) return text;
-  const cut = text.slice(0, MAX_CODE_CHARS);
-  const lastBreak = cut.lastIndexOf('\n');
-  return `${lastBreak > 0 ? cut.slice(0, lastBreak) : cut}\n…`;
 }
 
 /**
@@ -398,7 +349,7 @@ function parseBlocks(lines: string[]): Block[] {
     if (level !== null) {
       const text = headingText(line);
       if (text) {
-        blocks.push({ kind: 'heading', text, level: 2 });
+        blocks.push({ kind: 'heading', text, level });
         nearestHeading = text;
         pendingLabel = undefined;
       }
@@ -456,7 +407,9 @@ function parseBlocks(lines: string[]): Block[] {
       // A standalone bold line ("**Key risks**") is a heading in disguise.
       const label = stripInline(emphasised[2]).replace(/:$/, '');
       if (label) {
-        blocks.push({ kind: 'heading', text: label, level: 2 });
+        // The deepest level: a bold line is a label inside a section and must
+        // never outrank a real heading when the document is divided up.
+        blocks.push({ kind: 'heading', text: label, level: 6 });
         nearestHeading = label;
         pendingLabel = undefined;
       }
@@ -474,63 +427,9 @@ function parseBlocks(lines: string[]): Block[] {
 
   return blocks;
 }
-
+// ---------------------------------------------------------------------------
+// Entry points
 // ---------------------------------------------------------------------------
-// Sectioning
-// ---------------------------------------------------------------------------
-
-/** One future section: the heading path leading to it, and its own lines. */
-interface Run {
-  /** Ancestor headings, outermost first, ending with this run's own heading. */
-  titles: string[];
-  lines: string[];
-}
-
-function charCount(lines: string[]): number {
-  return lines.reduce((n, l) => n + l.trim().length + 1, 0);
-}
-
-/**
- * Splits lines into runs at the shallowest heading level present, descending a
- * level at a time while a run is still larger than the section budget.
- *
- * Two things make this adaptive rather than a fixed "split at H2": a document
- * whose only H1 is its own title would otherwise be one enormous section, and
- * a reference document mixes short H2s with H2s holding a dozen subsections.
- */
-function buildRuns(lines: string[], titles: string[], minLevel: number): Run[] {
-  const levels = headingLevels(lines);
-
-  let level: number | null = null;
-  for (const l of levels) {
-    if (l !== null && l >= minLevel && (level === null || l < level)) level = l;
-  }
-  if (level === null) return [{ titles, lines }];
-
-  const groups: { title?: string; lines: string[] }[] = [{ lines: [] }];
-  lines.forEach((line, i) => {
-    if (levels[i] === level) groups.push({ title: headingText(line) || undefined, lines: [] });
-    else groups[groups.length - 1].lines.push(line);
-  });
-
-  const filled = groups.filter((g) => g.title || g.lines.some((l) => l.trim()));
-  // A single group means this level spans the whole file — the document title,
-  // typically — so the divider has to come from the level below it.
-  const lone = filled.length === 1;
-
-  const runs: Run[] = [];
-  for (const group of filled) {
-    const chain = group.title ? [...titles, group.title] : titles;
-    const oversized = charCount(group.lines) > SECTION_CHAR_BUDGET;
-    if (oversized || (lone && group.title)) {
-      runs.push(...buildRuns(group.lines, chain, level + 1));
-    } else {
-      runs.push({ titles: chain, lines: group.lines });
-    }
-  }
-
-  return runs;
-}
 
 /** "week-3_notes.md" -> "week 3 notes", used when a file has no headings. */
 function titleFromFileName(fileName: string): string {
@@ -542,47 +441,8 @@ function titleFromFileName(fileName: string): string {
 }
 
 export function parseMarkdownSections(markdown: string, fileName = ''): DocumentSection[] {
-  const runs = buildRuns(normalize(markdown), [], 1);
-
-  const sections: DocumentSection[] = [];
-  const chains: string[][] = [];
-
-  for (const run of runs) {
-    const blocks = parseBlocks(run.lines);
-    if (blocks.length === 0) continue;
-
-    const title = run.titles[run.titles.length - 1];
-    // A list sitting directly under the section heading has no nearer label,
-    // and the heading is exactly the question it answers.
-    if (title) {
-      for (const b of blocks) {
-        if (b.kind === 'list' && !b.heading) b.heading = title;
-      }
-    }
-
-    sections.push({ label: `Section ${sections.length + 1}`, title, blocks });
-    chains.push(run.titles);
-  }
-
-  // A file with no headings has no title for the card generator to work from,
-  // which would leave a page of prose yielding nothing. The file name is the
-  // one topic label such a document does carry.
-  if (sections.length === 1 && !sections[0].title) {
-    const fallback = titleFromFileName(fileName);
-    if (fallback) sections[0].title = fallback;
-  }
-
-  // Furniture is detected on body blocks only, before the heading path is added
-  // below: an ancestor heading repeated across sibling sections is context, not
-  // the running footer that rule is meant to catch.
-  return stripRepeatedFurniture(sections).map((section, i) => {
-    for (const b of section.blocks) {
-      if (b.kind !== 'heading' && !b.context) b.context = section.title;
-    }
-    // The heading path leads the section, so a card drafted from a subsection
-    // still knows which document and topic it belongs to.
-    const path: Block[] = chains[i].map((text) => ({ kind: 'heading', text, level: 1 }));
-    return { ...section, blocks: [...path, ...section.blocks] };
+  return sectionsFromBlocks(parseBlocks(normalize(markdown)), {
+    fallbackTitle: titleFromFileName(fileName),
   });
 }
 

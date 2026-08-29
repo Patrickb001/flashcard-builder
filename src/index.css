@@ -378,6 +378,10 @@ p {
   color: var(--warm);
 }
 
+.source-tag.source-html {
+  color: var(--calm);
+}
+
 .deck-meta {
   font-size: 0.82rem;
   color: var(--text-secondary);
@@ -936,4 +940,40 @@ textarea {
   font-size: 0.82rem;
   text-transform: uppercase;
   letter-spacing: 0.06em;
+}
+
+.url-section {
+  margin-top: 1.5rem;
+}
+
+.url-row {
+  display: flex;
+  gap: 0.5rem;
+  align-items: stretch;
+  margin: 0.5rem 0 0.4rem;
+}
+
+.url-row input {
+  flex: 1;
+  min-width: 0;
+  font-family: var(--font-ui);
+  font-size: 0.92rem;
+  padding: 0.6rem 0.75rem;
+  color: var(--text-primary);
+  background: var(--panel);
+  border: 1px solid var(--border-soft);
+  border-radius: 8px;
+}
+
+.url-row input:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+}
+
+.url-row input::placeholder {
+  color: var(--text-faint);
+}
+
+.url-row button {
+  white-space: nowrap;
 }

@@ -5,25 +5,27 @@ import { generateCandidates } from '../lib/flashcardGenerator';
 import type { AiSettings, AiProgress } from '../lib/aiGenerator';
 import { generateCandidatesWithAi } from '../lib/aiGenerator';
 import { saveDeckWithCards } from '../db/db';
+import type { SourceType } from './Uploader';
 
 interface Props {
   sections: DocumentSection[];
   fileName: string;
-  sourceType: 'pdf' | 'pptx' | 'md';
+  sourceType: SourceType;
   ai: AiSettings;
   onSaved: (deckId: string) => void;
   onCancel: () => void;
 }
 
 /** What one parsed section is called, per source format. */
-const UNIT_NOUN: Record<'pdf' | 'pptx' | 'md', string> = {
+const UNIT_NOUN: Record<SourceType, string> = {
   pdf: 'page',
   pptx: 'slide',
   md: 'section',
+  html: 'section',
 };
 
 function defaultDeckName(fileName: string): string {
-  return fileName.replace(/\.(pdf|pptx|md|markdown|mdown|mkd)$/i, '');
+  return fileName.replace(/\.(pdf|pptx|md|markdown|mdown|mkd|html?|xhtml)$/i, '');
 }
 
 export default function CandidateReview({
