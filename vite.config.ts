@@ -10,6 +10,17 @@ import { fetchPageHtml, PageFetchError } from './src/lib/fetchPage';
  * A Map rather than an object literal, for the same reason it is one there: a
  * client-supplied "__proto__" indexes an object literal to something truthy.
  */
+/**
+ * Response ceiling per task.
+ *
+ * Quiz questions cost far more output than cards — five strings each rather
+ * than two — and at 4000 a full batch was coming back truncated mid-JSON, so
+ * the client silently lost the tail of every large batch. The client cannot
+ * raise this: it is fixed here, deliberately, so a pasted key cannot run up an
+ * unbounded bill.
+ */
+const MAX_TOKENS: Record<string, number> = { cards: 4000, quiz: 8000 };
+
 const PROMPTS = new Map<string, string>([
   ['cards', CARD_SYSTEM_PROMPT],
   ['quiz', QUIZ_SYSTEM_PROMPT],
@@ -57,7 +68,8 @@ function apiDevServer(env: Record<string, string>): Plugin {
           return send(400, { error: 'Expected a non-empty "sections" array.' });
         }
 
-        const systemPrompt = PROMPTS.get(typeof task === 'string' && task ? task : 'cards');
+        const taskName = typeof task === 'string' && task ? task : 'cards';
+        const systemPrompt = PROMPTS.get(taskName);
         if (!systemPrompt) return send(400, { error: 'Unknown task.' });
 
         const payload = JSON.stringify(sections);
@@ -75,7 +87,7 @@ function apiDevServer(env: Record<string, string>): Plugin {
             },
             body: JSON.stringify({
               model: env.ANTHROPIC_MODEL || 'claude-sonnet-5',
-              max_tokens: 4000,
+              max_tokens: MAX_TOKENS[taskName] ?? MAX_TOKENS.cards,
               system: systemPrompt,
               messages: [{ role: 'user', content: payload }],
             }),
@@ -95,7 +107,7 @@ function apiDevServer(env: Record<string, string>): Plugin {
           const text = (data.content ?? [])
             .map((p: { type: string; text?: string }) => (p.type === 'text' ? p.text ?? '' : ''))
             .join('\n');
-          return send(200, { text });
+          return send(200, { text, stopReason: data.stop_reason ?? null });
         } catch (err) {
           console.error('[api/generate] request failed:', err);
           return send(502, { error: 'Request to the model failed.' });

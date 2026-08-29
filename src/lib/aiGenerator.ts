@@ -156,7 +156,7 @@ export async function generateCandidatesWithAi(
     const { payload, assets } = serializeBatch(batch);
 
     try {
-      const text = await callModel('cards', payload, settings);
+      const { text } = await callModel('cards', payload, settings);
       const parsed = parseCardsResponse(text);
       if (parsed.length === 0) throw new Error('No cards returned');
 

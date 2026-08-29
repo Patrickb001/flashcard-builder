@@ -19,6 +19,17 @@ import { QUIZ_SYSTEM_PROMPT } from '../../src/lib/quizPrompt';
 
 const MODEL = process.env.ANTHROPIC_MODEL ?? 'claude-sonnet-5';
 
+/**
+ * Response ceiling per task.
+ *
+ * Quiz questions cost far more output than cards — five strings each rather
+ * than two — and at 4000 a full batch was coming back truncated mid-JSON, so
+ * the client silently lost the tail of every large batch. The client cannot
+ * raise this: it is fixed here, deliberately, so a pasted key cannot run up an
+ * unbounded bill.
+ */
+const MAX_TOKENS: Record<string, number> = { cards: 4000, quiz: 8000 };
+
 // Crude in-memory throttle. Function instances are recycled, so this is a
 // speed bump against casual abuse, not a real quota. For a public deployment,
 // put a proper rate limiter or auth in front of this.
@@ -86,7 +97,8 @@ export default async (req: Request, context: Context) => {
   }
 
   // An older client sends no task at all, so the default keeps it working.
-  const systemPrompt = PROMPTS.get(typeof task === 'string' && task ? task : 'cards');
+  const taskName = typeof task === 'string' && task ? task : 'cards';
+  const systemPrompt = PROMPTS.get(taskName);
   if (!systemPrompt) {
     return new Response(JSON.stringify({ error: 'Unknown task.' }), {
       status: 400,
@@ -113,7 +125,7 @@ export default async (req: Request, context: Context) => {
       },
       body: JSON.stringify({
         model: MODEL,
-        max_tokens: 4000,
+        max_tokens: MAX_TOKENS[taskName] ?? MAX_TOKENS.cards,
         system: systemPrompt,
         messages: [{ role: 'user', content: body }],
       }),
@@ -132,7 +144,9 @@ export default async (req: Request, context: Context) => {
       .map((part: { type: string; text?: string }) => (part.type === 'text' ? part.text ?? '' : ''))
       .join('\n');
 
-    return new Response(JSON.stringify({ text }), {
+    // stopReason travels with the text so the client can tell a truncated
+    // response from a model that genuinely had nothing to add.
+    return new Response(JSON.stringify({ text, stopReason: data.stop_reason ?? null }), {
       status: 200,
       headers: { 'Content-Type': 'application/json' },
     });

@@ -13,15 +13,15 @@
 
 export const QUIZ_SYSTEM_PROMPT = `You write multiple-choice questions for a student revising from a deck of flashcards they have already studied. Each question is graded automatically, so it has to be exactly right.
 
-You are given some cards from one deck. Write AT MOST ONE question per card.
+You are given some cards from one deck. Write EXACTLY ONE question for EVERY card you are given. A card that comes back without a question is a card the student cannot revise, so a missing question is a failure, not a safe default.
 
 Every question must satisfy ALL of these:
 
 1. SELF-CONTAINED — the stem must make sense on its own. It may reword the card's front, but never write "which of the following", "according to the card", or refer to anything the student cannot see.
 2. THE CORRECT ANSWER IS THE CARD'S BACK — condensed to a short phrase or a single line if the back is long. Never invent a different right answer, and never make the answer something the card does not say.
 3. EXACTLY THREE WRONG ANSWERS. Not two, not four.
-4. EVERY WRONG ANSWER MUST BE UNAMBIGUOUSLY WRONG for this stem. This is the rule that matters most. A distractor that is arguably also correct makes the question unanswerable and marks a student wrong for knowing the material. If you cannot find three answers that are clearly and defensibly wrong, return nothing for that card.
-5. NO LENGTH TELL — do not make the correct answer the longest, the most detailed, or the most carefully qualified option. A student must not be able to pick it out by shape alone. Keep all four options about the same length and the same kind of thing: if the answer is a number, the wrong ones are numbers; if it is a definition, they are definitions.
+4. EVERY WRONG ANSWER MUST BE UNAMBIGUOUSLY WRONG for this stem. This is the rule that matters most. A distractor that is arguably also correct makes the question unanswerable and marks a student wrong for knowing the material. Where the deck itself offers nothing plausible, write the wrong answers from the subject matter instead — but they must still be clearly and defensibly wrong. This is the one rule you may never trade away for coverage.
+5. NO LENGTH TELL — do not make the correct answer the longest, the most detailed, or the most carefully qualified option. A student must not be able to pick it out by shape alone. Keep all four options about the same length and the same kind of thing: if the answer is a number, the wrong ones are numbers; if it is a definition, they are definitions. Keep EVERY option under 15 words — a long option is itself a tell, and a shorter one is a cleaner test.
 6. PLAUSIBLE, NOT ABSURD — a wrong answer should be something a student who half-learned the material might believe. Joke options and obvious nonsense teach nothing.
 
 Building the wrong answers:
@@ -35,13 +35,13 @@ Other rules:
 - "explanation" is EXACTLY ONE SENTENCE saying why the correct answer is right. It is shown only to a student who got the question wrong, so make it teach the distinction. Do not write "as the card says" or refer to the card at all.
 - Preserve exact numbers, percentages and technical identifiers verbatim in both the stem and the options. Do not round or paraphrase them.
 - Some cards carry a code snippet, given as "questionCode". The student sees that snippet next to the question, so you may ask what it prints or what it does. Never retype the snippet into the stem or into an option.
-- A card whose only honest answer IS a block of code cannot be a multiple-choice question — four snippets are not four options. Return nothing for it.
-- Skip any card that does not make a fair question: one with a vague back, one whose answer is a long list, or one where you cannot write three clearly wrong answers. Returning fewer questions is always better than returning one bad question. A bad question costs the student a mark they earned.
+- When a card's honest answer is itself a block of code, do not make four snippets the options. Ask what that code DOES or what it prints, and write four short prose options instead.
+- When a card's back is vague, or is a long list, do not skip it. Narrow the stem to ONE specific, checkable fact drawn from that answer and ask about that fact alone.
 
 Return ONLY a JSON array, with no markdown fence and no commentary. Each element:
 {"id": string, "stem": string, "correct": string, "distractors": [string, string, string], "explanation": string}
 
-"id" must be copied exactly from the card you used. Return [] if none of the cards can be turned into a fair question.`;
+"id" must be copied exactly from the card you used. Every card you were given must appear exactly once in the array.`;
 
 export interface LlmQuizQuestion {
   /** The batch-local id the model was given; mapped back to a real card by the caller. */
@@ -101,11 +101,13 @@ function toQuestion(raw: unknown): LlmQuizQuestion | null {
     distractors.push(text);
   }
 
-  // Padding a short question would mean inventing an option here, with no idea
-  // whether it is wrong. Dropping it is the only honest choice.
-  if (distractors.length !== DISTRACTOR_COUNT) return null;
+  // Too few is still fatal: padding a short question would mean inventing an
+  // option here, with no idea whether it is wrong. Too many is not — a model
+  // that offers four good wrong answers has done the hard part, so the extras
+  // are dropped rather than the whole question.
+  if (distractors.length < DISTRACTOR_COUNT) return null;
 
-  return { id, stem, correct, distractors, explanation };
+  return { id, stem, correct, distractors: distractors.slice(0, DISTRACTOR_COUNT), explanation };
 }
 
 /**

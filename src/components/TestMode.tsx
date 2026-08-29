@@ -106,6 +106,11 @@ export default function TestMode({ deckId, onExit }: Props) {
       abortRef.current = null;
 
       const missed = new Set(result.failedCardIds).size;
+      // Two different causes need two different sentences. A truncated reply is
+      // the tool hitting its own length limit and is worth retrying as-is; a card
+      // the model declined is a property of that card. Blaming the cards for a
+      // truncation sent people editing decks that were never the problem.
+      const truncated = result.truncatedBatches > 0;
       if (result.questions.length === 0) {
         setNoticeFailed(true);
         setNotice(
@@ -113,8 +118,12 @@ export default function TestMode({ deckId, onExit }: Props) {
         );
       } else if (missed > 0) {
         setNoticeFailed(false);
+        const plural = missed === 1 ? '' : 's';
+        const reason = truncated
+          ? `${missed} card${plural} ${missed === 1 ? 'was' : 'were'} left out because the reply ran into its length limit`
+          : `${missed} card${plural} could not be turned into a fair question`;
         setNotice(
-          `Wrote ${result.questions.length} questions. ${missed} card${missed === 1 ? '' : 's'} could not be turned into a fair question and ${missed === 1 ? 'is' : 'are'} left out — try again later to fill ${missed === 1 ? 'it' : 'them'} in.`
+          `Wrote ${result.questions.length} questions. ${reason} — try again to fill ${missed === 1 ? 'it' : 'them'} in.`
         );
       }
 

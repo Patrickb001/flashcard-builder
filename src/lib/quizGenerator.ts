@@ -21,14 +21,27 @@ import { parseQuizResponse } from './quizPrompt';
 /**
  * Cards per request.
  *
- * The binding constraint is the server's fixed 4000-token response ceiling, not
- * the request size. A question runs to about 120 tokens when the options are
- * short phrases, but definition cards produce sentence-length options and push
- * that towards 250 — which puts the true ceiling near 16. Ten leaves room for
- * the bad case and bounds the damage: a refused or truncated batch costs ten
- * cards, not twenty-five.
+ * The binding constraint is the server's response ceiling, not the request
+ * size. Measured on real cards, a question costs about 420 output tokens when
+ * options run to full sentences, so ten needed ~4200 against a ceiling fixed at
+ * 4000: batches came back stopped at exactly max_tokens, truncated mid-JSON,
+ * and the salvage pass kept only the objects that had closed. That is why a run
+ * covered roughly half a deck.
+ *
+ * The ceiling is now 8000 for quiz work and options are capped at 15 words
+ * (~330 tokens a question), so eight cards costs ~2600 — a wide margin rather
+ * than a cliff. Eight also keeps a 100-card deck to 13 requests, comfortably
+ * under the 20/min limit; five would need 20 and sit right on it.
  */
-const BATCH_SIZE = 10;
+const BATCH_SIZE = 8;
+
+/**
+ * Cards per request on the retry pass.
+ *
+ * Whatever cost the first pass its stragglers, a smaller batch is the one lever
+ * that helps for every cause of it.
+ */
+const RETRY_BATCH_SIZE = 4;
 
 /** Other answers offered per batch, as raw material for wrong answers. */
 const NEIGHBOUR_LIMIT = 20;
@@ -54,6 +67,14 @@ export interface QuizGenerationResult {
   failedBatches: number;
   totalBatches: number;
   firstError: string | null;
+  /**
+   * Batches the model stopped writing because it hit the token ceiling.
+   *
+   * Kept apart from failedBatches because it needs a different sentence: a
+   * truncated reply is the tool's fault and worth retrying, where a card the
+   * model declined is a property of the card.
+   */
+  truncatedBatches: number;
 }
 
 export interface QuizGenerationOptions {
@@ -156,10 +177,15 @@ function serializeBatch(batch: Flashcard[], deckCards: Flashcard[], deckName: st
 }
 
 /** Splits cards into batches small enough for one request. */
-function buildBatches(cards: Flashcard[], deckCards: Flashcard[], deckName: string): Flashcard[][] {
+function buildBatches(
+  cards: Flashcard[],
+  deckCards: Flashcard[],
+  deckName: string,
+  size: number = BATCH_SIZE
+): Flashcard[][] {
   const batches: Flashcard[][] = [];
-  for (let i = 0; i < cards.length; i += BATCH_SIZE) {
-    batches.push(cards.slice(i, i + BATCH_SIZE));
+  for (let i = 0; i < cards.length; i += size) {
+    batches.push(cards.slice(i, i + size));
   }
 
   // A deck of very long cards can still overshoot the server's payload cap, in
@@ -191,36 +217,41 @@ export async function generateQuestionsForCards(
   settings: AiSettings,
   options: QuizGenerationOptions = {}
 ): Promise<QuizGenerationResult> {
-  const batches = buildBatches(targets, deckCards, deckName);
   const questions: TestQuestion[] = [];
-  const failedCardIds: string[] = [];
   let failedBatches = 0;
+  let truncatedBatches = 0;
+  let totalBatches = 0;
+  let done = 0;
   let firstError: string | null = null;
 
-  for (let i = 0; i < batches.length; i++) {
-    const batch = batches[i];
-
-    if (options.signal?.aborted) {
-      // Whatever was already saved stays saved; the rest are simply cards
-      // without a question, which the top-up prompt already handles.
-      for (const remaining of batches.slice(i)) {
-        failedCardIds.push(...remaining.map((card) => card.id));
-      }
-      break;
-    }
-
+  /**
+   * Runs one batch and returns the cards it left without a question.
+   *
+   * Throwing is reserved for a batch that produced nothing at all. A batch that
+   * answered some of its cards is a partial success, and the ones it missed come
+   * back here to be retried rather than being written off.
+   */
+  async function runBatch(batch: Flashcard[]): Promise<Flashcard[]> {
     try {
       // Wrapped in an array because the endpoint's contract is a non-empty
       // list of things for the model, and card drafting sends one section per
       // entry. A quiz batch is a single entry, but it still has to be a list.
-      const text = await callModel(
+      const { text, stopReason } = await callModel(
         'quiz',
         [serializeBatch(batch, deckCards, deckName)],
         settings,
         options.signal
       );
+      if (stopReason === 'max_tokens') truncatedBatches += 1;
+
       const parsed = parseQuizResponse(text);
-      if (parsed.length === 0) throw new Error('No questions returned');
+      if (parsed.length === 0) {
+        throw new Error(
+          stopReason === 'max_tokens'
+            ? 'The reply was cut off by the length limit before any question was complete.'
+            : 'No questions returned'
+        );
+      }
 
       const now = Date.now();
       const written: TestQuestion[] = [];
@@ -254,24 +285,53 @@ export async function generateQuestionsForCards(
         });
       }
 
-      // A card the model chose to skip — because it could not write three
-      // clearly wrong answers for it — is a card without a question, not a
-      // failure. It is offered again on the next run.
-      for (const card of batch) {
-        if (!answered.has(card.id)) failedCardIds.push(card.id);
-      }
-
       questions.push(...written);
       if (written.length > 0) await options.onBatch?.(written);
+
+      return batch.filter((card) => !answered.has(card.id));
     } catch (err) {
       console.error('Quiz batch failed:', err);
       failedBatches += 1;
       if (!firstError) firstError = err instanceof Error ? err.message : String(err);
-      failedCardIds.push(...batch.map((card) => card.id));
+      return batch;
     }
-
-    options.onProgress?.({ done: i + 1, total: batches.length });
   }
 
-  return { questions, failedCardIds, failedBatches, totalBatches: batches.length, firstError };
+  /** Runs a list of batches in order, stopping early if the user cancels. */
+  async function runPass(batches: Flashcard[][]): Promise<Flashcard[]> {
+    const missed: Flashcard[] = [];
+    totalBatches += batches.length;
+
+    for (let i = 0; i < batches.length; i++) {
+      if (options.signal?.aborted) {
+        // Whatever was already saved stays saved; the rest are simply cards
+        // without a question, which the top-up prompt already handles.
+        for (const remaining of batches.slice(i)) missed.push(...remaining);
+        break;
+      }
+      missed.push(...(await runBatch(batches[i])));
+      done += 1;
+      options.onProgress?.({ done, total: totalBatches });
+    }
+
+    return missed;
+  }
+
+  let missing = await runPass(buildBatches(targets, deckCards, deckName));
+
+  // One bounded retry, in smaller batches. A card is only reported as missing
+  // after the model has had a second, easier chance at it, which is what turns
+  // "run it three times to fill a deck" into a single pass.
+  if (missing.length > 0 && !options.signal?.aborted) {
+    missing = await runPass(buildBatches(missing, deckCards, deckName, RETRY_BATCH_SIZE));
+  }
+
+  return {
+    questions,
+    failedCardIds: missing.map((card) => card.id),
+    failedBatches,
+    totalBatches,
+    firstError,
+    truncatedBatches,
+  };
 }
