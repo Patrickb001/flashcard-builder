@@ -1,0 +1,161 @@
+{
+  "sections": [
+    {
+      "label": "Section 1",
+      "title": "While loop in Programming",
+      "blocks": [
+        {
+          "kind": "paragraph",
+          "text": "A while loop is a control structure that repeatedly executes a block of code as long as a specified condition remains true.",
+          "context": "While loop in Programming"
+        },
+        {
+          "kind": "list",
+          "items": [
+            "The condition is checked before each iteration, and the loop stops once the condition becomes false.",
+            "It is useful when the number of iterations is not known beforehand."
+          ],
+          "heading": "While loop in Programming",
+          "context": "While loop in Programming"
+        },
+        {
+          "kind": "image",
+          "src": "https://media.geeksforgeeks.org/wp-content/uploads/20260314170511497722/while_loop.png",
+          "alt": "while_loop",
+          "heading": "While loop in Programming",
+          "context": "While loop in Programming"
+        },
+        {
+          "kind": "code",
+          "language": "cpp",
+          "text": "#include <iostream>\nusing namespace std;\n\nvoid printNumbers() {\n\n    int count = 0;\n\n    // while loop runs while the condition is true\n    while (count < 5) {\n        cout << count << endl;\n        count++;\n    }\n}\n\nint main() {\n\n    // Calling the function\n    printNumbers();\n\n    return 0;\n}",
+          "alsoIn": [
+            "java",
+            "python",
+            "csharp",
+            "javascript"
+          ],
+          "heading": "While loop in Programming",
+          "context": "While loop in Programming"
+        },
+        {
+          "kind": "paragraph",
+          "heading": "Explanation:",
+          "text": "The code initializes count = 0 and runs a while loop while count < 5. In each iteration, the current value of count is printed using cout, and then count is incremented by 1.",
+          "context": "While loop in Programming"
+        },
+        {
+          "kind": "paragraph",
+          "heading": "Working:",
+          "text": "The loop starts from 0, prints the value, and increases it by 1 in every iteration. When count becomes 5, the condition count < 5 becomes false, so the loop terminates.",
+          "context": "While loop in Programming"
+        }
+      ]
+    },
+    {
+      "label": "Section 2",
+      "title": "Use Cases of While Loop:",
+      "blocks": [
+        {
+          "kind": "heading",
+          "text": "Use Cases of While Loop:",
+          "level": 1
+        },
+        {
+          "kind": "list",
+          "items": [
+            "Input Validation: Repeatedly ask for input until the user provides a valid value.",
+            "Processing Data: Traverse arrays, lists, or collections until a condition is met.",
+            "Event Handling: Continuously monitor events like sensor data or network requests.",
+            "Implementing Algorithms: Used in algorithms such as searching, sorting, and mathematical computations.",
+            "State Machines: Execute logic repeatedly until a state change occurs.",
+            "Games and Simulations: Run the main game loop to update state, process input, and render output.",
+            "Batch Processing: Process multiple tasks (files, records, etc.) until all items are handled."
+          ],
+          "heading": "Use Cases of While Loop:",
+          "context": "Use Cases of While Loop:"
+        }
+      ]
+    }
+  ],
+  "cards": [
+    {
+      "front": "What is the while loop in programming?",
+      "back": "• The condition is checked before each iteration, and the loop stops once the condition becomes false.\n• It is useful when the number of iterations is not known beforehand.",
+      "sourceLabel": "Section 1",
+      "context": "While loop in Programming",
+      "include": true
+    },
+    {
+      "front": "While loop in Programming — what does it look like?",
+      "back": "A while loop is a control structure that repeatedly executes a block of code as long as a specified condition remains true.",
+      "sourceLabel": "Section 1",
+      "context": "While loop in Programming",
+      "image": {
+        "src": "https://media.geeksforgeeks.org/wp-content/uploads/20260314170511497722/while_loop.png",
+        "alt": "while_loop"
+      },
+      "include": true
+    },
+    {
+      "front": "While loop in Programming — how is this written in C++?",
+      "back": "A while loop is a control structure that repeatedly executes a block of code as long as a specified condition remains true.",
+      "sourceLabel": "Section 1",
+      "context": "While loop in Programming",
+      "backCode": {
+        "text": "#include <iostream>\nusing namespace std;\n\nvoid printNumbers() {\n\n    int count = 0;\n\n    // while loop runs while the condition is true\n    while (count < 5) {\n        cout << count << endl;\n        count++;\n    }\n}\n\nint main() {\n\n    // Calling the function\n    printNumbers();\n\n    return 0;\n}",
+        "language": "cpp"
+      },
+      "include": true
+    },
+    {
+      "front": "What is Input Validation?",
+      "back": "Repeatedly ask for input until the user provides a valid value.",
+      "sourceLabel": "Section 2",
+      "context": "Use Cases of While Loop:",
+      "include": true
+    },
+    {
+      "front": "What is Processing Data?",
+      "back": "Traverse arrays, lists, or collections until a condition is met.",
+      "sourceLabel": "Section 2",
+      "context": "Use Cases of While Loop:",
+      "include": true
+    },
+    {
+      "front": "What is Event Handling?",
+      "back": "Continuously monitor events like sensor data or network requests.",
+      "sourceLabel": "Section 2",
+      "context": "Use Cases of While Loop:",
+      "include": true
+    },
+    {
+      "front": "What are Implementing Algorithms?",
+      "back": "Used in algorithms such as searching, sorting, and mathematical computations.",
+      "sourceLabel": "Section 2",
+      "context": "Use Cases of While Loop:",
+      "include": true
+    },
+    {
+      "front": "What are State Machines?",
+      "back": "Execute logic repeatedly until a state change occurs.",
+      "sourceLabel": "Section 2",
+      "context": "Use Cases of While Loop:",
+      "include": true
+    },
+    {
+      "front": "What are Games and Simulations?",
+      "back": "Run the main game loop to update state, process input, and render output.",
+      "sourceLabel": "Section 2",
+      "context": "Use Cases of While Loop:",
+      "include": true
+    },
+    {
+      "front": "What is Batch Processing?",
+      "back": "Process multiple tasks (files, records, etc.) until all items are handled.",
+      "sourceLabel": "Section 2",
+      "context": "Use Cases of While Loop:",
+      "include": true
+    }
+  ]
+}

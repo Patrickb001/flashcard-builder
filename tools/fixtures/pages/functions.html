@@ -1,0 +1,84 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Functions in programming - GeeksforGeeks</title>
+</head>
+<body>
+<div class="content"><div class="text"><div class="html-chunk"><p dir="ltr"><span>A function is a block of code that performs a specific task and can be reused whenever needed.</span></p><ul><li value="1"><span>Avoids writing the same code again and again.</span></li><li value="2"><span>Makes programs simple and easy to understand by breaking into smaller parts.</span></li><li value="3"><span>Accepts input (parameters) and gives output.</span></li><li value="4"><span>Finding and fixing errors become easier.</span></li></ul><figure class="image"><img alt="function1" height="400" src="https://media.geeksforgeeks.org/wp-content/uploads/20260318170520103377/function1.webp" srcset="https://media.geeksforgeeks.org/wp-content/uploads/20260318170520103377/function1.webp 800w,https://media.geeksforgeeks.org/wp-content/uploads/20260318170520103377/function1-100.webp 100w,https://media.geeksforgeeks.org/wp-content/uploads/20260318170520103377/function1-200.webp 200w,https://media.geeksforgeeks.org/wp-content/uploads/20260318170520103377/function1-300.webp 300w,https://media.geeksforgeeks.org/wp-content/uploads/20260318170520103377/function1-660.webp 660w,https://media.geeksforgeeks.org/wp-content/uploads/20260318170520103377/function1-768.webp 768w" width="800"><figcaption> </figcaption></figure><h3 id="builtin-functions" style="text-align:left"><span>Built-in functions</span></h3><ul><li value="1"><span>These predefined functions provided by programming languages or libraries to perform common tasks such as mathematical calculations, input/output, or string operations.</span></li><li value="2"><span>For example, the sqrt() function from the C++ &lt;cmath&gt; library calculates the square root of a number.</span></li></ul><gfg-tabs data-mode="light" data-run-ide="true">
+            <gfg-tab slot="tab">C++</gfg-tab>
+<gfg-panel slot="panel" data-code-lang="cpp" data-main-code-start="None" data-main-code-end="None">
+    <code class="language-cpp"><div class="highlight"><pre><span></span><span class="cp">#include</span><span class="w"> </span><span class="cpf">&lt;iostream&gt;</span>
+<span class="cp">#include</span><span class="w"> </span><span class="cpf">&lt;cmath&gt;</span>
+<span class="k">using</span><span class="w"> </span><span class="k">namespace</span><span class="w"> </span><span class="nn">std</span><span class="p">;</span>
+
+<span class="kt">int</span><span class="w"> </span><span class="nf">main</span><span class="p">()</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span>
+<span class="w">    </span><span class="c1">// built-in function</span>
+<span class="w">    </span><span class="kt">double</span><span class="w"> </span><span class="n">result</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">sqrt</span><span class="p">(</span><span class="mf">25.0</span><span class="p">);</span><span class="w">  </span>
+<span class="w">    </span><span class="n">cout</span><span class="w"> </span><span class="o">&lt;&lt;</span><span class="w"> </span><span class="s">"Square Root: "</span><span class="w"> </span><span class="o">&lt;&lt;</span><span class="w"> </span><span class="n">result</span><span class="w"> </span><span class="o">&lt;&lt;</span><span class="w"> </span><span class="n">endl</span><span class="p">;</span>
+<span class="w">    </span><span class="k">return</span><span class="w"> </span><span class="mi">0</span><span class="p">;</span>
+<span class="p">}</span>
+</pre></div></code>
+</gfg-panel></gfg-tabs><div class="code-output"><br><strong>Output</strong><pre>Square Root: 5
+</pre></div><h3 id="userdefined" style="text-align:left"><span>User-defined</span></h3><ul><li value="1"><span>These functions are functions written by programmers to perform specific tasks required in a program. </span></li><li value="2"><span>They help organize code and allow reuse of logic whenever needed.</span></li></ul><gfg-tabs data-mode="light" data-run-ide="true">
+            <gfg-tab slot="tab">C++</gfg-tab>
+<gfg-panel slot="panel" data-code-lang="cpp" data-main-code-start="None" data-main-code-end="None">
+    <code class="language-cpp"><div class="highlight"><pre><span></span><span class="cp">#include</span><span class="w"> </span><span class="cpf">&lt;iostream&gt;</span>
+<span class="k">using</span><span class="w"> </span><span class="k">namespace</span><span class="w"> </span><span class="nn">std</span><span class="p">;</span>
+
+<span class="kt">void</span><span class="w"> </span><span class="nf">greet</span><span class="p">()</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="n">cout</span><span class="w"> </span><span class="o">&lt;&lt;</span><span class="w"> </span><span class="s">"Hello, World!"</span><span class="w"> </span><span class="o">&lt;&lt;</span><span class="w"> </span><span class="n">endl</span><span class="p">;</span>
+<span class="p">}</span>
+
+<span class="kt">int</span><span class="w"> </span><span class="nf">main</span><span class="p">()</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="n">greet</span><span class="p">();</span><span class="w">  </span><span class="c1">// calling user-defined function</span>
+<span class="w">    </span><span class="k">return</span><span class="w"> </span><span class="mi">0</span><span class="p">;</span>
+<span class="p">}</span>
+</pre></div></code>
+</gfg-panel></gfg-tabs><div class="code-output"><br><strong>Output</strong><pre>Hello, World!
+</pre></div><h2 id="function-visualizer" style="text-align:left"><span>Function Visualizer</span></h2><style>
+h2, h3, p {
+margin-bottom: 6px !important;
+}
+
+/* Iframe */
+#iframe-container1 {
+width: 100%;
+max-width: 600px;
+border: none;
+display: block;
+overflow: hidden;
+height: 580px; /* default */
+}
+
+/* Small screens (mobile) */
+@media (max-width: 480px) {
+#iframe-container1 {
+height: 680px;
+}
+}
+
+/* Medium screens (tablet) */
+@media (min-width: 481px) and (max-width: 900px) {
+#iframe-container1 {
+height: 420px;
+}
+}
+
+/* Large screens */
+@media (min-width: 901px) and (max-width: 1400px) {
+#iframe-container1 {
+height: 400px;
+}
+}
+
+/* Extra large screens */
+@media (min-width: 1401px) {
+#iframe-container1 {
+height: 420px;
+}
+}
+</style><iframe id="iframe-container1" src="https://media.geeksforgeeks.org/wp-content/uploads/20260319114839278389/index.html"></iframe><h3 id="where-are-functions-used-in-dsa" style="text-align:left"><span>Where are Functions Used in DSA?</span></h3><p dir="ltr"><span>In DSA, functions are used to implement algorithms and solve problems in a structured and reusable way.</span></p><ul><li value="1"><span>Implement algorithms like searching and sorting.</span></li><li value="2"><span>Handle recursion (like factorial, tree traversal).</span></li><li value="3"><span>Break problems into smaller subproblems.</span></li><li value="4"><span>Operate on data structures like arrays, linked lists, trees, and graphs.</span></li><li value="5"><span>Make code clean and easy to understand.</span></li></ul></div></div></div>
+</body>
+</html>

@@ -1,0 +1,197 @@
+{
+  "sections": [
+    {
+      "label": "Section 1",
+      "title": "Functions in programming",
+      "blocks": [
+        {
+          "kind": "paragraph",
+          "text": "A function is a block of code that performs a specific task and can be reused whenever needed.",
+          "context": "Functions in programming"
+        },
+        {
+          "kind": "list",
+          "items": [
+            "Avoids writing the same code again and again.",
+            "Makes programs simple and easy to understand by breaking into smaller parts.",
+            "Accepts input (parameters) and gives output.",
+            "Finding and fixing errors become easier."
+          ],
+          "heading": "Functions in programming",
+          "context": "Functions in programming"
+        },
+        {
+          "kind": "image",
+          "src": "https://media.geeksforgeeks.org/wp-content/uploads/20260318170520103377/function1.webp",
+          "alt": "function1",
+          "heading": "Functions in programming",
+          "context": "Functions in programming"
+        },
+        {
+          "kind": "heading",
+          "text": "Built-in functions",
+          "level": 2
+        },
+        {
+          "kind": "list",
+          "items": [
+            "These predefined functions provided by programming languages or libraries to perform common tasks such as mathematical calculations, input/output, or string operations.",
+            "For example, the sqrt() function from the C++ <cmath> library calculates the square root of a number."
+          ],
+          "heading": "Built-in functions",
+          "context": "Functions in programming"
+        },
+        {
+          "kind": "code",
+          "language": "cpp",
+          "text": "#include <iostream>\n#include <cmath>\nusing namespace std;\n\nint main() {\n\n    // built-in function\n    double result = sqrt(25.0);\n    cout << \"Square Root: \" << result << endl;\n    return 0;\n}",
+          "alsoIn": [],
+          "output": "Square Root: 5",
+          "heading": "Built-in functions",
+          "context": "Functions in programming"
+        },
+        {
+          "kind": "heading",
+          "text": "User-defined",
+          "level": 2
+        },
+        {
+          "kind": "list",
+          "items": [
+            "These functions are functions written by programmers to perform specific tasks required in a program.",
+            "They help organize code and allow reuse of logic whenever needed."
+          ],
+          "heading": "User-defined",
+          "context": "Functions in programming"
+        },
+        {
+          "kind": "code",
+          "language": "cpp",
+          "text": "#include <iostream>\nusing namespace std;\n\nvoid greet() {\n    cout << \"Hello, World!\" << endl;\n}\n\nint main() {\n    greet();  // calling user-defined function\n    return 0;\n}",
+          "alsoIn": [],
+          "output": "Hello, World!",
+          "heading": "User-defined",
+          "context": "Functions in programming"
+        }
+      ]
+    },
+    {
+      "label": "Section 2",
+      "title": "Function Visualizer",
+      "blocks": [
+        {
+          "kind": "heading",
+          "text": "Function Visualizer",
+          "level": 1
+        },
+        {
+          "kind": "heading",
+          "text": "Where are Functions Used in DSA?",
+          "level": 2
+        },
+        {
+          "kind": "paragraph",
+          "text": "In DSA, functions are used to implement algorithms and solve problems in a structured and reusable way.",
+          "context": "Function Visualizer"
+        },
+        {
+          "kind": "list",
+          "items": [
+            "Implement algorithms like searching and sorting.",
+            "Handle recursion (like factorial, tree traversal).",
+            "Break problems into smaller subproblems.",
+            "Operate on data structures like arrays, linked lists, trees, and graphs.",
+            "Make code clean and easy to understand."
+          ],
+          "heading": "Where are Functions Used in DSA?",
+          "context": "Function Visualizer"
+        }
+      ]
+    }
+  ],
+  "cards": [
+    {
+      "front": "What is function?",
+      "back": "a block of code that performs a specific task and can be reused whenever needed",
+      "sourceLabel": "Section 1",
+      "context": "Functions in programming",
+      "include": true
+    },
+    {
+      "front": "What is the functions in programming?",
+      "back": "• Avoids writing the same code again and again.\n• Makes programs simple and easy to understand by breaking into smaller parts.\n• Accepts input (parameters) and gives output.\n• Finding and fixing errors become easier.",
+      "sourceLabel": "Section 1",
+      "context": "Functions in programming",
+      "include": true
+    },
+    {
+      "front": "Functions in programming — what does it look like?",
+      "back": "A function is a block of code that performs a specific task and can be reused whenever needed.",
+      "sourceLabel": "Section 1",
+      "context": "Functions in programming",
+      "image": {
+        "src": "https://media.geeksforgeeks.org/wp-content/uploads/20260318170520103377/function1.webp",
+        "alt": "function1"
+      },
+      "include": true
+    },
+    {
+      "front": "What are the built-in functions?",
+      "back": "• These predefined functions provided by programming languages or libraries to perform common tasks such as mathematical calculations, input/output, or string operations.\n• For example, the sqrt() function from the C++ <cmath> library calculates the square root of a number.",
+      "sourceLabel": "Section 1",
+      "context": "Functions in programming",
+      "include": true
+    },
+    {
+      "front": "Built-in functions — what does this C++ program print?",
+      "back": "Square Root: 5",
+      "sourceLabel": "Section 1",
+      "context": "Functions in programming",
+      "frontCode": {
+        "text": "#include <iostream>\n#include <cmath>\nusing namespace std;\n\nint main() {\n\n    // built-in function\n    double result = sqrt(25.0);\n    cout << \"Square Root: \" << result << endl;\n    return 0;\n}",
+        "language": "cpp"
+      },
+      "include": true
+    },
+    {
+      "front": "Built-in functions — how is this written in C++?",
+      "back": "A function is a block of code that performs a specific task and can be reused whenever needed.",
+      "sourceLabel": "Section 1",
+      "context": "Functions in programming",
+      "backCode": {
+        "text": "#include <iostream>\n#include <cmath>\nusing namespace std;\n\nint main() {\n\n    // built-in function\n    double result = sqrt(25.0);\n    cout << \"Square Root: \" << result << endl;\n    return 0;\n}",
+        "language": "cpp"
+      },
+      "include": true
+    },
+    {
+      "front": "What is the user-defined?",
+      "back": "• These functions are functions written by programmers to perform specific tasks required in a program.\n• They help organize code and allow reuse of logic whenever needed.",
+      "sourceLabel": "Section 1",
+      "context": "Functions in programming",
+      "include": true
+    },
+    {
+      "front": "User-defined — what does this C++ program print?",
+      "back": "Hello, World!",
+      "sourceLabel": "Section 1",
+      "context": "Functions in programming",
+      "frontCode": {
+        "text": "#include <iostream>\nusing namespace std;\n\nvoid greet() {\n    cout << \"Hello, World!\" << endl;\n}\n\nint main() {\n    greet();  // calling user-defined function\n    return 0;\n}",
+        "language": "cpp"
+      },
+      "include": true
+    },
+    {
+      "front": "User-defined — how is this written in C++?",
+      "back": "A function is a block of code that performs a specific task and can be reused whenever needed.",
+      "sourceLabel": "Section 1",
+      "context": "Functions in programming",
+      "backCode": {
+        "text": "#include <iostream>\nusing namespace std;\n\nvoid greet() {\n    cout << \"Hello, World!\" << endl;\n}\n\nint main() {\n    greet();  // calling user-defined function\n    return 0;\n}",
+        "language": "cpp"
+      },
+      "include": true
+    }
+  ]
+}

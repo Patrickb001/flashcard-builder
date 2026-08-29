@@ -1,0 +1,323 @@
+{
+  "sections": [
+    {
+      "label": "Section 1",
+      "title": "Classes and Object in Programming",
+      "blocks": [
+        {
+          "kind": "paragraph",
+          "text": "In Data Structures, programs often work with complex data and operations that need to be organized efficiently. Object-Oriented Programming concepts like classes and objects help structure data and related operations in a clear and manageable way.",
+          "context": "Classes and Object in Programming"
+        },
+        {
+          "kind": "list",
+          "items": [
+            "Combines data (variables) and operations (functions) within a single structure.",
+            "Helps manage complex implementations by keeping related functionality together.",
+            "Improves reusability and organization when implementing data structures."
+          ],
+          "heading": "Classes and Object in Programming",
+          "context": "Classes and Object in Programming"
+        },
+        {
+          "kind": "paragraph",
+          "text": "For Example, Dog is a class, Tommy is an object of that class.",
+          "context": "Classes and Object in Programming"
+        },
+        {
+          "kind": "image",
+          "src": "https://media.geeksforgeeks.org/wp-content/uploads/20260314151400489459/Class_Object_example.webp",
+          "alt": "Class_Object_example",
+          "heading": "Classes and Object in Programming",
+          "context": "Classes and Object in Programming"
+        }
+      ]
+    },
+    {
+      "label": "Section 2",
+      "title": "Class",
+      "blocks": [
+        {
+          "kind": "heading",
+          "text": "Class",
+          "level": 1
+        },
+        {
+          "kind": "paragraph",
+          "text": "A class is a blueprint or template used to create objects. It defines the structure that specifies the data members (attributes) and functions (methods) an object will contain. A class typically contains two main components:",
+          "context": "Class"
+        },
+        {
+          "kind": "paragraph",
+          "heading": "1. Attributes (Data Members):",
+          "text": "Attributes are the properties or characteristics of an object. They store information related to the object.",
+          "context": "Class"
+        },
+        {
+          "kind": "paragraph",
+          "heading": "2. Methods (Functions):",
+          "text": "Methods define the actions or behaviors that an object can perform.",
+          "context": "Class"
+        },
+        {
+          "kind": "heading",
+          "text": "Features of a Class",
+          "level": 2
+        },
+        {
+          "kind": "list",
+          "items": [
+            "Describes the data and operations related to a particular entity.",
+            "Serves as a reusable template from which multiple objects can be created.",
+            "Helps organize code by grouping related variables and functions.",
+            "Supports modular programming, making programs easier to understand and maintain."
+          ],
+          "heading": "Features of a Class",
+          "context": "Class"
+        },
+        {
+          "kind": "code",
+          "language": "cpp",
+          "text": "class Car\n{\n  public:\n    // Attribute\n    string color;\n    string model;\n\n    // Method\n    void startEngine()\n    {\n        cout << \"Engine started\" << endl;\n    }\n};",
+          "alsoIn": [
+            "java",
+            "python",
+            "csharp",
+            "javascript"
+          ],
+          "heading": "Features of a Class",
+          "context": "Class"
+        }
+      ]
+    },
+    {
+      "label": "Section 3",
+      "title": "Object",
+      "blocks": [
+        {
+          "kind": "heading",
+          "text": "Object",
+          "level": 1
+        },
+        {
+          "kind": "paragraph",
+          "text": "An object is an instance of a class. It represents a real-world entity created using the class blueprint",
+          "context": "Object"
+        },
+        {
+          "kind": "list",
+          "items": [
+            "Stores actual values for class attributes.",
+            "Allows you to call methods defined in the class.",
+            "Multiple objects can exist from the same class, each holding different data."
+          ],
+          "heading": "Object",
+          "context": "Object"
+        },
+        {
+          "kind": "code",
+          "language": "cpp",
+          "text": "using namespace std;\n\n// Define a class\nclass Car\n{\n  public:\n    // Attribute\n    string color;\n    string model;\n\n    // Method: starts the engine\n    void startEngine()\n    {\n        cout << model << \" engine started\" << endl;\n    }\n\n    // Method: stops the engine\n    void stopEngine()\n    {\n        cout << model << \" engine stopped\" << endl;\n    }\n};\n\nint main()\n{\n    // Create first car object\n    Car myCar;\n    myCar.color = \"Red\";\n    myCar.model = \"Toyota\";\n\n    // Use attributes and methods\n    cout << \"My car color: \" << myCar.color << endl;\n    myCar.startEngine();\n    myCar.stopEngine();\n\n    return 0;\n}",
+          "alsoIn": [
+            "java",
+            "python",
+            "csharp",
+            "javascript"
+          ],
+          "output": "My car color: Red\nToyota engine started\nToyota engine stopped",
+          "heading": "Object",
+          "context": "Object"
+        }
+      ]
+    },
+    {
+      "label": "Section 4",
+      "title": "Classes and Objects in Data Structures",
+      "blocks": [
+        {
+          "kind": "heading",
+          "text": "Classes and Objects in Data Structures",
+          "level": 1
+        },
+        {
+          "kind": "paragraph",
+          "text": "In Data Structures, classes and objects help organize data and the operations performed on that data. A class acts as a blueprint that defines the structure and behavior, while an object is an instance of that class used to perform operations.",
+          "context": "Classes and Objects in Data Structures"
+        },
+        {
+          "kind": "list",
+          "items": [
+            "Allow you to reuse code (write once, use many times).",
+            "Make it easier to represent real-world structures like: Stack (push, pop), Queue (enqueue, dequeue) and Linked List (nodes with data + next pointer)."
+          ],
+          "heading": "Classes and Objects in Data Structures",
+          "context": "Classes and Objects in Data Structures"
+        }
+      ]
+    },
+    {
+      "label": "Section 5",
+      "title": "Example: Stack Using Class and Object",
+      "blocks": [
+        {
+          "kind": "heading",
+          "text": "Classes and Objects in Data Structures",
+          "level": 1
+        },
+        {
+          "kind": "heading",
+          "text": "Example: Stack Using Class and Object",
+          "level": 1
+        },
+        {
+          "kind": "paragraph",
+          "text": "In a Stack data structure, elements are inserted and removed following the LIFO (Last In, First Out) principle. A class can be used to define the structure of the stack and the operations performed on it.",
+          "context": "Example: Stack Using Class and Object"
+        },
+        {
+          "kind": "paragraph",
+          "text": "Here, the class represents the stack design, while the objects allow us to perform stack operations such as push and pop.",
+          "context": "Example: Stack Using Class and Object"
+        },
+        {
+          "kind": "code",
+          "language": "cpp",
+          "text": "using namespace std;\n\n// Class representing a Stack\nclass Stack {\n  public:\n    int arr[5];\n    int top = -1;\n\n    // Method to push element\n    void push(int x) {\n        if(top == 4) {\n            cout << \"Stack Overflow\\n\";\n            return;\n        }\n        arr[++top] = x;\n    }\n\n    // Method to pop element\n    void pop() {\n        if(top == -1) {\n            cout << \"Stack Underflow\\n\";\n            return;\n        }\n        top--;\n    }\n\n    // Method to display stack\n    void display() {\n        for(int i = top; i >= 0; i--) {\n            cout << arr[i] << \" \";\n        }\n        cout << endl;\n    }\n};\n\nint main() {\n\n    // Creating stack object\n    Stack s;\n\n    // Performing operations\n    s.push(10);\n    s.push(20);\n    s.push(30);\n\n    cout << \"Stack elements: \";\n    s.display();\n\n    s.pop();\n\n    cout << \"After pop: \";\n    s.display();\n\n    return 0;\n}",
+          "alsoIn": [
+            "java",
+            "python",
+            "csharp",
+            "node"
+          ],
+          "output": "Stack elements: 30 20 10\nAfter pop: 20 10",
+          "heading": "Example: Stack Using Class and Object",
+          "context": "Example: Stack Using Class and Object"
+        }
+      ]
+    }
+  ],
+  "cards": [
+    {
+      "front": "What is the classes and object in programming?",
+      "back": "• Combines data (variables) and operations (functions) within a single structure.\n• Helps manage complex implementations by keeping related functionality together.\n• Improves reusability and organization when implementing data structures.",
+      "sourceLabel": "Section 1",
+      "context": "Classes and Object in Programming",
+      "include": true
+    },
+    {
+      "front": "Classes and Object in Programming — what does it look like?",
+      "back": "For Example, Dog is a class, Tommy is an object of that class.",
+      "sourceLabel": "Section 1",
+      "context": "Classes and Object in Programming",
+      "image": {
+        "src": "https://media.geeksforgeeks.org/wp-content/uploads/20260314151400489459/Class_Object_example.webp",
+        "alt": "Class_Object_example"
+      },
+      "include": true
+    },
+    {
+      "front": "What is class?",
+      "back": "a blueprint or template used to create objects",
+      "sourceLabel": "Section 2",
+      "context": "Class",
+      "include": true
+    },
+    {
+      "front": "What is important about Attributes (Data Members)?",
+      "back": "Attributes are the properties or characteristics of an object. They store information related to the object.",
+      "sourceLabel": "Section 2",
+      "context": "Class",
+      "include": true
+    },
+    {
+      "front": "What is important about Methods (Functions)?",
+      "back": "Methods define the actions or behaviors that an object can perform.",
+      "sourceLabel": "Section 2",
+      "context": "Class",
+      "include": true
+    },
+    {
+      "front": "What are the features of a class?",
+      "back": "• Describes the data and operations related to a particular entity.\n• Serves as a reusable template from which multiple objects can be created.\n• Helps organize code by grouping related variables and functions.\n• Supports modular programming, making programs easier to understand and maintain.",
+      "sourceLabel": "Section 2",
+      "context": "Class",
+      "include": true
+    },
+    {
+      "front": "Features of a Class — how is this written in C++?",
+      "back": "Methods define the actions or behaviors that an object can perform.",
+      "sourceLabel": "Section 2",
+      "context": "Class",
+      "backCode": {
+        "text": "class Car\n{\n  public:\n    // Attribute\n    string color;\n    string model;\n\n    // Method\n    void startEngine()\n    {\n        cout << \"Engine started\" << endl;\n    }\n};",
+        "language": "cpp"
+      },
+      "include": true
+    },
+    {
+      "front": "What is object?",
+      "back": "an instance of a class",
+      "sourceLabel": "Section 3",
+      "context": "Object",
+      "include": true
+    },
+    {
+      "front": "What is the object?",
+      "back": "• Stores actual values for class attributes.\n• Allows you to call methods defined in the class.\n• Multiple objects can exist from the same class, each holding different data.",
+      "sourceLabel": "Section 3",
+      "context": "Object",
+      "include": true
+    },
+    {
+      "front": "Object — what does this C++ program print?",
+      "back": "My car color: Red\nToyota engine started\nToyota engine stopped",
+      "sourceLabel": "Section 3",
+      "context": "Object",
+      "frontCode": {
+        "text": "using namespace std;\n\n// Define a class\nclass Car\n{\n  public:\n    // Attribute\n    string color;\n    string model;\n\n    // Method: starts the engine\n    void startEngine()\n    {\n        cout << model << \" engine started\" << endl;\n    }\n\n    // Method: stops the engine\n    void stopEngine()\n    {\n        cout << model << \" engine stopped\" << endl;\n    }\n};\n\nint main()\n{\n    // Create first car object\n    Car myCar;\n    myCar.color = \"Red\";\n    myCar.model = \"Toyota\";\n\n    // Use attributes and methods\n    cout << \"My car color: \" << myCar.color << endl;\n    myCar.startEngine();\n    myCar.stopEngine();\n\n    return 0;\n}",
+        "language": "cpp"
+      },
+      "include": true
+    },
+    {
+      "front": "Object — how is this written in C++?",
+      "back": "An object is an instance of a class. It represents a real-world entity created using the class blueprint",
+      "sourceLabel": "Section 3",
+      "context": "Object",
+      "backCode": {
+        "text": "using namespace std;\n\n// Define a class\nclass Car\n{\n  public:\n    // Attribute\n    string color;\n    string model;\n\n    // Method: starts the engine\n    void startEngine()\n    {\n        cout << model << \" engine started\" << endl;\n    }\n\n    // Method: stops the engine\n    void stopEngine()\n    {\n        cout << model << \" engine stopped\" << endl;\n    }\n};\n\nint main()\n{\n    // Create first car object\n    Car myCar;\n    myCar.color = \"Red\";\n    myCar.model = \"Toyota\";\n\n    // Use attributes and methods\n    cout << \"My car color: \" << myCar.color << endl;\n    myCar.startEngine();\n    myCar.stopEngine();\n\n    return 0;\n}",
+        "language": "cpp"
+      },
+      "include": true
+    },
+    {
+      "front": "What are the classes and objects in data structures?",
+      "back": "• Allow you to reuse code (write once, use many times).\n• Make it easier to represent real-world structures like: Stack (push, pop), Queue (enqueue, dequeue) and Linked List (nodes with data + next pointer).",
+      "sourceLabel": "Section 4",
+      "context": "Classes and Objects in Data Structures",
+      "include": true
+    },
+    {
+      "front": "Example: Stack Using Class and Object — what does this C++ program print?",
+      "back": "Stack elements: 30 20 10\nAfter pop: 20 10",
+      "sourceLabel": "Section 5",
+      "context": "Example: Stack Using Class and Object",
+      "frontCode": {
+        "text": "using namespace std;\n\n// Class representing a Stack\nclass Stack {\n  public:\n    int arr[5];\n    int top = -1;\n\n    // Method to push element\n    void push(int x) {\n        if(top == 4) {\n            cout << \"Stack Overflow\\n\";\n            return;\n        }\n        arr[++top] = x;\n    }\n\n    // Method to pop element\n    void pop() {\n        if(top == -1) {\n            cout << \"Stack Underflow\\n\";\n            return;\n        }\n        top--;\n    }\n\n    // Method to display stack\n    void display() {\n        for(int i = top; i >= 0; i--) {\n            cout << arr[i] << \" \";\n        }\n        cout << endl;\n    }\n};\n\nint main() {\n\n    // Creating stack object\n    Stack s;\n\n    // Performing operations\n    s.push(10);\n    s.push(20);\n    s.push(30);\n\n    cout << \"Stack elements: \";\n    s.display();\n\n    s.pop();\n\n    cout << \"After pop: \";\n    s.display();\n\n    return 0;\n}",
+        "language": "cpp"
+      },
+      "include": true
+    },
+    {
+      "front": "Example: Stack Using Class and Object — how is this written in C++?",
+      "back": "Here, the class represents the stack design, while the objects allow us to perform stack operations such as push and pop.",
+      "sourceLabel": "Section 5",
+      "context": "Example: Stack Using Class and Object",
+      "backCode": {
+        "text": "using namespace std;\n\n// Class representing a Stack\nclass Stack {\n  public:\n    int arr[5];\n    int top = -1;\n\n    // Method to push element\n    void push(int x) {\n        if(top == 4) {\n            cout << \"Stack Overflow\\n\";\n            return;\n        }\n        arr[++top] = x;\n    }\n\n    // Method to pop element\n    void pop() {\n        if(top == -1) {\n            cout << \"Stack Underflow\\n\";\n            return;\n        }\n        top--;\n    }\n\n    // Method to display stack\n    void display() {\n        for(int i = top; i >= 0; i--) {\n            cout << arr[i] << \" \";\n        }\n        cout << endl;\n    }\n};\n\nint main() {\n\n    // Creating stack object\n    Stack s;\n\n    // Performing operations\n    s.push(10);\n    s.push(20);\n    s.push(30);\n\n    cout << \"Stack elements: \";\n    s.display();\n\n    s.pop();\n\n    cout << \"After pop: \";\n    s.display();\n\n    return 0;\n}",
+        "language": "cpp"
+      },
+      "include": true
+    }
+  ]
+}

@@ -1,0 +1,338 @@
+{
+  "sections": [
+    {
+      "label": "Section 1",
+      "title": "Input and Output in Programming",
+      "blocks": [
+        {
+          "kind": "paragraph",
+          "text": "Input and Output (I/O) are fundamental concepts in programming.",
+          "context": "Input and Output in Programming"
+        },
+        {
+          "kind": "list",
+          "items": [
+            "Input allows a program to receive data from the user, files, or other sources, while output allows it to display results.",
+            "I/O is essential for creating interactive programs and performing tasks with dynamic data."
+          ],
+          "heading": "Input and Output in Programming",
+          "context": "Input and Output in Programming"
+        },
+        {
+          "kind": "paragraph",
+          "text": "Table of Content",
+          "context": "Input and Output in Programming"
+        }
+      ]
+    },
+    {
+      "label": "Section 2",
+      "title": "Input Output in C",
+      "blocks": [
+        {
+          "kind": "heading",
+          "text": "Input Output in C",
+          "level": 1
+        },
+        {
+          "kind": "paragraph",
+          "text": "stdio.h is the library in C that provides functions for input and output, like printf() and scanf().",
+          "context": "Input Output in C"
+        },
+        {
+          "kind": "list",
+          "items": [
+            "printf() is used to display messages or values on the screen. You can print text, numbers, and variables.",
+            "scanf() is used to read input from the user and requires a format specifier to know the type of data.",
+            "\\n is used to move to a new line so that the next output appears below the previous one.",
+            "Format specifiers tell C what type of data to read or print, for example:%d for integers,%f for floats,%c for characters, and%s for strings."
+          ],
+          "heading": "Input Output in C",
+          "context": "Input Output in C"
+        },
+        {
+          "kind": "code",
+          "language": "c",
+          "text": "#include <stdio.h>\n\nint main() {\n    int age;\n    float height;\n    char grade;\n    char name[20];\n\n    // Asking for input\n    printf(\"Enter your age, height, grade, and name: \");\n\n    // Reading input from the user\n    scanf(\"%d %f %c %s\", &age, &height, &grade, name);\n\n    // Displaying the input using printf\n    printf(\"Your age: %d\\n\", age);\n    printf(\"Your height: %.2f\\n\", height);  // .2f for 2 decimal places\n    printf(\"Your grade: %c\\n\", grade);\n    printf(\"Your name: %s\\n\", name);\n\n    return 0;\n}",
+          "alsoIn": [],
+          "heading": "Input Output in C",
+          "context": "Input Output in C"
+        },
+        {
+          "kind": "paragraph",
+          "text": "Your age: 20 Your height: 5.90 Your grade: AYour name: Alice",
+          "context": "Input Output in C"
+        }
+      ]
+    },
+    {
+      "label": "Section 3",
+      "title": "Input Output in CPP",
+      "blocks": [
+        {
+          "kind": "heading",
+          "text": "Input Output in CPP",
+          "level": 1
+        },
+        {
+          "kind": "paragraph",
+          "text": "#include <iostream> is the library in Cpp that provides input/output functions like cout and cin.",
+          "context": "Input Output in CPP"
+        },
+        {
+          "kind": "list",
+          "items": [
+            "cout is used to display messages or values on the screen. You can print text, numbers, and variables.",
+            "cin is used to read input from the user. The variable type determines the kind of input it accepts.",
+            "\\n or endl is used to move to a new line in output."
+          ],
+          "heading": "Input Output in CPP",
+          "context": "Input Output in CPP"
+        },
+        {
+          "kind": "code",
+          "language": "cpp",
+          "text": "#include <iostream>\nusing namespace std;\n\nint main() {\n    int age;\n    float height;\n    char grade;\n    string name;\n\n    cout << \"Enter your age, height, grade, and name: \";\n    cin >> age >> height >> grade >> name;\n\n    cout << \"Your age: \" << age << \"\\n\";\n    cout << \"Your height: \" << height << \"\\n\";\n    cout << \"Your grade: \" << grade << \"\\n\";\n    cout << \"Your name: \" << name << \"\\n\";\n\n    return 0;\n}",
+          "alsoIn": [],
+          "heading": "Input Output in CPP",
+          "context": "Input Output in CPP"
+        }
+      ]
+    },
+    {
+      "label": "Section 4",
+      "title": "Input Output in Java",
+      "blocks": [
+        {
+          "kind": "heading",
+          "text": "Input Output in Java",
+          "level": 1
+        },
+        {
+          "kind": "paragraph",
+          "text": "Scanner (from java.util.Scanner) is used for input, and System.out is used for output.",
+          "context": "Input Output in Java"
+        },
+        {
+          "kind": "list",
+          "items": [
+            "System.out.println() displays messages or values on the screen and moves to a new line.",
+            "System.out.print() displays messages without moving to a new line.",
+            "Scanner.nextInt(), nextFloat(), next(), nextLine() are used to read different types of input from the user."
+          ],
+          "heading": "Input Output in Java",
+          "context": "Input Output in Java"
+        },
+        {
+          "kind": "code",
+          "language": "java",
+          "text": "import java.util.Scanner;\n\npublic class GFG {\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n\n        System.out.print(\"Enter your age, height, grade, and name: \");\n        int age = sc.nextInt();\n        float height = sc.nextFloat();\n        char grade = sc.next().charAt(0);\n        String name = sc.next();\n\n        System.out.println(\"Your age: \" + age);\n        System.out.println(\"Your height: \" + height);\n        System.out.println(\"Your grade: \" + grade);\n        System.out.println(\"Your name: \" + name);\n    }\n}",
+          "alsoIn": [],
+          "heading": "Input Output in Java",
+          "context": "Input Output in Java"
+        }
+      ]
+    },
+    {
+      "label": "Section 5",
+      "title": "Input Output in Python",
+      "blocks": [
+        {
+          "kind": "heading",
+          "text": "Input Output in Python",
+          "level": 1
+        },
+        {
+          "kind": "paragraph",
+          "text": "Python does not require a separate library for input/output; it uses built-in functions.",
+          "context": "Input Output in Python"
+        },
+        {
+          "kind": "list",
+          "items": [
+            "print() is used to display messages or values on the screen. You can print text, numbers, or variables.",
+            "input() is used to read input from the user as a string; type conversion (int(), float()) is used for numbers.",
+            "\\n is used inside print() to move to a new line; print() automatically moves to a new line by default"
+          ],
+          "heading": "Input Output in Python",
+          "context": "Input Output in Python"
+        },
+        {
+          "kind": "code",
+          "language": "python",
+          "text": "age, height, grade, name = input(\"Enter your age, height, grade, and name: \").split()\n\nage = int(age)\nheight = float(height)\ngrade = grade\nname = name\n\nprint(\"Your age:\", age)\nprint(\"Your height:\", height)\nprint(\"Your grade:\", grade)\nprint(\"Your name:\", name)",
+          "alsoIn": [],
+          "heading": "Input Output in Python",
+          "context": "Input Output in Python"
+        }
+      ]
+    },
+    {
+      "label": "Section 6",
+      "title": "Input Output in C",
+      "blocks": [
+        {
+          "kind": "heading",
+          "text": "Input Output in C",
+          "level": 1
+        },
+        {
+          "kind": "paragraph",
+          "text": "System namespace provides input/output functions, and Console is used for I/O.",
+          "context": "Input Output in C"
+        },
+        {
+          "kind": "list",
+          "items": [
+            "Console.WriteLine() displays messages or values on the screen and moves to a new line.",
+            "Console.Write() displays messages without moving to a new line.",
+            "Console.ReadLine() reads input from the user as a string; type conversion is needed for other types like int.Parse() or float.Parse()."
+          ],
+          "heading": "Input Output in C",
+          "context": "Input Output in C"
+        },
+        {
+          "kind": "code",
+          "language": "csharp",
+          "text": "using System;\n\nclass GFG {\n    static void Main() {\n        Console.Write(\"Enter your age, height, grade, and name: \");\n        string[] inputs = Console.ReadLine().Split();\n\n        int age = int.Parse(inputs[0]);\n        float height = float.Parse(inputs[1]);\n        char grade = char.Parse(inputs[2]);\n        string name = inputs[3];\n\n        Console.WriteLine(\"Your age: \" + age);\n        Console.WriteLine(\"Your height: \" + height);\n        Console.WriteLine(\"Your grade: \" + grade);\n        Console.WriteLine(\"Your name: \" + name);\n    }\n}",
+          "alsoIn": [],
+          "heading": "Input Output in C",
+          "context": "Input Output in C"
+        }
+      ]
+    },
+    {
+      "label": "Section 7",
+      "title": "Input Output in JavaScript",
+      "blocks": [
+        {
+          "kind": "heading",
+          "text": "Input Output in JavaScript",
+          "level": 1
+        },
+        {
+          "kind": "paragraph",
+          "text": "In Node.js, input/output is handled using readline module for input and console.log() for output.",
+          "context": "Input Output in JavaScript"
+        },
+        {
+          "kind": "list",
+          "items": [
+            "console.log() displays messages or values on the screen and moves to a new line.",
+            "console.print() is not standard; output is mostly done via console.log().",
+            "Input is read using readline.question() in Node.js or prompt() in browsers."
+          ],
+          "heading": "Input Output in JavaScript",
+          "context": "Input Output in JavaScript"
+        },
+        {
+          "kind": "code",
+          "language": "javascript",
+          "text": "const readline = require('readline').createInterface({\n  input: process.stdin,\n  output: process.stdout\n});\n\nreadline.question('Enter your age, height, grade, and name (space separated): ', input => {\n    const [age, height, grade, name] = input.split(' ');\n    console.log(`Your age: ${age}`);\n    console.log(`Your height: ${height}`);\n    console.log(`Your grade: ${grade}`);\n    console.log(`Your name: ${name}`);\n    readline.close();\n});",
+          "alsoIn": [],
+          "heading": "Input Output in JavaScript",
+          "context": "Input Output in JavaScript"
+        }
+      ]
+    }
+  ],
+  "cards": [
+    {
+      "front": "What is the input and output in programming?",
+      "back": "• Input allows a program to receive data from the user, files, or other sources, while output allows it to display results.\n• I/O is essential for creating interactive programs and performing tasks with dynamic data.",
+      "sourceLabel": "Section 1",
+      "context": "Input and Output in Programming",
+      "include": true
+    },
+    {
+      "front": "What is stdio.h?",
+      "back": "the library in C that provides functions for input and output, like printf() and scanf()",
+      "sourceLabel": "Section 2",
+      "context": "Input Output in C",
+      "include": true
+    },
+    {
+      "front": "Input Output in C — how is this written in C?",
+      "back": "stdio.h is the library in C that provides functions for input and output, like printf() and scanf().",
+      "sourceLabel": "Section 2",
+      "context": "Input Output in C",
+      "backCode": {
+        "text": "#include <stdio.h>\n\nint main() {\n    int age;\n    float height;\n    char grade;\n    char name[20];\n\n    // Asking for input\n    printf(\"Enter your age, height, grade, and name: \");\n\n    // Reading input from the user\n    scanf(\"%d %f %c %s\", &age, &height, &grade, name);\n\n    // Displaying the input using printf\n    printf(\"Your age: %d\\n\", age);\n    printf(\"Your height: %.2f\\n\", height);  // .2f for 2 decimal places\n    printf(\"Your grade: %c\\n\", grade);\n    printf(\"Your name: %s\\n\", name);\n\n    return 0;\n}",
+        "language": "c"
+      },
+      "include": true
+    },
+    {
+      "front": "What is the input output in cpp?",
+      "back": "• cout is used to display messages or values on the screen. You can print text, numbers, and variables.\n• cin is used to read input from the user. The variable type determines the kind of input it accepts.\n• \\n or endl is used to move to a new line in output.",
+      "sourceLabel": "Section 3",
+      "context": "Input Output in CPP",
+      "include": true
+    },
+    {
+      "front": "Input Output in CPP — how is this written in C++?",
+      "back": "#include <iostream> is the library in Cpp that provides input/output functions like cout and cin.",
+      "sourceLabel": "Section 3",
+      "context": "Input Output in CPP",
+      "backCode": {
+        "text": "#include <iostream>\nusing namespace std;\n\nint main() {\n    int age;\n    float height;\n    char grade;\n    string name;\n\n    cout << \"Enter your age, height, grade, and name: \";\n    cin >> age >> height >> grade >> name;\n\n    cout << \"Your age: \" << age << \"\\n\";\n    cout << \"Your height: \" << height << \"\\n\";\n    cout << \"Your grade: \" << grade << \"\\n\";\n    cout << \"Your name: \" << name << \"\\n\";\n\n    return 0;\n}",
+        "language": "cpp"
+      },
+      "include": true
+    },
+    {
+      "front": "What is the input output in java?",
+      "back": "• System.out.println() displays messages or values on the screen and moves to a new line.\n• System.out.print() displays messages without moving to a new line.\n• Scanner.nextInt(), nextFloat(), next(), nextLine() are used to read different types of input from the user.",
+      "sourceLabel": "Section 4",
+      "context": "Input Output in Java",
+      "include": true
+    },
+    {
+      "front": "Input Output in Java — how is this written in Java?",
+      "back": "Scanner (from java.util.Scanner) is used for input, and System.out is used for output.",
+      "sourceLabel": "Section 4",
+      "context": "Input Output in Java",
+      "backCode": {
+        "text": "import java.util.Scanner;\n\npublic class GFG {\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n\n        System.out.print(\"Enter your age, height, grade, and name: \");\n        int age = sc.nextInt();\n        float height = sc.nextFloat();\n        char grade = sc.next().charAt(0);\n        String name = sc.next();\n\n        System.out.println(\"Your age: \" + age);\n        System.out.println(\"Your height: \" + height);\n        System.out.println(\"Your grade: \" + grade);\n        System.out.println(\"Your name: \" + name);\n    }\n}",
+        "language": "java"
+      },
+      "include": true
+    },
+    {
+      "front": "Input Output in Python — how is this written in Python?",
+      "back": "Python does not require a separate library for input/output; it uses built-in functions.",
+      "sourceLabel": "Section 5",
+      "context": "Input Output in Python",
+      "backCode": {
+        "text": "age, height, grade, name = input(\"Enter your age, height, grade, and name: \").split()\n\nage = int(age)\nheight = float(height)\ngrade = grade\nname = name\n\nprint(\"Your age:\", age)\nprint(\"Your height:\", height)\nprint(\"Your grade:\", grade)\nprint(\"Your name:\", name)",
+        "language": "python"
+      },
+      "include": true
+    },
+    {
+      "front": "What is the input output in c?",
+      "back": "• Console.WriteLine() displays messages or values on the screen and moves to a new line.\n• Console.Write() displays messages without moving to a new line.\n• Console.ReadLine() reads input from the user as a string; type conversion is needed for other types like int.Parse() or float.Parse().",
+      "sourceLabel": "Section 6",
+      "context": "Input Output in C",
+      "include": true
+    },
+    {
+      "front": "What is the input output in javascript?",
+      "back": "• console.log() displays messages or values on the screen and moves to a new line.\n• console.print() is not standard; output is mostly done via console.log().\n• Input is read using readline.question() in Node.js or prompt() in browsers.",
+      "sourceLabel": "Section 7",
+      "context": "Input Output in JavaScript",
+      "include": true
+    },
+    {
+      "front": "Input Output in JavaScript — how is this written in JavaScript?",
+      "back": "In Node.js, input/output is handled using readline module for input and console.log() for output.",
+      "sourceLabel": "Section 7",
+      "context": "Input Output in JavaScript",
+      "backCode": {
+        "text": "const readline = require('readline').createInterface({\n  input: process.stdin,\n  output: process.stdout\n});\n\nreadline.question('Enter your age, height, grade, and name (space separated): ', input => {\n    const [age, height, grade, name] = input.split(' ');\n    console.log(`Your age: ${age}`);\n    console.log(`Your height: ${height}`);\n    console.log(`Your grade: ${grade}`);\n    console.log(`Your name: ${name}`);\n    readline.close();\n});",
+        "language": "javascript"
+      },
+      "include": true
+    }
+  ]
+}
