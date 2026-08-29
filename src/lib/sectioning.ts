@@ -1,5 +1,5 @@
 import type { Block, DocumentSection } from './documentModel';
-import { stripRepeatedFurniture } from './layoutAnalysis';
+import { applyContext } from './documentModel';
 
 /**
  * Turns a flat block stream into sections.
@@ -134,10 +134,14 @@ export function sectionsFromBlocks(blocks: Block[], options: SectionOptions = {}
     // or page title is the topic label it should carry, and it is resolved here
     // rather than afterwards because the labelling below reads it.
     const title = run.titles[run.titles.length - 1] ?? options.fallbackTitle;
+    // Every block is copied, not just the headings. The labelling pass below
+    // writes `heading` onto lists, snippets and images, and with the originals
+    // passed through by reference that wrote straight into the caller's array -
+    // so calling this twice on the same blocks gave two different answers.
     const body = run.blocks.map((b) =>
       // Headings that survive inside a section are subheadings, whatever their
       // original depth: level 1 means "page title" to the card generator.
-      b.kind === 'heading' ? { ...b, level: 2 } : b
+      b.kind === 'heading' ? { ...b, level: 2 } : { ...b }
     );
 
     // A list, a snippet and a diagram all arrive unlabelled: nothing in the
@@ -186,12 +190,73 @@ export function sectionsFromBlocks(blocks: Block[], options: SectionOptions = {}
   // below: an ancestor heading repeated across sibling sections is context, not
   // the running footer that rule is meant to catch.
   return stripRepeatedFurniture(sections).map((section, i) => {
-    for (const b of section.blocks) {
-      if (b.kind !== 'heading' && !b.context) b.context = section.title;
-    }
+    applyContext(section.blocks, section.title);
     // The heading path leads the section, so a card drafted from a subsection
     // still knows which document and topic it belongs to.
     const path: Block[] = chains[i].map((text) => ({ kind: 'heading', text, level: 1 }));
     return { ...section, blocks: [...path, ...section.blocks] };
   });
+}
+
+/**
+ * Removes running headers/footers: any line that appears on more than 30% of
+ * pages is page furniture, not content. This is what drops boilerplate like the
+ * repeated "Clinical relevance:" footer.
+ */
+export function stripRepeatedFurniture(sections: DocumentSection[]): DocumentSection[] {
+  if (sections.length < 4) return sections;
+
+  const counts = new Map<string, number>();
+  for (const section of sections) {
+    const seen = new Set<string>();
+    for (const block of section.blocks) {
+      const text = blockSignature(block);
+      if (text && !seen.has(text)) {
+        seen.add(text);
+        counts.set(text, (counts.get(text) ?? 0) + 1);
+      }
+    }
+  }
+
+  const threshold = Math.max(3, Math.ceil(sections.length * 0.3));
+  const furniture = new Set(
+    [...counts.entries()].filter(([, n]) => n >= threshold).map(([t]) => t)
+  );
+
+  // Printed web pages repeat the document's own section list in a sidebar or
+  // page footer. Those entries are titles of OTHER sections, so any short block
+  // whose text matches a different section's title is navigation, not content.
+  const titles = new Map<string, string>();
+  for (const s of sections) {
+    if (s.title) titles.set(normalizeTitle(s.title), s.label);
+  }
+
+  return sections.map((section) => ({
+    ...section,
+    blocks: section.blocks.filter((b) => {
+      if (furniture.has(blockSignature(b))) return false;
+      if (b.kind !== 'paragraph' && b.kind !== 'heading') return true;
+      const text = b.text;
+      if (text.length > 60) return true;
+      const owner = titles.get(normalizeTitle(text));
+      return !owner || owner === section.label;
+    }),
+  }));
+}
+
+function normalizeTitle(text: string): string {
+  return text.toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim();
+}
+
+function blockSignature(block: Block): string {
+  switch (block.kind) {
+    case 'paragraph':
+      return block.text.slice(0, 80).toLowerCase();
+    case 'heading':
+      return block.text.slice(0, 80).toLowerCase();
+    case 'list':
+      return block.items.join('|').slice(0, 80).toLowerCase();
+    default:
+      return '';
+  }
 }

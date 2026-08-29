@@ -2,7 +2,8 @@ import * as pdfjsLib from 'pdfjs-dist';
 // Vite-friendly worker import: bundles the worker as its own asset.
 import PdfWorker from 'pdfjs-dist/build/pdf.worker.mjs?worker';
 import type { DocumentSection, PositionedItem } from './documentModel';
-import { analyzePage, stripRepeatedFurniture } from './layoutAnalysis';
+import { analyzePage } from './layoutAnalysis';
+import { stripRepeatedFurniture } from './sectioning';
 
 let workerStarted = false;
 

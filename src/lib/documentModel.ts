@@ -115,3 +115,16 @@ export interface PositionedItem {
   width: number;
   fontSize: number;
 }
+
+/**
+ * Files in each block the section title it belongs to, where it has none.
+ *
+ * Every format needs this and each one wrote it out: the three copies were
+ * identical down to the variable name. Headings are skipped because a heading
+ * is context rather than something that needs it.
+ */
+export function applyContext(blocks: Block[], title: string | undefined): void {
+  for (const block of blocks) {
+    if (block.kind !== 'heading' && !block.context) block.context = title;
+  }
+}

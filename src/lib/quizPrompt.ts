@@ -1,3 +1,5 @@
+import { normalizeSlug as normalizeOption, stripJsonFence } from './textUtils';
+
 /**
  * The prompt that turns saved flashcards into multiple-choice questions.
  *
@@ -55,13 +57,6 @@ export interface LlmQuizQuestion {
 /** How many wrong answers a usable question carries. */
 export const DISTRACTOR_COUNT = 3;
 
-/** Comparable form of an option, for spotting two that say the same thing. */
-function normalizeOption(text: string): string {
-  return text
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, ' ')
-    .trim();
-}
 
 function trimmedString(value: unknown): string {
   return typeof value === 'string' ? value.trim() : '';
@@ -163,10 +158,7 @@ function salvageObjects(text: string): unknown[] {
 
 /** Parses a model response into questions, tolerating a fence or a cut-off reply. */
 export function parseQuizResponse(text: string): LlmQuizQuestion[] {
-  const cleaned = text
-    .replace(/^\s*```(?:json)?/i, '')
-    .replace(/```\s*$/, '')
-    .trim();
+  const cleaned = stripJsonFence(text);
 
   const start = cleaned.indexOf('[');
   const end = cleaned.lastIndexOf(']');

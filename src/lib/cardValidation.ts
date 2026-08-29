@@ -1,4 +1,5 @@
 import type { CandidateCard } from '../types';
+import { normalizeSlug as normalize } from './textUtils';
 
 /**
  * Last line of defence before a card reaches the review screen. These rules
@@ -25,12 +26,7 @@ const MAX_BACK_WORDS = 60;
 const MAX_FRONT_WORDS = 32;
 const MIN_BACK_CHARS = 3;
 
-function normalize(text: string): string {
-  return text
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, ' ')
-    .trim();
-}
+
 
 /**
  * True when a label names a concept worth building a card around, rather than

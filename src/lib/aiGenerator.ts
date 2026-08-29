@@ -2,6 +2,7 @@ import type { DocumentSection } from './documentModel';
 import type { CandidateCard, CardCode, CardImage } from '../types';
 import { parseCardsResponse } from './cardPrompt';
 import { callModel } from './aiTransport';
+import { runBatches, type BatchProgress } from './batchRunner';
 import { dedupeCards, isUsableCard } from './cardValidation';
 import { generateCandidates } from './flashcardGenerator';
 
@@ -116,10 +117,8 @@ function serializeBatch(sections: DocumentSection[]): { payload: unknown[]; asse
   return { payload, assets };
 }
 
-export interface AiProgress {
-  done: number;
-  total: number;
-}
+/** The same shape question writing reports; one definition, two features. */
+export type AiProgress = BatchProgress;
 
 /**
  * Drafts cards with the model, batch by batch. Any batch that fails falls back
@@ -148,14 +147,11 @@ export async function generateCandidatesWithAi(
   }
 
   const all: CandidateCard[] = [];
-  let failedBatches = 0;
-  let firstError: string | null = null;
 
-  for (let i = 0; i < batches.length; i++) {
-    const batch = batches[i];
-    const { payload, assets } = serializeBatch(batch);
-
-    try {
+  const outcome = await runBatches(
+    batches,
+    async (batch) => {
+      const { payload, assets } = serializeBatch(batch);
       const { text } = await callModel('cards', payload, settings);
       const parsed = parseCardsResponse(text);
       if (parsed.length === 0) throw new Error('No cards returned');
@@ -177,20 +173,22 @@ export async function generateCandidatesWithAi(
           include: true,
         });
       }
-    } catch (err) {
-      console.error('AI batch failed, falling back to rules:', err);
-      failedBatches += 1;
-      if (!firstError) firstError = err instanceof Error ? err.message : String(err);
-      all.push(...generateCandidates(batch));
+    },
+    {
+      onProgress,
+      // A batch the model could not draft falls back to the rule-based
+      // generator here, at the point it failed, so the deck keeps its order.
+      onFailure: (batch, err) => {
+        console.error('AI batch failed, falling back to rules:', err);
+        all.push(...generateCandidates(batch));
+      },
     }
-
-    onProgress?.({ done: i + 1, total: batches.length });
-  }
+  );
 
   return {
     cards: dedupeCards(all.filter(isUsableCard)),
-    failedBatches,
+    failedBatches: outcome.failedBatches,
     totalBatches: batches.length,
-    firstError,
+    firstError: outcome.firstError,
   };
 }

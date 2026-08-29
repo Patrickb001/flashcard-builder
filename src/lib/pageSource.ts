@@ -94,14 +94,18 @@ export function parseUrlList(raw: string): string[] {
   const pieces = raw
     .split(/\s+/)
     .flatMap((piece) => piece.split(/[,;](?=https?:\/\/)/))
-    .flatMap((piece) => piece.split(/[,;](?=www\.)/));
+    .flatMap((piece) => piece.split(/[,;](?=www\.)/))
+    // Markdown links pasted with nothing between them are one piece, and the
+    // strip below reads to the last "](" it can find - so every address but
+    // the final one was silently dropped.
+    .flatMap((piece) => piece.split(/(?<=\))(?=\[)/));
 
   for (const piece of pieces) {
     const trimmed = piece
       .trim()
       // Addresses arrive wrapped in Markdown link syntax or angle brackets.
       .replace(/^[<([]+/, '')
-      .replace(/^.*\]\(/, '')
+      .replace(/^.*?\]\(/, '')
       .replace(/[>)\]]+$/, '')
       .replace(/[.,;]+$/, '');
     if (!trimmed) continue;

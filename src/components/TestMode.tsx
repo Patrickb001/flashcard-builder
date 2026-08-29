@@ -105,6 +105,19 @@ export default function TestMode({ deckId, onExit }: Props) {
 
       abortRef.current = null;
 
+      // Stopping is a choice, not a failure. Whatever was written is saved,
+      // and the rest stay as cards without a question.
+      if (result.aborted) {
+        setNoticeFailed(false);
+        setNotice(
+          result.questions.length > 0
+            ? `Stopped. ${result.questions.length} question${result.questions.length === 1 ? '' : 's'} were written and saved.`
+            : 'Stopped before any questions were written.'
+        );
+        setPhase('setup');
+        return;
+      }
+
       const missed = new Set(result.failedCardIds).size;
       // Two different causes need two different sentences. A truncated reply is
       // the tool hitting its own length limit and is worth retrying as-is; a card

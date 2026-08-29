@@ -1,6 +1,7 @@
 import type { Flashcard, TestQuestion } from '../types';
 import type { AiSettings } from './aiGenerator';
 import { callModel } from './aiTransport';
+import { runBatches, type BatchProgress } from './batchRunner';
 import { parseQuizResponse } from './quizPrompt';
 
 /**
@@ -55,10 +56,8 @@ const MAX_CODE_CHARS = 4000;
 /** Batches are split again if their JSON would come near the server's cap. */
 const MAX_PAYLOAD_CHARS = 100_000;
 
-export interface QuizProgress {
-  done: number;
-  total: number;
-}
+/** The same shape card drafting reports; one definition, two features. */
+export type QuizProgress = BatchProgress;
 
 export interface QuizGenerationResult {
   questions: TestQuestion[];
@@ -75,6 +74,8 @@ export interface QuizGenerationResult {
    * model declined is a property of the card.
    */
   truncatedBatches: number;
+  /** True when the user stopped the run. Not a failure, and not reported as one. */
+  aborted: boolean;
 }
 
 export interface QuizGenerationOptions {
@@ -223,6 +224,7 @@ export async function generateQuestionsForCards(
   let totalBatches = 0;
   let done = 0;
   let firstError: string | null = null;
+  let aborted = false;
 
   /**
    * Runs one batch and returns the cards it left without a question.
@@ -232,87 +234,99 @@ export async function generateQuestionsForCards(
    * back here to be retried rather than being written off.
    */
   async function runBatch(batch: Flashcard[]): Promise<Flashcard[]> {
-    try {
-      // Wrapped in an array because the endpoint's contract is a non-empty
-      // list of things for the model, and card drafting sends one section per
-      // entry. A quiz batch is a single entry, but it still has to be a list.
-      const { text, stopReason } = await callModel(
-        'quiz',
-        [serializeBatch(batch, deckCards, deckName)],
-        settings,
-        options.signal
+    // Wrapped in an array because the endpoint's contract is a non-empty
+    // list of things for the model, and card drafting sends one section per
+    // entry. A quiz batch is a single entry, but it still has to be a list.
+    const { text, stopReason } = await callModel(
+      'quiz',
+      [serializeBatch(batch, deckCards, deckName)],
+      settings,
+      options.signal
+    );
+    if (stopReason === 'max_tokens') truncatedBatches += 1;
+
+    const parsed = parseQuizResponse(text);
+    if (parsed.length === 0) {
+      throw new Error(
+        stopReason === 'max_tokens'
+          ? 'The reply was cut off by the length limit before any question was complete.'
+          : 'No questions returned'
       );
-      if (stopReason === 'max_tokens') truncatedBatches += 1;
-
-      const parsed = parseQuizResponse(text);
-      if (parsed.length === 0) {
-        throw new Error(
-          stopReason === 'max_tokens'
-            ? 'The reply was cut off by the length limit before any question was complete.'
-            : 'No questions returned'
-        );
-      }
-
-      const now = Date.now();
-      const written: TestQuestion[] = [];
-      const answered = new Set<string>();
-
-      for (const item of parsed) {
-        // Batch-local ids are "q1".."qN"; anything else the model invented
-        // resolves to no card and is dropped.
-        const index = Number(item.id.replace(/^q/i, '')) - 1;
-        const card = batch[index];
-        if (!card || answered.has(card.id)) continue;
-        answered.add(card.id);
-
-        written.push({
-          id: crypto.randomUUID(),
-          deckId: card.deckId,
-          cardId: card.id,
-          stem: item.stem,
-          correctAnswer: item.correct,
-          distractors: item.distractors,
-          explanation: item.explanation,
-          stemCode: card.frontCode,
-          stemImage: card.image,
-          context: card.context,
-          sourceLabel: card.sourceLabel,
-          cardHash: hashCard(card),
-          createdAt: now,
-          timesAsked: 0,
-          lastAskedAt: null,
-          timesCorrect: 0,
-        });
-      }
-
-      questions.push(...written);
-      if (written.length > 0) await options.onBatch?.(written);
-
-      return batch.filter((card) => !answered.has(card.id));
-    } catch (err) {
-      console.error('Quiz batch failed:', err);
-      failedBatches += 1;
-      if (!firstError) firstError = err instanceof Error ? err.message : String(err);
-      return batch;
     }
+
+    const now = Date.now();
+    const written: TestQuestion[] = [];
+    const answered = new Set<string>();
+
+    for (const item of parsed) {
+      // Batch-local ids are "q1".."qN"; anything else the model invented
+      // resolves to no card and is dropped.
+      const index = Number(item.id.replace(/^q/i, '')) - 1;
+      const card = batch[index];
+      if (!card || answered.has(card.id)) continue;
+      answered.add(card.id);
+
+      written.push({
+        id: crypto.randomUUID(),
+        deckId: card.deckId,
+        cardId: card.id,
+        stem: item.stem,
+        correctAnswer: item.correct,
+        distractors: item.distractors,
+        explanation: item.explanation,
+        stemCode: card.frontCode,
+        stemImage: card.image,
+        context: card.context,
+        sourceLabel: card.sourceLabel,
+        cardHash: hashCard(card),
+        createdAt: now,
+        timesAsked: 0,
+        lastAskedAt: null,
+        timesCorrect: 0,
+      });
+    }
+
+    questions.push(...written);
+    if (written.length > 0) await options.onBatch?.(written);
+
+    return batch.filter((card) => !answered.has(card.id));
   }
 
-  /** Runs a list of batches in order, stopping early if the user cancels. */
+  /**
+   * Runs one pass over a list of batches, collecting the cards it did not cover.
+   *
+   * A batch that threw contributes all of its cards; a batch that answered some
+   * of them contributes the rest. Both are simply cards without a question, and
+   * are offered again rather than reported as an error.
+   */
   async function runPass(batches: Flashcard[][]): Promise<Flashcard[]> {
     const missed: Flashcard[] = [];
-    totalBatches += batches.length;
 
-    for (let i = 0; i < batches.length; i++) {
-      if (options.signal?.aborted) {
-        // Whatever was already saved stays saved; the rest are simply cards
-        // without a question, which the top-up prompt already handles.
-        for (const remaining of batches.slice(i)) missed.push(...remaining);
-        break;
+    const outcome = await runBatches(
+      batches,
+      async (batch) => {
+        missed.push(...(await runBatch(batch)));
+      },
+      {
+        signal: options.signal,
+        onProgress: options.onProgress,
+        progressOffset: { done, total: totalBatches },
+        onFailure: (batch, err) => {
+          console.error('Quiz batch failed:', err);
+          missed.push(...batch);
+        },
       }
-      missed.push(...(await runBatch(batches[i])));
-      done += 1;
-      options.onProgress?.({ done, total: totalBatches });
-    }
+    );
+
+    done += batches.length - outcome.remaining.length;
+    totalBatches += batches.length;
+    failedBatches += outcome.failedBatches;
+    if (!firstError) firstError = outcome.firstError;
+    if (outcome.aborted) aborted = true;
+
+    // Whatever was already saved stays saved; the batches never reached are
+    // cards without a question, which the top-up prompt already handles.
+    for (const batch of outcome.remaining) missed.push(...batch);
 
     return missed;
   }
@@ -322,7 +336,7 @@ export async function generateQuestionsForCards(
   // One bounded retry, in smaller batches. A card is only reported as missing
   // after the model has had a second, easier chance at it, which is what turns
   // "run it three times to fill a deck" into a single pass.
-  if (missing.length > 0 && !options.signal?.aborted) {
+  if (missing.length > 0 && !aborted) {
     missing = await runPass(buildBatches(missing, deckCards, deckName, RETRY_BATCH_SIZE));
   }
 
@@ -331,7 +345,10 @@ export async function generateQuestionsForCards(
     failedCardIds: missing.map((card) => card.id),
     failedBatches,
     totalBatches,
-    firstError,
+    // Cancelling is not a failure, and reporting the abort as one told someone
+    // who pressed Stop that their questions could not be written.
+    firstError: aborted ? null : firstError,
     truncatedBatches,
+    aborted,
   };
 }
