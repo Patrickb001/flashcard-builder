@@ -38,10 +38,21 @@ export interface HeadingBlock {
   level: number;
 }
 
-export type Block = TableBlock | ListBlock | ParagraphBlock | HeadingBlock;
+export interface CodeBlock {
+  kind: 'code';
+  /** Fence info string, e.g. "ts" or "jsx". */
+  language?: string;
+  text: string;
+  /** The line that introduced the snippet, e.g. "Always create a new Map
+   *  instance:". Kept separate so it can become a card front. */
+  heading?: string;
+  context?: string;
+}
+
+export type Block = TableBlock | ListBlock | ParagraphBlock | HeadingBlock | CodeBlock;
 
 export interface DocumentSection {
-  /** "Page 3" or "Slide 3" — shown on the card as its source. */
+  /** "Page 3", "Slide 3" or "Section 3" — shown on the card as its source. */
   label: string;
   /** The page/slide title, if one was detected. */
   title?: string;

@@ -16,7 +16,7 @@ type View =
       name: 'review';
       sections: DocumentSection[];
       fileName: string;
-      sourceType: 'pdf' | 'pptx';
+      sourceType: 'pdf' | 'pptx' | 'md';
       ai: AiSettings;
     }
   | { name: 'study'; deckId: string }

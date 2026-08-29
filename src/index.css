@@ -374,6 +374,10 @@ p {
   color: var(--accent);
 }
 
+.source-tag.source-md {
+  color: var(--warm);
+}
+
 .deck-meta {
   font-size: 0.82rem;
   color: var(--text-secondary);

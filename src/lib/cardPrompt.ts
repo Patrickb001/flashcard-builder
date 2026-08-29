@@ -22,6 +22,7 @@ Write cards that satisfy ALL of these:
 Also:
 - If a fact pairs a name with a range, quantity, or classification (a stage and its age range, a pattern and its prevalence), emit that as its own separate card.
 - For tables, emit one card per meaningful cell, phrased using the row and column headers.
+- For code blocks, ask what the snippet accomplishes, which API it uses, or how a task is done, and put the short answer — a phrase, an expression, or two or three lines of code copied verbatim — on the back. A snippet that only repeats an import or boilerplate setup is not worth a card.
 - Preserve exact numbers, percentages, and technical identifiers verbatim. Do not round or paraphrase them.
 - Skip anything that is not worth memorising. Returning few cards is better than returning filler.
 

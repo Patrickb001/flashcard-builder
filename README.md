@@ -1,6 +1,6 @@
 # Flashcard Forge
 
-Turn a PDF or PowerPoint into a deck of flashcards, entirely in your browser. No backend, no account, no API key. Decks are saved to IndexedDB.
+Turn a PDF, PowerPoint, or Markdown file into a deck of flashcards, entirely in your browser. No backend, no account, no API key. Decks are saved to IndexedDB.
 
 ## Quick start
 
@@ -40,6 +40,13 @@ The pipeline avoids this in four steps, all in `src/lib/layoutAnalysis.ts`:
 
 `.pptx` files skip most of this. A `.pptx` is a zip of OOXML, and the structure is still intact: shapes carry positions, tables are real `<a:tbl>` elements, and bullet levels are explicit. Reading shape by shape means columns never interleave, so a native `.pptx` generally yields better cards than the same deck exported to PDF.
 
+Markdown skips all of it. The structure is written down rather than inferred, so `src/lib/markdownParser.ts` maps headings, lists, pipe tables, fenced code and paragraphs straight onto blocks. It is hand-rolled — no CommonMark dependency ships to the browser — and reads block structure only: YAML front matter and HTML comments are dropped, and inline markup is stripped so a card front reads as prose rather than as `**source _text_**`.
+
+Two decisions do most of the work on a large file:
+
+- **Code is content.** In a technical document the snippet *is* the answer to "how do I do this?". Dropping fenced code left whole sections as a heading with nothing under it, and the drafter had nothing to work from.
+- **Sections are size-bounded.** The file is split at its shallowest heading level, and any section still over ~1200 characters is split again one level down. This matters because the model returns roughly the same number of cards per section whether that section is three paragraphs or a whole chapter — so section size, not document size, is what sets the yield. An 11 KB reference document goes from 5 sections to 22.
+
 ## How cards are generated
 
 `src/lib/flashcardGenerator.ts` walks the typed blocks, with a rule per block type:
@@ -60,15 +67,19 @@ Generation is rule-based, with no external AI call, so review the draft deck bef
 
 ## Inspecting the pipeline
 
-Two harnesses run the real parsers over a file from Node:
+These harnesses run the real parsers over a file from Node:
 
 ```bash
 npx tsx tools/test-layout.mjs        # dump the block structure per page
 npx tsx tools/test-layout.mjs 13     # just page 13
 npx tsx tools/test-cards.mjs         # dump every generated card
+
+# Markdown, with no extra install — Node runs the real .ts modules
+node --experimental-strip-types --experimental-loader ./tools/ts-ext-hooks.mjs \
+  tools/test-md.mjs notes.md
 ```
 
-Edit the `path` constant at the top of each to point at your own PDF. These are the fastest way to see why a particular slide produced the cards it did.
+Edit the `path` constant at the top of the PDF harnesses to point at your own file. These are the fastest way to see why a particular slide produced the cards it did.
 
 ## Limitations
 
@@ -78,7 +89,7 @@ Edit the `path` constant at the top of each to point at your own PDF. These are 
 
 ## Tech stack
 
-React + TypeScript + Vite, `pdfjs-dist` for PDF text, `jszip` for `.pptx`, `idb` for IndexedDB.
+React + TypeScript + Vite, `pdfjs-dist` for PDF text, `jszip` for `.pptx`, a hand-rolled reader for `.md`, `idb` for IndexedDB.
 
 ## Build for production
 

@@ -9,14 +9,21 @@ import { saveDeckWithCards } from '../db/db';
 interface Props {
   sections: DocumentSection[];
   fileName: string;
-  sourceType: 'pdf' | 'pptx';
+  sourceType: 'pdf' | 'pptx' | 'md';
   ai: AiSettings;
   onSaved: (deckId: string) => void;
   onCancel: () => void;
 }
 
+/** What one parsed section is called, per source format. */
+const UNIT_NOUN: Record<'pdf' | 'pptx' | 'md', string> = {
+  pdf: 'page',
+  pptx: 'slide',
+  md: 'section',
+};
+
 function defaultDeckName(fileName: string): string {
-  return fileName.replace(/\.(pdf|pptx)$/i, '');
+  return fileName.replace(/\.(pdf|pptx|md|markdown|mdown|mkd)$/i, '');
 }
 
 export default function CandidateReview({
@@ -137,7 +144,7 @@ export default function CandidateReview({
       <p className="eyebrow">Step 2 of 2</p>
       <h1>Check the draft deck</h1>
       <p className="muted">
-        Found {sections.length} {sourceType === 'pptx' ? 'slide' : 'page'}
+        Found {sections.length} {UNIT_NOUN[sourceType]}
         {sections.length === 1 ? '' : 's'} and drafted {candidates.length} candidate card
         {candidates.length === 1 ? '' : 's'}. Uncheck anything you don't want, edit the wording, or add
         your own before saving.

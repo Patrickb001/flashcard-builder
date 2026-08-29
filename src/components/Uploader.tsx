@@ -5,12 +5,13 @@ import { loadAiSettings } from '../lib/aiGenerator';
 import type { DocumentSection } from '../lib/documentModel';
 import { extractPdfSections } from '../lib/pdfParser';
 import { extractPptxSections } from '../lib/pptxParser';
+import { extractMarkdownSections } from '../lib/markdownParser';
 
 interface Props {
   onParsed: (
     sections: DocumentSection[],
     fileName: string,
-    sourceType: 'pdf' | 'pptx',
+    sourceType: 'pdf' | 'pptx' | 'md',
     ai: AiSettings
   ) => void;
   onCancel: () => void;
@@ -36,9 +37,12 @@ export default function Uploader({ onParsed, onCancel }: Props) {
       const isPptx =
         lowerName.endsWith('.pptx') ||
         file.type === 'application/vnd.openxmlformats-officedocument.presentationml.presentation';
+      // Markdown is matched on extension alone: browsers report .md as
+      // text/markdown, text/plain or nothing at all depending on the platform.
+      const isMarkdown = /\.(md|markdown|mdown|mkd)$/.test(lowerName);
 
-      if (!isPdf && !isPptx) {
-        setError('Please choose a .pdf or .pptx file.');
+      if (!isPdf && !isPptx && !isMarkdown) {
+        setError('Please choose a .pdf, .pptx or .md file.');
         setStatus('error');
         return;
       }
@@ -46,15 +50,21 @@ export default function Uploader({ onParsed, onCancel }: Props) {
       setStatus('parsing');
       setError(null);
       try {
-        const sections = isPdf ? await extractPdfSections(file) : await extractPptxSections(file);
+        const sections = isPdf
+          ? await extractPdfSections(file)
+          : isPptx
+            ? await extractPptxSections(file)
+            : await extractMarkdownSections(file);
         if (sections.length === 0) {
           setError(
-            "Couldn't find any text in that file. If it's a scanned/image-only PDF, this app can't read it yet."
+            isMarkdown
+              ? "That file looks empty — there was no text to turn into cards."
+              : "Couldn't find any text in that file. If it's a scanned/image-only PDF, this app can't read it yet."
           );
           setStatus('error');
           return;
         }
-        onParsed(sections, file.name, isPdf ? 'pdf' : 'pptx', ai);
+        onParsed(sections, file.name, isPdf ? 'pdf' : isPptx ? 'pptx' : 'md', ai);
       } catch (err) {
         console.error(err);
         setError('Something went wrong while reading that file. Please try another one.');
@@ -76,8 +86,8 @@ export default function Uploader({ onParsed, onCancel }: Props) {
       <p className="eyebrow">Step 1 of 2</p>
       <h1>Bring a document to class</h1>
       <p className="muted">
-        Drop in a text-based PDF, a PDF exported from a slide deck, or a native .pptx file. We'll pull out
-        the content and draft flashcards for you to check over next.
+        Drop in a text-based PDF, a PDF exported from a slide deck, a native .pptx file, or a Markdown
+        file of notes. We'll pull out the content and draft flashcards for you to check over next.
       </p>
 
       <div
@@ -93,7 +103,7 @@ export default function Uploader({ onParsed, onCancel }: Props) {
         <input
           ref={inputRef}
           type="file"
-          accept=".pdf,.pptx,application/pdf,application/vnd.openxmlformats-officedocument.presentationml.presentation"
+          accept=".pdf,.pptx,.md,.markdown,.mdown,.mkd,application/pdf,application/vnd.openxmlformats-officedocument.presentationml.presentation,text/markdown"
           hidden
           onChange={(e) => {
             const file = e.target.files?.[0];
@@ -111,7 +121,7 @@ export default function Uploader({ onParsed, onCancel }: Props) {
             <div className="dropzone-icon" aria-hidden="true">
               ⤒
             </div>
-            <p className="dropzone-label">Drop a .pdf or .pptx here, or click to browse</p>
+            <p className="dropzone-label">Drop a .pdf, .pptx or .md here, or click to browse</p>
             <p className="muted small">Everything is parsed locally in your browser — nothing is uploaded anywhere.</p>
           </>
         )}

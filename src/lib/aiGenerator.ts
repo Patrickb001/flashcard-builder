@@ -61,6 +61,8 @@ function serializeSection(section: DocumentSection) {
           return { type: 'list', label: b.heading ?? null, items: b.items };
         case 'table':
           return { type: 'table', headers: b.headers, rows: b.rows };
+        case 'code':
+          return { type: 'code', language: b.language ?? null, label: b.heading ?? null, text: b.text };
       }
     }),
   };

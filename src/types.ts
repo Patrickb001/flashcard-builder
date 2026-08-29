@@ -2,7 +2,7 @@ export interface Deck {
   id: string;
   name: string;
   sourceFileName: string;
-  sourceType: 'pdf' | 'pptx';
+  sourceType: 'pdf' | 'pptx' | 'md';
   createdAt: number;
   cardCount: number;
 }
