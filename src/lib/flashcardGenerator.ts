@@ -1,4 +1,4 @@
-import type { Block, CodeBlock, DocumentSection, ImageBlock, TableBlock } from './documentModel';
+import type { CodeBlock, DocumentSection, ImageBlock, TableBlock } from './documentModel';
 import type { CandidateCard, CardCode, CardImage } from '../types';
 import { dedupeCards, isUsableCard, isMeaningfulLabel } from './cardValidation';
 import {
@@ -294,7 +294,7 @@ function cardFromImage(
 // Section walk
 // ---------------------------------------------------------------------------
 
-export function cardsFromSection(section: DocumentSection): CandidateCard[] {
+function cardsFromSection(section: DocumentSection): CandidateCard[] {
   const cards: CandidateCard[] = [];
   const blocks = section.blocks;
   const ctx = section.title;
@@ -322,7 +322,7 @@ export function cardsFromSection(section: DocumentSection): CandidateCard[] {
    */
   let lastProse: string | null = null;
 
-  for (const block of blocks as Block[]) {
+  for (const block of blocks) {
     if (block.kind === 'heading') {
       if (block.level === 1) {
         pendingHeading = null;

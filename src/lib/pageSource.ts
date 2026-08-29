@@ -179,7 +179,7 @@ async function fetchPageSections(rawUrl: string): Promise<PageResult> {
   // Parsed once here rather than inside the parser, so the title is read before
   // the noise strip touches the document.
   const doc = new DOMParser().parseFromString(data.html, 'text/html');
-  const title = cleanPageTitle(doc.title ?? '');
+  const title = cleanPageTitle(doc.title);
   // The address after redirects, so a diagram referenced by a relative path
   // resolves against the site it came from rather than against this app.
   const sections = sectionsFromDocument(doc, { pageTitle: title, baseUrl: finalUrl });

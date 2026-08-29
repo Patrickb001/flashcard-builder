@@ -286,11 +286,6 @@ export async function recordQuestionsAsked(
   await Promise.all([...writes, tx.done]);
 }
 
-/** Removes one question, for a question the user reports as wrong. */
-export async function deleteQuestion(questionId: string): Promise<void> {
-  const db = await getDB();
-  await db.delete('testQuestions', questionId);
-}
 
 /**
  * Drops questions whose source card is gone, and reports how many.

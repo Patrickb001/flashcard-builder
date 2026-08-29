@@ -20,7 +20,7 @@ import { applyContext } from './documentModel';
  * summarised into a handful of cards. Splitting down to a few paragraphs per
  * section is what makes the yield track the document's actual content.
  */
-export const SECTION_CHAR_BUDGET = 1200;
+const SECTION_CHAR_BUDGET = 1200;
 
 /** Longer snippets are truncated; the opening lines carry the idea. */
 export const MAX_CODE_CHARS = 1200;

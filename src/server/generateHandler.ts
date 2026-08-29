@@ -16,7 +16,7 @@ import type { HandlerResult } from './endpoint';
  */
 
 /** Used when the deployment names no model of its own. */
-export const DEFAULT_MODEL = 'claude-sonnet-5';
+const DEFAULT_MODEL = 'claude-sonnet-5';
 
 /**
  * Response ceiling per task.

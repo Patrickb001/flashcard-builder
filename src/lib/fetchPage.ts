@@ -24,7 +24,7 @@
  * far under both: a large Wikipedia article is about 1.3 MB and arrives in
  * well under a second.
  */
-export const MAX_PAGE_BYTES = 2_000_000;
+const MAX_PAGE_BYTES = 2_000_000;
 const MAX_REDIRECTS = 4;
 const TIMEOUT_MS = 8_000;
 
@@ -102,7 +102,7 @@ function isPrivateAddress(host: string): boolean {
  * connection. For a personal deployment the trade-off is acceptable; a public
  * one should put an egress proxy in front of this.
  */
-export function assertFetchableUrl(raw: string): URL {
+function assertFetchableUrl(raw: string): URL {
   let url: URL;
   try {
     url = new URL(raw.trim());

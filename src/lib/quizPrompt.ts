@@ -55,7 +55,7 @@ export interface LlmQuizQuestion {
 }
 
 /** How many wrong answers a usable question carries. */
-export const DISTRACTOR_COUNT = 3;
+const DISTRACTOR_COUNT = 3;
 
 
 function trimmedString(value: unknown): string {

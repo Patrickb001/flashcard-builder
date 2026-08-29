@@ -13,7 +13,7 @@ const PREPOSITION_ENDINGS =
 /** Column headers that are inherently plural even without a trailing "s". */
 const PLURAL_HINTS = /\b(implications?|features?|milestones?|findings?|criteria|behaviou?rs?|points?|categories)\b/i;
 
-export function isPlural(label: string): boolean {
+function isPlural(label: string): boolean {
   const clean = label.trim();
   if (PLURAL_HINTS.test(clean)) return /s\b/i.test(clean) || /criteria/i.test(clean);
   return /[^s]s$/i.test(clean);
@@ -24,7 +24,7 @@ function be(label: string): string {
 }
 
 /** "Avoidant (~20%)" -> "Avoidant". The statistic belongs on the answer side. */
-export function stripParenthetical(label: string): string {
+function stripParenthetical(label: string): string {
   return label.replace(/\s*\([^)]*\)\s*$/, '').trim() || label.trim();
 }
 
@@ -43,7 +43,7 @@ function singular(noun: string): string {
 
 const AGE_VALUE_RE = /^\s*\d+\s*(?:[–—-]\s*\d+\s*)?(?:mo|yr|months?|years?|weeks?|days?)\b|^\s*\d+\s*\+/i;
 
-export function looksLikeAge(value: string): boolean {
+function looksLikeAge(value: string): boolean {
   return AGE_VALUE_RE.test(value.trim());
 }
 
@@ -159,7 +159,6 @@ export function splitHeadingAge(heading: string): { name: string; age: string } 
   return { name, age };
 }
 
-/** Question for a bulleted set introduced by a heading. */
 /** "SENSORIMOTOR" -> "Sensorimotor"; leaves mixed-case names alone. */
 export function softenAllCaps(text: string): string {
   if (!/[a-z]/.test(text) && /[A-Z]{3,}/.test(text)) {
@@ -170,6 +169,7 @@ export function softenAllCaps(text: string): string {
   return text;
 }
 
+/** Question for a bulleted set introduced by a heading. */
 export function listQuestion(heading: string): string {
   const h = stripOrdinal(heading).replace(/[:?]+$/, '');
   if (/^(what|which|who|when|where|why|how)\b/i.test(h)) return `${h}?`;
@@ -237,7 +237,7 @@ export function languageName(language?: string): string | null {
  * and the number belongs to the article's running order, not to the concept.
  * Left in place it reads back as "What characterizes 1. Basic For Loop?".
  */
-export function stripOrdinal(label: string): string {
+function stripOrdinal(label: string): string {
   return label.trim().replace(/^\(?\d{1,2}[.)]\s+/, '').trim() || label.trim();
 }
 

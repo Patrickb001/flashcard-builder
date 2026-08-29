@@ -1,6 +1,9 @@
 node_modules
 dist
 dist-ssr
+*.tsbuildinfo
+.netlify/
+coverage/
 *.local
 .vscode/*
 !.vscode/extensions.json

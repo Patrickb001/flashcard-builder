@@ -20,7 +20,7 @@ import { sectionsFromBlocks, truncateCode } from './sectioning';
 // ---------------------------------------------------------------------------
 
 /** Strips inline markup so card text reads as plain prose. */
-export function stripInline(text: string): string {
+function stripInline(text: string): string {
   return (
     text
       // Images carry no studiable text; their alt text is usually a file name.

@@ -213,7 +213,11 @@ function isChrome(text: string): boolean {
  * one while the real content hangs off the root, so an empty body is not
  * trusted.
  */
-function contentBody(doc: Document): Element {
+// Returns null when the document has no element to descend into. The
+// signature said Element, but the ?? fallback below and every caller
+// already treated the result as possibly absent - doc.body is null on a
+// document parsed from a fragment.
+function contentBody(doc: Document): Element | null {
   const body = doc.body;
   if (body && body.children.length > 0) return body;
   return doc.documentElement ?? body;
@@ -256,8 +260,12 @@ function stripNoise(root: Element): void {
  * `main` usually contains `article` plus the page's own furniture, so
  * preferring the outer one would pull the furniture back in.
  */
-function findContentRoot(doc: Document): Element {
+function findContentRoot(doc: Document): Element | null {
   const body = contentBody(doc);
+  // No element to descend into at all: an empty document, or a fragment
+  // with neither a body nor a root element. Previously this threw.
+  if (!body) return null;
+
   for (const selector of CONTENT_SELECTORS) {
     for (const candidate of Array.from(body.querySelectorAll(selector))) {
       if (textOf(candidate).length >= 400) return candidate;
@@ -980,10 +988,12 @@ export function sectionsFromDocument(
   if (body) stripNoise(body);
 
   const root = findContentRoot(doc);
+  if (!root) return [];
+
   const blocks: Block[] = [];
   walk(root, blocks, { baseUrl });
 
-  const title = cleanPageTitle(options.pageTitle ?? doc.title ?? '');
+  const title = cleanPageTitle(options.pageTitle ?? doc.title);
   return sectionsFromBlocks(dropAppendices(dropLeadingCrumbs(attachOutputs(blocks))), {
     fallbackTitle: title || undefined,
   });
@@ -998,6 +1008,6 @@ export function sectionsFromDocument(
  */
 export async function extractHtmlSections(file: File): Promise<DocumentSection[]> {
   const doc = new DOMParser().parseFromString(await file.text(), 'text/html');
-  const title = cleanPageTitle(doc.title ?? '') || file.name.replace(/\.(html?|xhtml)$/i, '');
+  const title = cleanPageTitle(doc.title) || file.name.replace(/\.(html?|xhtml)$/i, '');
   return sectionsFromDocument(doc, { pageTitle: title });
 }

@@ -125,7 +125,7 @@ export interface Line {
  * adjacent. The adjacency test is what prevents text from the left column
  * merging with text from the right column just because they share a y value.
  */
-export function assembleLines(items: PositionedItem[]): Line[] {
+function assembleLines(items: PositionedItem[]): Line[] {
   const lines: Line[] = [];
 
   let cur: {
@@ -495,7 +495,7 @@ function segmentBlocks(
 
     // "Common features:" style inline labels also act as list headings.
     const isInlineLabel =
-      !entry.isBullet && /^[^.!?]{3,60}:$/.test(entry.text) && entry.text.length < 70;
+      !entry.isBullet && /^[^.!?]{3,60}:$/.test(entry.text);
 
     if (isHeading || isInlineLabel) {
       flushList();

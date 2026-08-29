@@ -87,7 +87,7 @@ async function callHosted(task: AiTask, payload: unknown, signal?: AbortSignal):
     }
     throw new Error(detail || `Drafting service returned ${res.status}.`);
   }
-  const data = await res.json();
+  const data = (await res.json()) as { text?: unknown; stopReason?: unknown };
   return {
     text: typeof data.text === 'string' ? data.text : '',
     stopReason: typeof data.stopReason === 'string' ? data.stopReason : null,
@@ -123,7 +123,10 @@ async function callDirect(
     throw new Error(`Anthropic API returned ${res.status}. ${detail}`.trim());
   }
 
-  const data = await res.json();
+  const data = (await res.json()) as {
+    content?: { type: string; text?: string }[];
+    stop_reason?: unknown;
+  };
   const text = (data.content ?? [])
     .map((part: { type: string; text?: string }) => (part.type === 'text' ? part.text ?? '' : ''))
     .join('\n');
