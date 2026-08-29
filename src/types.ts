@@ -107,7 +107,16 @@ export interface TestQuestion {
 
   createdAt: number;
   /** How many times this has been put in front of the user; drives selection. */
+  /** Read by the question picker, which tiers by how often each was asked. */
   timesAsked: number;
+  /**
+   * Written on every answer and read nowhere, as is timesCorrect.
+   *
+   * Kept deliberately. Removing them means an IndexedDB migration for no
+   * user-visible gain, and they cost two numbers inside a write that happens
+   * anyway. Left here so the next reader does not rediscover them as dead
+   * weight and pay that price to remove them.
+   */
   lastAskedAt: number | null;
   timesCorrect: number;
 }

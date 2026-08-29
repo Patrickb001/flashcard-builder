@@ -1,0 +1,125 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>idb-check</title>
+<pre id="out">running…</pre>
+<!--
+  Exercises the IndexedDB layer in a real browser, where the races it covers
+  actually happen. Node has no IndexedDB, and a single-threaded stub would never
+  reproduce a lost update.
+
+    npx vite --port 5199 --strictPort
+    node tools/idb-collector.cjs result.txt
+    chrome --headless=new --user-data-dir=SHORT_PATH http://localhost:5199/tools/idb-check.html
+
+  Two things this had to work around:
+
+   - Use a SHORT --user-data-dir. A long one trips the Windows path limit and
+     IndexedDB fails with "Internal error opening backing store".
+   - The page posts its result to the collector on port 5200 rather than being
+     scraped: headless Chrome dumps the DOM at load, long before this finishes,
+     and IndexedDB work does not advance --virtual-time-budget.
+
+  Run against the pre-fix db.ts this reported cardCount 6/25 and 4/15, which is
+  what makes it a test rather than a demonstration.
+-->
+
+<script type="module">
+  const lines = [];
+  const log = (s) => { lines.push(s); document.getElementById('out').textContent = lines.join('\n'); };
+  let failures = 0;
+  const check = (label, ok, detail) => {
+    if (!ok) failures++;
+    log((ok ? '  ok   ' : '  FAIL ') + label + (detail ? '   ' + detail : ''));
+  };
+
+  const deck = (id) => ({
+    id, name: id, sourceFileName: 'probe', sourceType: 'md',
+    createdAt: Date.now(), cardCount: 0,
+  });
+  const card = (deckId, i) => ({
+    id: deckId + '-c' + i, deckId, front: 'Q' + i, back: 'A' + i,
+    sourceLabel: 'probe', status: 'new', createdAt: Date.now() + i,
+  });
+
+  try {
+    const db = await import('/src/db/db.ts');
+
+    // ---- 1. concurrent addCard must not lose an increment ----
+    {
+      const id = 'probe-add';
+      await db.saveDeckWithCards(deck(id), []);
+      const N = 25;
+      await Promise.all(Array.from({ length: N }, (_, i) => db.addCard(card(id, i))));
+      const after = await db.getDeck(id);
+      const stored = await db.getCardsForDeck(id);
+      check('25 concurrent addCard: cards stored', stored.length === N, stored.length + '/' + N);
+      check('25 concurrent addCard: cardCount correct', after.cardCount === N, after.cardCount + '/' + N);
+      await db.deleteDeck(id);
+    }
+
+    // ---- 2. renameDeck must not clobber a concurrent cardCount ----
+    {
+      const id = 'probe-rename';
+      await db.saveDeckWithCards(deck(id), []);
+      const N = 15;
+      await Promise.all([
+        ...Array.from({ length: N }, (_, i) => db.addCard(card(id, i))),
+        db.renameDeck(id, 'renamed-while-adding'),
+      ]);
+      const after = await db.getDeck(id);
+      check('rename racing 15 adds: cardCount survives', after.cardCount === N, after.cardCount + '/' + N);
+      check('rename racing 15 adds: name applied', after.name === 'renamed-while-adding', after.name);
+      await db.deleteDeck(id);
+    }
+
+    // ---- 3. batched writes still land ----
+    {
+      const id = 'probe-batch';
+      const cards = Array.from({ length: 40 }, (_, i) => card(id, i));
+      await db.saveDeckWithCards({ ...deck(id), cardCount: 40 }, cards);
+      const stored = await db.getCardsForDeck(id);
+      check('saveDeckWithCards writes all 40', stored.length === 40, stored.length + '/40');
+      await db.deleteDeck(id);
+      const gone = await db.getCardsForDeck(id);
+      check('deleteDeck cascades', gone.length === 0, gone.length + ' left');
+    }
+
+    // ---- 4. answer counts survive a duplicate in one batch ----
+    {
+      const id = 'probe-q';
+      await db.saveDeckWithCards(deck(id), []);
+      const q = {
+        id: 'probe-q1', deckId: id, cardId: id + '-c0', stem: 'S', correctAnswer: 'R',
+        distractors: ['a', 'b', 'c'], explanation: 'E', cardHash: 'h',
+        createdAt: Date.now(), timesAsked: 0, lastAskedAt: null, timesCorrect: 0,
+      };
+      await db.saveQuestions([q]);
+      await db.recordQuestionsAsked([
+        { questionId: 'probe-q1', correct: true },
+        { questionId: 'probe-q1', correct: false },
+      ]);
+      const [back] = await db.getQuestionsForDeck(id);
+      check('same question answered twice counts twice', back.timesAsked === 2, 'timesAsked=' + back.timesAsked);
+      check('correct tally kept', back.timesCorrect === 1, 'timesCorrect=' + back.timesCorrect);
+      await db.deleteDeck(id);
+    }
+
+    log('');
+    log(failures === 0 ? 'RESULT: ALL PASSED' : 'RESULT: ' + failures + ' FAILED');
+  } catch (err) {
+    log('THREW: ' + (err && err.stack ? err.stack : String(err)));
+    log('RESULT: ERROR');
+  }
+
+  // Headless Chrome dumps the DOM at load, long before IndexedDB work finishes,
+  // so the result is posted back rather than scraped.
+  try {
+    await fetch('http://localhost:5200/result', {
+      method: 'POST',
+      mode: 'no-cors',
+      body: lines.join('\n'),
+    });
+  } catch {
+    // Nothing to do: the collector reports a timeout of its own.
+  }
+</script>
