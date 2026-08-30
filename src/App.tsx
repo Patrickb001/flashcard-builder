@@ -1,91 +1,21 @@
-import { Suspense, lazy, useCallback, useEffect, useState } from 'react';
-import type { Deck } from './types';
-import type { DocumentSection } from './lib/documentModel';
-import type { AiSettings } from './lib/aiGenerator';
-import { getAllDecks, isUpgradeBlocked } from './db/db';
-import type { SourceType } from './components/Uploader';
-import DeckLibrary from './components/DeckLibrary';
+import { Suspense } from 'react';
+import { Outlet, useLocation, useNavigate } from 'react-router-dom';
 
 /**
- * Every screen but the landing one is fetched when first opened.
+ * The frame every screen sits in: the masthead, and the slot below it.
  *
- * The library is what a visitor always sees first, so it stays in the entry
- * chunk. The rest - and, behind the uploader, the four document parsers and
- * the page fetcher - are dead weight until someone navigates to them.
+ * This used to hold the current screen in a `view` union and swap it with
+ * setState, which is why the address bar read "/" whatever you were looking at.
+ * The screens are routes now; all that is left here is the chrome around them.
  */
-const Uploader = lazy(() => import('./components/Uploader'));
-const CandidateReview = lazy(() => import('./components/CandidateReview'));
-const StudyMode = lazy(() => import('./components/StudyMode'));
-const TestMode = lazy(() => import('./components/TestMode'));
-const DeckManager = lazy(() => import('./components/DeckManager'));
-
-type View =
-  | { name: 'library' }
-  | { name: 'upload' }
-  | {
-      name: 'review';
-      sections: DocumentSection[];
-      fileName: string;
-      sourceType: SourceType;
-      ai: AiSettings;
-      notice?: string;
-    }
-  | { name: 'study'; deckId: string }
-  | { name: 'test'; deckId: string }
-  | { name: 'manage'; deckId: string };
-
 export default function App() {
-  const [view, setView] = useState<View>({ name: 'library' });
-  const [decks, setDecks] = useState<Deck[]>([]);
-  const [loadingDecks, setLoadingDecks] = useState(true);
-  const [decksError, setDecksError] = useState<string | null>(null);
-
-  // loading is cleared on both paths. Clearing it only on success is what
-  // left this screen spinning forever whenever IndexedDB was unavailable -
-  // a private window, a full disk, storage switched off.
-  const refreshDecks = useCallback(async () => {
-    setLoadingDecks(true);
-    setDecksError(null);
-    try {
-      const all = await getAllDecks();
-      setDecks(all);
-    } catch (err) {
-      console.error('[app] Could not read the deck list:', err);
-      setDecksError(
-        'Your decks could not be read from this browser. They are stored locally, so a private window or blocked site data will do this.'
-      );
-    } finally {
-      setLoadingDecks(false);
-    }
-  }, []);
-
-  useEffect(() => {
-    refreshDecks();
-  }, [refreshDecks]);
-
-  /**
-   * Reports an upgrade another tab is holding open.
-   *
-   * That case never rejects and never resolves - idb's open promise simply
-   * never settles - so the catch above cannot see it. Polling the flag is what
-   * turns a permanent spinner into a sentence telling you to close the tab.
-   */
-  useEffect(() => {
-    if (!loadingDecks) return;
-    const timer = setInterval(() => {
-      if (!isUpgradeBlocked()) return;
-      setDecksError(
-        'Another tab has an older version of this app open, which is blocking an upgrade. Close the other tabs and reload.'
-      );
-      setLoadingDecks(false);
-    }, 400);
-    return () => clearInterval(timer);
-  }, [loadingDecks]);
+  const navigate = useNavigate();
+  const atLibrary = useLocation().pathname === '/';
 
   return (
     <div className="app-shell">
       <header className="top-bar">
-        <button className="brand" onClick={() => setView({ name: 'library' })}>
+        <button className="brand" onClick={() => navigate('/')}>
           <span className="brand-mark" aria-hidden="true">
             <svg viewBox="0 0 40 40" width="28" height="28">
               <line x1="10" y1="8" x2="10" y2="32" />
@@ -99,8 +29,8 @@ export default function App() {
             Flashcard <em>Forge</em>
           </span>
         </button>
-        {view.name !== 'library' && (
-          <button className="ghost-btn" onClick={() => setView({ name: 'library' })}>
+        {!atLibrary && (
+          <button className="ghost-btn" onClick={() => navigate('/')}>
             ← Back to library
           </button>
         )}
@@ -108,62 +38,7 @@ export default function App() {
 
       <main className="stage">
         <Suspense fallback={<p className="muted">Loading…</p>}>
-        {view.name === 'library' && (
-          <DeckLibrary
-            decks={decks}
-            loading={loadingDecks}
-            error={decksError}
-            onNewDeck={() => setView({ name: 'upload' })}
-            onStudy={(deckId) => setView({ name: 'study', deckId })}
-            onManage={(deckId) => setView({ name: 'manage', deckId })}
-            onDeckChange={refreshDecks}
-          />
-        )}
-
-        {view.name === 'upload' && (
-          <Uploader
-            onParsed={(sections, fileName, sourceType, ai, notice) =>
-              setView({ name: 'review', sections, fileName, sourceType, ai, notice })
-            }
-            onCancel={() => setView({ name: 'library' })}
-          />
-        )}
-
-        {view.name === 'review' && (
-          <CandidateReview
-            sections={view.sections}
-            fileName={view.fileName}
-            sourceType={view.sourceType}
-            ai={view.ai}
-            notice={view.notice}
-            onSaved={async (deckId) => {
-              await refreshDecks();
-              setView({ name: 'manage', deckId });
-            }}
-            onCancel={() => setView({ name: 'library' })}
-          />
-        )}
-
-        {view.name === 'study' && (
-          <StudyMode deckId={view.deckId} onExit={() => setView({ name: 'library' })} />
-        )}
-
-        {view.name === 'test' && (
-          <TestMode deckId={view.deckId} onExit={() => setView({ name: 'library' })} />
-        )}
-
-        {view.name === 'manage' && (
-          <DeckManager
-            deckId={view.deckId}
-            onExit={() => setView({ name: 'library' })}
-            onStudy={(deckId) => setView({ name: 'study', deckId })}
-            onTest={(deckId) => setView({ name: 'test', deckId })}
-            onDeckDeleted={async () => {
-              await refreshDecks();
-              setView({ name: 'library' });
-            }}
-          />
-        )}
+          <Outlet />
         </Suspense>
       </main>
     </div>
