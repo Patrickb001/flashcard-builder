@@ -768,8 +768,21 @@ textarea {
   flex-wrap: wrap;
 }
 
-.manager .secondary-btn {
+/* "+ Add card" on the left, the export pair on the right. Wrapping so the
+   export buttons drop below rather than squeezing the add button. */
+.manager-toolbar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 0.6rem;
+  flex-wrap: wrap;
   margin: 0.5rem 0 1.25rem;
+}
+
+.manager-export {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
 }
 
 .danger-zone {
@@ -1124,12 +1137,6 @@ textarea {
 }
 
 /* ---------- Test mode ---------- */
-
-/* The standalone "+ Add card" button needs breathing room; the one in the
-   header action row does not, and inherits that margin without this. */
-.manager-actions .secondary-btn {
-  margin: 0;
-}
 
 .quiz {
   max-width: 46rem;

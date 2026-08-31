@@ -1,6 +1,7 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import type { Deck, Flashcard } from '../types';
 import { addCard, deleteCard, deleteDeck, getCardsForDeck, getDeck, renameDeck, updateCard } from '../db/db';
+import { downloadTextFile, exportFileName, formatDeckForExport } from '../lib/deckExport';
 
 interface Props {
   deckId: string;
@@ -16,6 +17,16 @@ export default function DeckManager({ deckId, onExit, onStudy, onTest, onDeckDel
   const [loading, setLoading] = useState(true);
   const [nameDraft, setNameDraft] = useState('');
   const [error, setError] = useState<string | null>(null);
+  const [copied, setCopied] = useState(false);
+  const copiedTimer = useRef<number | null>(null);
+
+  // The copy confirmation outlives its click by two seconds, so a navigation in
+  // between would leave the timer setting state on a component that is gone.
+  useEffect(() => {
+    return () => {
+      if (copiedTimer.current !== null) clearTimeout(copiedTimer.current);
+    };
+  }, []);
 
   // Every one of these handlers is fired from an onClick and its promise is
   // dropped, so anything that throws inside would otherwise surface only as an
@@ -94,6 +105,29 @@ export default function DeckManager({ deckId, onExit, onStudy, onTest, onDeckDel
     }
   };
 
+  const handleExport = () => {
+    if (!deck) return;
+    try {
+      downloadTextFile(exportFileName(deck.name), formatDeckForExport(cards));
+    } catch (err) {
+      console.error('[manager] Exporting the deck failed:', err);
+      setError('The deck could not be exported.');
+    }
+  };
+
+  const handleCopy = async () => {
+    try {
+      await navigator.clipboard.writeText(formatDeckForExport(cards));
+      setCopied(true);
+      if (copiedTimer.current !== null) clearTimeout(copiedTimer.current);
+      copiedTimer.current = window.setTimeout(() => setCopied(false), 2000);
+    } catch (err) {
+      // Clipboard writes are refused outside a secure context or without permission.
+      console.error('[manager] Copying the deck failed:', err);
+      setError('The deck could not be copied to the clipboard.');
+    }
+  };
+
   const commitName = async () => {
     if (!deck) return;
     const trimmed = nameDraft.trim() || 'Untitled deck';
@@ -156,9 +190,29 @@ export default function DeckManager({ deckId, onExit, onStudy, onTest, onDeckDel
         </div>
       </div>
 
-      <button className="secondary-btn" onClick={handleAdd}>
-        + Add card
-      </button>
+      <div className="manager-toolbar">
+        <button className="secondary-btn" onClick={handleAdd}>
+          + Add card
+        </button>
+        <div className="manager-export">
+          <button
+            className="ghost-btn small"
+            onClick={handleExport}
+            disabled={cards.length === 0}
+            title="Save the deck as a text file"
+          >
+            Download .txt
+          </button>
+          <button
+            className="ghost-btn small"
+            onClick={handleCopy}
+            disabled={cards.length === 0}
+            title="Copy the deck as delimited text"
+          >
+            {copied ? 'Copied ✓' : 'Copy'}
+          </button>
+        </div>
+      </div>
 
       {cards.length === 0 ? (
         <p className="muted">No cards yet — add one above.</p>
