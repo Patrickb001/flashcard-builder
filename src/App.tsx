@@ -1,5 +1,6 @@
 import { Suspense } from 'react';
 import { Outlet, useLocation, useNavigate } from 'react-router-dom';
+import RouteFallback from './components/RouteFallback';
 
 /**
  * The frame every screen sits in: the masthead, and the slot below it.
@@ -10,7 +11,8 @@ import { Outlet, useLocation, useNavigate } from 'react-router-dom';
  */
 export default function App() {
   const navigate = useNavigate();
-  const atLibrary = useLocation().pathname === '/';
+  const { pathname } = useLocation();
+  const atLibrary = pathname === '/';
 
   return (
     <div className="app-shell">
@@ -37,8 +39,21 @@ export default function App() {
       </header>
 
       <main className="stage">
-        <Suspense fallback={<p className="muted">Loading…</p>}>
-          <Outlet />
+        {/*
+          Keyed on the address, and that key is the whole point.
+
+          React Router runs navigations inside a transition, so React would
+          rather keep the screen you are leaving on the glass than fall back to
+          a spinner — which is why fetching a screen's chunk used to look like
+          the app had stopped responding to the click. A boundary with a new key
+          is new content, not a stale update, so the fallback is allowed to
+          show. The key also restarts the fade below, so every screen arrives
+          the same way.
+        */}
+        <Suspense key={pathname} fallback={<RouteFallback />}>
+          <div className="stage-screen">
+            <Outlet />
+          </div>
         </Suspense>
       </main>
     </div>

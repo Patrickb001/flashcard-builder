@@ -166,7 +166,9 @@ p {
   color: var(--text-primary);
 }
 
-.stage {
+/* The fade lives on the inner screen, not the stage: the stage is mounted for
+   the whole session, so an animation here would have played exactly once. */
+.stage-screen {
   animation: fade-in 0.25s ease;
 }
 
@@ -178,6 +180,32 @@ p {
   to {
     opacity: 1;
     transform: translateY(0);
+  }
+}
+
+/* Holds the height of a screen's first fold so the masthead does not sit alone
+   above an empty page while a chunk is in flight. */
+.route-fallback {
+  min-height: 40vh;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  animation: fade-in 0.2s ease;
+}
+
+.route-fallback p {
+  margin: 0;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .stage-screen,
+  .route-fallback {
+    animation: none;
+  }
+
+  .chalk-spinner {
+    animation-duration: 2s;
   }
 }
 
