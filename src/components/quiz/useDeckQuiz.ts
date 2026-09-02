@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import type { Deck, Flashcard, TestQuestion } from '../../types';
+import type { Deck, Flashcard, QuestionStyle, TestQuestion } from '../../types';
+import { styleOf } from '../../types';
 import {
   getCardsForDeck,
   getDeck,
@@ -40,6 +41,16 @@ export function useDeckQuiz(deckId: string) {
   const [notice, setNotice] = useState<string | null>(null);
   const [noticeFailed, setNoticeFailed] = useState(false);
 
+  /**
+   * Which style the setup screen is currently showing.
+   *
+   * The pool holds both styles at once; this is the lens onto it. Every screen
+   * below reads the filtered slice, never the whole pool, so switching the
+   * picker switches the test rather than mixing recall questions into a board
+   * paper.
+   */
+  const [style, setStyle] = useState<QuestionStyle>('recall');
+
   const [count, setCount] = useState(DEFAULT_COUNT);
   const [asked, setAsked] = useState<PreparedQuestion[]>([]);
   const [answers, setAnswers] = useState<(number | null)[]>([]);
@@ -57,13 +68,23 @@ export function useDeckQuiz(deckId: string) {
    * Memoised because hashing every card in the deck on every render is real
    * work for a value only the setup screen reads.
    */
+  /** The questions in the style currently selected. Everything below reads this. */
+  const visiblePool = useMemo(
+    () => pool.filter((q) => styleOf(q) === style),
+    [pool, style]
+  );
+
   const unwritten = useMemo(() => {
-    const byCard = new Map(pool.map((q) => [q.cardId, q]));
+    // Keyed on card AND style. Keyed on card alone, the two styles of the same
+    // card overwrite each other and "cards without a question" goes wrong in
+    // both directions — offering cards that are already written, and hiding
+    // cards that are not.
+    const byCard = new Map(pool.map((q) => [`${q.cardId}:${styleOf(q)}`, q]));
     return cards.filter((card) => {
-      const question = byCard.get(card.id);
+      const question = byCard.get(`${card.id}:${style}`);
       return !question || question.cardHash !== hashCard(card);
     });
-  }, [cards, pool]);
+  }, [cards, pool, style]);
 
   const load = useCallback(async () => {
     const [loadedDeck, loadedCards] = await Promise.all([getDeck(deckId), getCardsForDeck(deckId)]);
@@ -84,7 +105,13 @@ export function useDeckQuiz(deckId: string) {
 
   /** Writes questions for the given cards, saving each batch as it lands. */
   const generate = useCallback(
-    async (targets: Flashcard[], allCards: Flashcard[], deckName: string, settings: AiSettings) => {
+    async (
+      targets: Flashcard[],
+      allCards: Flashcard[],
+      deckName: string,
+      settings: AiSettings,
+      forStyle: QuestionStyle = 'recall'
+    ) => {
       if (targets.length === 0) return;
 
       const controller = new AbortController();
@@ -95,6 +122,7 @@ export function useDeckQuiz(deckId: string) {
       setNoticeFailed(false);
 
       const result = await generateQuestionsForCards(targets, allCards, deckName, settings, {
+        style: forStyle,
         onProgress: setProgress,
         // Saved per batch, so a run interrupted at batch seven of twelve keeps
         // the first sixty questions rather than throwing them away.
@@ -145,25 +173,28 @@ export function useDeckQuiz(deckId: string) {
     []
   );
 
-  // First load. A deck with cards but no questions at all goes straight into
-  // generation — that is what clicking "Test this deck" asked for. It lands on
-  // setup afterwards rather than starting, because the number of questions is
-  // the user's to choose.
+  /*
+   * First load. Always lands on setup; writing questions is never automatic.
+   *
+   * An empty deck used to go straight into generation on mount, on the reading
+   * that "Test this deck" had already asked for it. That was wrong once there
+   * was more than one kind of question to write: the run started before the
+   * screen offering the choice had rendered, so picking the board style meant
+   * pressing Stop on a batch of recall questions you did not want and had
+   * already paid for. Nobody should have to interrupt the app to tell it what
+   * they wanted.
+   *
+   * Setup states the position plainly and offers the button, which costs one
+   * click and removes a spend nobody asked for.
+   */
   useEffect(() => {
     let cancelled = false;
 
     (async () => {
       try {
-        const { deck: loadedDeck, cards: loadedCards, pool: loadedPool } = await load();
+        await load();
         if (cancelled) return;
-
-        const settings = loadAiSettings();
-        if (loadedPool.length === 0 && loadedCards.length > 0 && settings.mode !== 'off') {
-          const name = loadedDeck?.name ?? 'this deck';
-          if (!cancelled) await generate(loadedCards, loadedCards, name, settings);
-        } else {
-          setPhase('setup');
-        }
+        setPhase('setup');
       } catch (err) {
         // Without this the screen stayed on the loading phase for good.
         if (cancelled) return;
@@ -180,22 +211,22 @@ export function useDeckQuiz(deckId: string) {
       // question, which the top-up prompt already knows how to offer.
       abortRef.current?.abort();
     };
-  }, [deckId, load, generate]);
+  }, [deckId, load]);
 
-  // Keep the requested count inside what the pool can actually supply.
+  // Keep the requested count inside what the selected style can actually supply.
   useEffect(() => {
-    if (pool.length === 0) return;
-    setCount((current) => Math.min(Math.max(current, 1), pool.length));
-  }, [pool.length]);
+    if (visiblePool.length === 0) return;
+    setCount((current) => Math.min(Math.max(current, 1), visiblePool.length));
+  }, [visiblePool.length]);
 
   const startTest = useCallback(() => {
-    const drawn = selectQuestions(pool, Math.min(count, pool.length));
+    const drawn = selectQuestions(visiblePool, Math.min(count, visiblePool.length));
     setAsked(prepareQuestions(drawn));
     setAnswers(new Array(drawn.length).fill(null));
     setPosition(0);
     setSelected(null);
     setPhase('taking');
-  }, [pool, count]);
+  }, [visiblePool, count]);
 
   /**
    * Commits the current answer and moves on.
@@ -233,6 +264,10 @@ export function useDeckQuiz(deckId: string) {
     deck,
     cards,
     pool,
+    /** The selected style's slice of the pool — what every screen should read. */
+    visiblePool,
+    style,
+    setStyle,
     ai,
     setAi,
     progress,

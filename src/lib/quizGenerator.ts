@@ -1,8 +1,8 @@
-import type { Flashcard, TestQuestion } from '../types';
+import type { Flashcard, QuestionStyle, TestQuestion } from '../types';
 import type { AiSettings } from './aiGenerator';
 import { callModel } from './aiTransport';
 import { runBatches, type BatchProgress } from './batchRunner';
-import { parseQuizResponse } from './quizPrompt';
+import { parseQuizResponse, parseVignetteResponse } from './quizPrompt';
 
 /**
  * Writes multiple-choice questions from saved flashcards.
@@ -44,8 +44,33 @@ const BATCH_SIZE = 8;
  */
 const RETRY_BATCH_SIZE = 4;
 
+/**
+ * The same two numbers for board-style items, which cost about twice as much.
+ *
+ * A vignette is a four-sentence scenario, five options and an explanation where
+ * a recall question is a stem and four short options. Halving the batch keeps a
+ * request the same distance from the ceiling as the recall path sits at, which
+ * is the margin that stops replies coming back truncated.
+ */
+const VIGNETTE_BATCH_SIZE = 4;
+const VIGNETTE_RETRY_BATCH_SIZE = 2;
+
 /** Other answers offered per batch, as raw material for wrong answers. */
 const NEIGHBOUR_LIMIT = 20;
+
+/**
+ * Related cards sent whole with a board-style batch, as grounding.
+ *
+ * The recall path sends neighbouring *answers* only, as raw material for
+ * distractors. A vignette needs more: it has to describe a presentation, and the
+ * only honest source for that is other cards from the same lecture. Sending
+ * front and back together is what lets a scenario be clinically coherent without
+ * the model inventing findings — it widens the grounded material rather than
+ * licensing invention. Fewer of them than plain answers, because each costs
+ * several times as much.
+ */
+const CONTEXT_LIMIT = 12;
+const CONTEXT_CHARS = 200;
 
 /** Longer than this and a neighbour is costing tokens without adding realism. */
 const NEIGHBOUR_CHARS = 160;
@@ -83,6 +108,8 @@ export interface QuizGenerationOptions {
   /** Fired after each successful batch so the caller can save as it goes. */
   onBatch?: (questions: TestQuestion[]) => Promise<void>;
   signal?: AbortSignal;
+  /** Which kind of question to write. Defaults to the recall style. */
+  style?: QuestionStyle;
 }
 
 /**
@@ -119,7 +146,7 @@ function truncate(text: string, max: number): string {
  * then whatever else the deck holds. Sending every answer in a large deck with
  * every batch would be unaffordable and would bury the useful ones.
  */
-function neighbourAnswers(batch: Flashcard[], deckCards: Flashcard[]): string[] {
+function nearestFirst(batch: Flashcard[], deckCards: Flashcard[]): Flashcard[] {
   const excluded = new Set(batch.map((card) => card.id));
   const topics = new Set(batch.map((card) => card.context).filter(Boolean));
   const sources = new Set(batch.map((card) => card.sourceLabel).filter(Boolean));
@@ -130,12 +157,15 @@ function neighbourAnswers(batch: Flashcard[], deckCards: Flashcard[]): string[] 
     return 2;
   };
 
+  return deckCards.filter((card) => !excluded.has(card.id)).sort((a, b) => rank(a) - rank(b));
+}
+
+function neighbourAnswers(batch: Flashcard[], deckCards: Flashcard[]): string[] {
   const seen = new Set<string>();
   const answers: string[] = [];
 
-  for (const card of [...deckCards].sort((a, b) => rank(a) - rank(b))) {
+  for (const card of nearestFirst(batch, deckCards)) {
     if (answers.length >= NEIGHBOUR_LIMIT) break;
-    if (excluded.has(card.id)) continue;
     const answer = truncate(card.back.replace(/\s+/g, ' ').trim(), NEIGHBOUR_CHARS);
     const key = answer.toLowerCase();
     if (!answer || seen.has(key)) continue;
@@ -144,6 +174,26 @@ function neighbourAnswers(batch: Flashcard[], deckCards: Flashcard[]): string[] 
   }
 
   return answers;
+}
+
+/**
+ * Related cards sent whole, so a clinical scenario has something to stand on.
+ *
+ * The answers alone are enough to build a wrong option out of, but not to
+ * describe a patient. A vignette has to say how the thing presents, and the only
+ * source for that which the student has actually been taught is the rest of
+ * their own deck. Front and back travel together here for that reason: it is the
+ * difference between a model drawing on the lecture and a model drawing on
+ * itself.
+ */
+function contextCards(batch: Flashcard[], deckCards: Flashcard[]) {
+  return nearestFirst(batch, deckCards)
+    .slice(0, CONTEXT_LIMIT)
+    .map((card) => ({
+      front: truncate(card.front.replace(/\s+/g, ' ').trim(), CONTEXT_CHARS),
+      back: truncate(card.back.replace(/\s+/g, ' ').trim(), CONTEXT_CHARS),
+      topic: card.context ?? null,
+    }));
 }
 
 /**
@@ -157,7 +207,12 @@ function neighbourAnswers(batch: Flashcard[], deckCards: Flashcard[]): string[] 
  * reading it — but an image's address never is. The model has no use for a URL
  * and would only be given the chance to invent one.
  */
-function serializeBatch(batch: Flashcard[], deckCards: Flashcard[], deckName: string) {
+function serializeBatch(
+  batch: Flashcard[],
+  deckCards: Flashcard[],
+  deckName: string,
+  style: QuestionStyle = 'recall'
+) {
   return {
     deck: deckName,
     cards: batch.map((card, i) => ({
@@ -174,6 +229,9 @@ function serializeBatch(batch: Flashcard[], deckCards: Flashcard[], deckName: st
       diagramAlt: card.image?.alt ?? null,
     })),
     neighbours: neighbourAnswers(batch, deckCards),
+    // Only the board-style prompt knows what to do with these, and they are the
+    // most expensive thing in the payload — no reason to send them otherwise.
+    ...(style === 'vignette' ? { context: contextCards(batch, deckCards) } : {}),
   };
 }
 
@@ -182,7 +240,8 @@ function buildBatches(
   cards: Flashcard[],
   deckCards: Flashcard[],
   deckName: string,
-  size: number = BATCH_SIZE
+  size: number = BATCH_SIZE,
+  style: QuestionStyle = 'recall'
 ): Flashcard[][] {
   const batches: Flashcard[][] = [];
   for (let i = 0; i < cards.length; i += size) {
@@ -193,7 +252,7 @@ function buildBatches(
   // which case the batch is halved rather than left to come back as a 413.
   const sized: Flashcard[][] = [];
   for (const batch of batches) {
-    const size = JSON.stringify(serializeBatch(batch, deckCards, deckName)).length;
+    const size = JSON.stringify(serializeBatch(batch, deckCards, deckName, style)).length;
     if (size <= MAX_PAYLOAD_CHARS || batch.length === 1) {
       sized.push(batch);
       continue;
@@ -218,6 +277,11 @@ export async function generateQuestionsForCards(
   settings: AiSettings,
   options: QuizGenerationOptions = {}
 ): Promise<QuizGenerationResult> {
+  // Defaulted rather than required, so every existing call site keeps writing
+  // recall questions without being touched.
+  const style: QuestionStyle = options.style ?? 'recall';
+  const isVignette = style === 'vignette';
+
   const questions: TestQuestion[] = [];
   let failedBatches = 0;
   let truncatedBatches = 0;
@@ -238,14 +302,14 @@ export async function generateQuestionsForCards(
     // list of things for the model, and card drafting sends one section per
     // entry. A quiz batch is a single entry, but it still has to be a list.
     const { text, stopReason } = await callModel(
-      'quiz',
-      [serializeBatch(batch, deckCards, deckName)],
+      isVignette ? 'vignette' : 'quiz',
+      [serializeBatch(batch, deckCards, deckName, style)],
       settings,
       options.signal
     );
     if (stopReason === 'max_tokens') truncatedBatches += 1;
 
-    const parsed = parseQuizResponse(text);
+    const parsed = isVignette ? parseVignetteResponse(text) : parseQuizResponse(text);
     if (parsed.length === 0) {
       throw new Error(
         stopReason === 'max_tokens'
@@ -270,6 +334,11 @@ export async function generateQuestionsForCards(
         id: crypto.randomUUID(),
         deckId: card.deckId,
         cardId: card.id,
+        style,
+        // Absent when the card could not carry a scenario without inventing
+        // findings and the model took the escape hatch, which is a correct
+        // outcome rather than a missing field.
+        vignette: item.vignette,
         stem: item.stem,
         correctAnswer: item.correct,
         distractors: item.distractors,
@@ -331,13 +400,16 @@ export async function generateQuestionsForCards(
     return missed;
   }
 
-  let missing = await runPass(buildBatches(targets, deckCards, deckName));
+  const firstSize = isVignette ? VIGNETTE_BATCH_SIZE : BATCH_SIZE;
+  const retrySize = isVignette ? VIGNETTE_RETRY_BATCH_SIZE : RETRY_BATCH_SIZE;
+
+  let missing = await runPass(buildBatches(targets, deckCards, deckName, firstSize, style));
 
   // One bounded retry, in smaller batches. A card is only reported as missing
   // after the model has had a second, easier chance at it, which is what turns
   // "run it three times to fill a deck" into a single pass.
   if (missing.length > 0 && !aborted) {
-    missing = await runPass(buildBatches(missing, deckCards, deckName, RETRY_BATCH_SIZE));
+    missing = await runPass(buildBatches(missing, deckCards, deckName, retrySize, style));
   }
 
   return {

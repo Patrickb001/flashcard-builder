@@ -45,6 +45,11 @@ export default function QuizRunner({
 
       <div className="quiz-question">
         {current.question.context && <span className="topic-chip">{current.question.context}</span>}
+        {/* Board-style items open with a scenario; recall questions have none,
+            and so does a board item whose card could not carry one. */}
+        {current.question.vignette && (
+          <p className="quiz-vignette">{current.question.vignette}</p>
+        )}
         <p className="quiz-stem">{current.question.stem}</p>
         {current.question.stemCode && <Snippet code={current.question.stemCode} />}
         {current.question.stemImage && <Diagram image={current.question.stemImage} />}

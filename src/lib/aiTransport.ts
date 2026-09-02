@@ -1,6 +1,6 @@
 import type { AiSettings } from './aiGenerator';
 import { CARD_SYSTEM_PROMPT } from './cardPrompt';
-import { QUIZ_SYSTEM_PROMPT } from './quizPrompt';
+import { QUIZ_SYSTEM_PROMPT, VIGNETTE_SYSTEM_PROMPT } from './quizPrompt';
 
 /**
  * Getting a payload to the model, by whichever route is available.
@@ -25,12 +25,13 @@ import { QUIZ_SYSTEM_PROMPT } from './quizPrompt';
  * and looks it up — see the lookup in netlify/functions/generate.mts for why
  * that boundary matters.
  */
-export type AiTask = 'cards' | 'quiz';
+export type AiTask = 'cards' | 'quiz' | 'vignette';
 
 /** The prompts, for the direct-from-browser route which has no server to ask. */
 const PROMPTS: Record<AiTask, string> = {
   cards: CARD_SYSTEM_PROMPT,
   quiz: QUIZ_SYSTEM_PROMPT,
+  vignette: VIGNETTE_SYSTEM_PROMPT,
 };
 
 const MODEL = 'claude-sonnet-5';
@@ -58,6 +59,11 @@ const MODEL = 'claude-sonnet-5';
 const MAX_TOKENS: Record<AiTask, number> = {
   cards: 16000,
   quiz: 8000,
+  // A board-style item is the most expensive thing here: a four-sentence
+  // scenario, five homogeneous options and an explanation, against the ~420
+  // tokens a recall question costs. Given wide headroom on the same reasoning
+  // as cards — the ceiling is a limit, not a reservation.
+  vignette: 16000,
 };
 
 /**

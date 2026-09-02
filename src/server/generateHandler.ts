@@ -1,5 +1,5 @@
 import { CARD_SYSTEM_PROMPT } from '../lib/cardPrompt';
-import { QUIZ_SYSTEM_PROMPT } from '../lib/quizPrompt';
+import { QUIZ_SYSTEM_PROMPT, VIGNETTE_SYSTEM_PROMPT } from '../lib/quizPrompt';
 import type { HandlerResult } from './endpoint';
 
 /**
@@ -35,7 +35,7 @@ const DEFAULT_MODEL = 'claude-sonnet-5';
  * Fixed here rather than accepted from the client, deliberately: a request
  * cannot ask the server to run up an unbounded bill.
  */
-const MAX_TOKENS: Record<string, number> = { cards: 16000, quiz: 8000 };
+const MAX_TOKENS: Record<string, number> = { cards: 16000, quiz: 8000, vignette: 16000 };
 
 /**
  * The prompt each task is answered with.
@@ -48,6 +48,7 @@ const MAX_TOKENS: Record<string, number> = { cards: 16000, quiz: 8000 };
 const PROMPTS = new Map<string, string>([
   ['cards', CARD_SYSTEM_PROMPT],
   ['quiz', QUIZ_SYSTEM_PROMPT],
+  ['vignette', VIGNETTE_SYSTEM_PROMPT],
 ]);
 
 /** Anything larger than this is refused before it reaches the model. */

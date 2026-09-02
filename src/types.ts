@@ -59,6 +59,20 @@ export interface CandidateCard extends CardMedia {
 }
 
 /**
+ * Which kind of question this is.
+ *
+ * "recall" rewords the card's front and asks for its back — good for retention,
+ * and what this app wrote before there was a choice. "vignette" is a PANCE-style
+ * item: a short clinical scenario, a lead-in question, and five homogeneous
+ * options.
+ *
+ * Stored as an OPTIONAL field, and absent means "recall". Every question written
+ * before this existed reads back with no style, and reading it through styleOf
+ * below is what lets those keep working without an IndexedDB migration.
+ */
+export type QuestionStyle = 'recall' | 'vignette';
+
+/**
  * One multiple-choice question, written once from a flashcard and kept.
  *
  * Grading is a string comparison against `correctAnswer`, so taking a test costs
@@ -77,6 +91,20 @@ export interface TestQuestion {
   deckId: string;
   /** The flashcard this came from. Deleting that card deletes this. */
   cardId: string;
+
+  /** Absent on everything written before the second style existed; see styleOf. */
+  style?: QuestionStyle;
+
+  /**
+   * The clinical scenario a vignette question opens with, when it has one.
+   *
+   * Kept apart from the stem rather than folded into it. The stem stays the
+   * lead-in question either way, so grading, selection and shuffling never have
+   * to know which style they are handling, and a recall question is simply one
+   * with no vignette. A PANCE item whose fact cannot carry a scenario without
+   * inventing findings has none either — see the escape hatch in the prompt.
+   */
+  vignette?: string;
 
   /** A self-contained question. Never "which of the above…". */
   stem: string;
@@ -119,4 +147,16 @@ export interface TestQuestion {
    */
   lastAskedAt: number | null;
   timesCorrect: number;
+}
+
+/**
+ * A question's style, defaulting the ones written before styles existed.
+ *
+ * The default lives here and nowhere else. Reading `q.style` directly anywhere
+ * is a bug waiting to happen: every question in every deck built before this
+ * feature has the field undefined, and a `=== 'recall'` test against those
+ * silently drops the whole existing pool out of the test.
+ */
+export function styleOf(question: Pick<TestQuestion, 'style'>): QuestionStyle {
+  return question.style ?? 'recall';
 }

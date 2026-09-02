@@ -1,0 +1,162 @@
+[
+  {
+    "id": "c1",
+    "deckId": "d1",
+    "front": "What episode is required to diagnose bipolar I disorder?",
+    "back": "At least one manic episode lasting 7 days or requiring hospitalization.",
+    "sourceLabel": "Page 7",
+    "context": "Bipolar I vs. Bipolar II",
+    "status": "new",
+    "createdAt": 1
+  },
+  {
+    "id": "c2",
+    "deckId": "d1",
+    "front": "What episodes are required to diagnose bipolar II disorder?",
+    "back": "At least one hypomanic episode and at least one major depressive episode.",
+    "sourceLabel": "Page 7",
+    "context": "Bipolar I vs. Bipolar II",
+    "status": "new",
+    "createdAt": 2
+  },
+  {
+    "id": "c3",
+    "deckId": "d1",
+    "front": "What is the minimum duration of a hypomanic episode?",
+    "back": "4 days, with observable change in functioning but no marked impairment.",
+    "sourceLabel": "Page 8",
+    "context": "Mania vs. Hypomania",
+    "status": "new",
+    "createdAt": 3
+  },
+  {
+    "id": "c4",
+    "deckId": "d1",
+    "front": "What disqualifies an episode from being hypomania?",
+    "back": "Hospitalization or psychotic features — either makes the episode mania regardless of duration.",
+    "sourceLabel": "Page 8",
+    "context": "Mania vs. Hypomania",
+    "status": "new",
+    "createdAt": 4
+  },
+  {
+    "id": "c5",
+    "deckId": "d1",
+    "front": "What is the therapeutic serum level range for lithium?",
+    "back": "0.6-1.2 mEq/L, with toxicity above 1.5 mEq/L.",
+    "sourceLabel": "Page 11",
+    "context": "Lithium monitoring",
+    "status": "new",
+    "createdAt": 5
+  },
+  {
+    "id": "c6",
+    "deckId": "d1",
+    "front": "Which drug classes raise lithium levels?",
+    "back": "NSAIDs, ACE inhibitors, and thiazide diuretics.",
+    "sourceLabel": "Page 11",
+    "context": "Lithium monitoring",
+    "status": "new",
+    "createdAt": 6
+  },
+  {
+    "id": "c7",
+    "deckId": "d1",
+    "front": "What baseline and ongoing labs does lithium require?",
+    "back": "TSH and BUN/creatinine, plus serum lithium levels.",
+    "sourceLabel": "Page 11",
+    "context": "Lithium monitoring",
+    "status": "new",
+    "createdAt": 7
+  },
+  {
+    "id": "c8",
+    "deckId": "d1",
+    "front": "Why is antidepressant monotherapy contraindicated in bipolar disorder?",
+    "back": "It risks a mood switch into mania and cycle acceleration.",
+    "sourceLabel": "Page 11",
+    "context": "Treatment: Bipolar Disorder",
+    "status": "new",
+    "createdAt": 8
+  },
+  {
+    "id": "c9",
+    "deckId": "d1",
+    "front": "What are the first-line options for acute mania?",
+    "back": "Lithium, valproate, or an atypical antipsychotic such as olanzapine, quetiapine, or risperidone.",
+    "sourceLabel": "Page 11",
+    "context": "Treatment: Bipolar Disorder",
+    "status": "new",
+    "createdAt": 9
+  },
+  {
+    "id": "c10",
+    "deckId": "d1",
+    "front": "What does the mnemonic SIG E CAPS stand for?",
+    "back": "Sleep, Interest, Guilt, Energy, Concentration, Appetite, Psychomotor, Suicidality.",
+    "sourceLabel": "Page 6",
+    "context": "MDD: DSM-5-TR Diagnostic Criteria",
+    "status": "new",
+    "createdAt": 10
+  },
+  {
+    "id": "c11",
+    "deckId": "d1",
+    "front": "How many symptoms are needed to diagnose a major depressive episode?",
+    "back": "At least 5 of 9 symptoms during the same 2-week period.",
+    "sourceLabel": "Page 6",
+    "context": "MDD: DSM-5-TR Diagnostic Criteria",
+    "status": "new",
+    "createdAt": 11
+  },
+  {
+    "id": "c12",
+    "deckId": "d1",
+    "front": "Which symptom must be present for a major depressive episode?",
+    "back": "Either depressed mood or loss of interest/pleasure (anhedonia).",
+    "sourceLabel": "Page 6",
+    "context": "MDD: DSM-5-TR Diagnostic Criteria",
+    "status": "new",
+    "createdAt": 12
+  },
+  {
+    "id": "c13",
+    "deckId": "d1",
+    "front": "How does depression frequently present in geriatric patients?",
+    "back": "As cognitive complaints, sometimes called pseudodementia.",
+    "sourceLabel": "Page 13",
+    "context": "Special Populations",
+    "status": "new",
+    "createdAt": 13
+  },
+  {
+    "id": "c14",
+    "deckId": "d1",
+    "front": "Which antidepressant is preferred during lactation?",
+    "back": "Sertraline, because of low milk transfer.",
+    "sourceLabel": "Page 13",
+    "context": "Special Populations",
+    "status": "new",
+    "createdAt": 14
+  },
+  {
+    "id": "c15",
+    "deckId": "d1",
+    "front": "What is the strongest predictor of completed suicide?",
+    "back": "A previous suicide attempt.",
+    "sourceLabel": "Page 12",
+    "context": "Suicide Risk Assessment",
+    "status": "new",
+    "createdAt": 15
+  },
+  {
+    "id": "c16",
+    "deckId": "d1",
+    "front": "What is postpartum psychosis and why does it matter?",
+    "back": "A rare (~0.1%) psychiatric emergency carrying risk of infanticide and suicide.",
+    "sourceLabel": "Page 13",
+    "context": "Peripartum",
+    "status": "new",
+    "createdAt": 16
+  }
+]

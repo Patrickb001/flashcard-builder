@@ -1212,8 +1212,88 @@ textarea {
   text-align: right;
 }
 
+/*
+ * The write-questions call to action, when the deck has none in this style.
+ *
+ * Same element as the top-up notice, but this is not a warning — it is the only
+ * thing to do on the screen, and the amber "something is wrong" tint reads
+ * badly on a deck that is simply new. Neutral panel, a little more room.
+ */
+.quiz-write-cta {
+  background: var(--panel);
+  border: 1px solid var(--border-soft);
+  padding: 1.1rem 1.2rem;
+}
+
+.quiz-write-cta strong {
+  font-family: var(--font-ui);
+  font-size: 1rem;
+  color: var(--text-primary);
+}
+
+/* The style picker: two cards, chosen the way the options below are chosen. */
+.quiz-style-row {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(13rem, 1fr));
+  gap: 0.6rem;
+  margin: 1.5rem 0 0.5rem;
+}
+
+.quiz-style-option {
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+  padding: 0.75rem 0.9rem;
+  text-align: left;
+  cursor: pointer;
+  background: var(--panel);
+  border: 1px solid var(--border-soft);
+  border-radius: 12px;
+  color: inherit;
+  font: inherit;
+  transition: border-color 0.15s ease, background 0.15s ease;
+}
+
+.quiz-style-option:hover {
+  border-color: var(--accent);
+}
+
+.quiz-style-option.selected {
+  border-color: var(--accent);
+  background: var(--accent-soft);
+}
+
+.quiz-style-name {
+  font-family: var(--font-ui);
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.quiz-style-blurb {
+  font-size: 0.85rem;
+  color: var(--text-secondary);
+}
+
 .quiz-question {
   margin: 1.25rem 0 1.5rem;
+}
+
+/*
+ * The clinical scenario a board-style question opens with.
+ *
+ * Deliberately NOT .quiz-stem's 1.35rem. That size is right for a one-line
+ * lead-in and wrong for four sentences of prose — at display size a vignette
+ * fills the screen and pushes the options below the fold. Body size with a
+ * generous line-height reads the way a printed exam does.
+ */
+.quiz-vignette {
+  font-family: var(--font-read);
+  font-size: 1rem;
+  line-height: 1.65;
+  color: var(--text-secondary);
+  margin: 0.4rem 0 0.9rem;
+  padding-left: 0.9rem;
+  border-left: 3px solid var(--accent-soft);
 }
 
 .quiz-stem {

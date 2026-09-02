@@ -1,7 +1,19 @@
-import { useEffect, useRef, useState } from 'react';
-import type { Deck, Flashcard } from '../types';
-import { addCard, deleteCard, deleteDeck, getCardsForDeck, getDeck, renameDeck, updateCard } from '../db/db';
-import { downloadTextFile, exportFileName, formatDeckForExport } from '../lib/deckExport';
+import { useEffect, useRef, useState } from "react";
+import type { Deck, Flashcard } from "../types";
+import {
+  addCard,
+  deleteCard,
+  deleteDeck,
+  getCardsForDeck,
+  getDeck,
+  renameDeck,
+  updateCard,
+} from "../db/db";
+import {
+  downloadTextFile,
+  exportFileName,
+  formatDeckForExport,
+} from "../lib/deckExport";
 
 interface Props {
   deckId: string;
@@ -11,11 +23,17 @@ interface Props {
   onDeckDeleted: () => void;
 }
 
-export default function DeckManager({ deckId, onExit, onStudy, onTest, onDeckDeleted }: Props) {
+export default function DeckManager({
+  deckId,
+  onExit,
+  onStudy,
+  onTest,
+  onDeckDeleted,
+}: Props) {
   const [deck, setDeck] = useState<Deck | null>(null);
   const [cards, setCards] = useState<Flashcard[]>([]);
   const [loading, setLoading] = useState(true);
-  const [nameDraft, setNameDraft] = useState('');
+  const [nameDraft, setNameDraft] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
   const copiedTimer = useRef<number | null>(null);
@@ -33,13 +51,16 @@ export default function DeckManager({ deckId, onExit, onStudy, onTest, onDeckDel
   // unhandled rejection in the console. Each one reports instead.
   const load = async () => {
     try {
-      const [d, c] = await Promise.all([getDeck(deckId), getCardsForDeck(deckId)]);
+      const [d, c] = await Promise.all([
+        getDeck(deckId),
+        getCardsForDeck(deckId),
+      ]);
       setDeck(d ?? null);
       setCards(c);
-      setNameDraft(d?.name ?? '');
+      setNameDraft(d?.name ?? "");
     } catch (err) {
-      console.error('[manager] Could not read the deck:', err);
-      setError('This deck could not be read from the browser database.');
+      console.error("[manager] Could not read the deck:", err);
+      setError("This deck could not be read from the browser database.");
     } finally {
       setLoading(false);
     }
@@ -50,16 +71,22 @@ export default function DeckManager({ deckId, onExit, onStudy, onTest, onDeckDel
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [deckId]);
 
-  const handleFieldChange = (id: string, field: 'front' | 'back', value: string) => {
-    setCards((prev) => prev.map((c) => (c.id === id ? { ...c, [field]: value } : c)));
+  const handleFieldChange = (
+    id: string,
+    field: "front" | "back",
+    value: string,
+  ) => {
+    setCards((prev) =>
+      prev.map((c) => (c.id === id ? { ...c, [field]: value } : c)),
+    );
   };
 
   const persistCard = async (card: Flashcard) => {
     try {
       await updateCard(card);
     } catch (err) {
-      console.error('[manager] Saving the card failed:', err);
-      setError('That edit could not be saved.');
+      console.error("[manager] Saving the card failed:", err);
+      setError("That edit could not be saved.");
     }
   };
 
@@ -68,18 +95,18 @@ export default function DeckManager({ deckId, onExit, onStudy, onTest, onDeckDel
     const newCard: Flashcard = {
       id: crypto.randomUUID(),
       deckId,
-      front: '',
-      back: '',
-      sourceLabel: 'Manual',
-      status: 'new',
+      front: "",
+      back: "",
+      sourceLabel: "Manual",
+      status: "new",
       createdAt: Date.now(),
     };
     try {
       await addCard(newCard);
       await load();
     } catch (err) {
-      console.error('[manager] Adding a card failed:', err);
-      setError('The card could not be added.');
+      console.error("[manager] Adding a card failed:", err);
+      setError("The card could not be added.");
     }
   };
 
@@ -88,20 +115,25 @@ export default function DeckManager({ deckId, onExit, onStudy, onTest, onDeckDel
       await deleteCard(cardId, deckId);
       await load();
     } catch (err) {
-      console.error('[manager] Deleting the card failed:', err);
-      setError('The card could not be deleted.');
+      console.error("[manager] Deleting the card failed:", err);
+      setError("The card could not be deleted.");
     }
   };
 
   const handleDeleteDeck = async () => {
     if (!deck) return;
-    if (!confirm(`Delete "${deck.name}" and all its flashcards? This can't be undone.`)) return;
+    if (
+      !confirm(
+        `Delete "${deck.name}" and all its flashcards? This can't be undone.`,
+      )
+    )
+      return;
     try {
       await deleteDeck(deckId);
       onDeckDeleted();
     } catch (err) {
-      console.error('[manager] Deleting the deck failed:', err);
-      setError('The deck could not be deleted.');
+      console.error("[manager] Deleting the deck failed:", err);
+      setError("The deck could not be deleted.");
     }
   };
 
@@ -110,8 +142,8 @@ export default function DeckManager({ deckId, onExit, onStudy, onTest, onDeckDel
     try {
       downloadTextFile(exportFileName(deck.name), formatDeckForExport(cards));
     } catch (err) {
-      console.error('[manager] Exporting the deck failed:', err);
-      setError('The deck could not be exported.');
+      console.error("[manager] Exporting the deck failed:", err);
+      setError("The deck could not be exported.");
     }
   };
 
@@ -123,21 +155,21 @@ export default function DeckManager({ deckId, onExit, onStudy, onTest, onDeckDel
       copiedTimer.current = window.setTimeout(() => setCopied(false), 2000);
     } catch (err) {
       // Clipboard writes are refused outside a secure context or without permission.
-      console.error('[manager] Copying the deck failed:', err);
-      setError('The deck could not be copied to the clipboard.');
+      console.error("[manager] Copying the deck failed:", err);
+      setError("The deck could not be copied to the clipboard.");
     }
   };
 
   const commitName = async () => {
     if (!deck) return;
-    const trimmed = nameDraft.trim() || 'Untitled deck';
+    const trimmed = nameDraft.trim() || "Untitled deck";
     if (trimmed !== deck.name) {
       try {
         await renameDeck(deckId, trimmed);
         setDeck({ ...deck, name: trimmed });
       } catch (err) {
-        console.error('[manager] Renaming the deck failed:', err);
-        setError('The deck could not be renamed.');
+        console.error("[manager] Renaming the deck failed:", err);
+        setError("The deck could not be renamed.");
         setNameDraft(deck.name);
       }
     }
@@ -170,13 +202,21 @@ export default function DeckManager({ deckId, onExit, onStudy, onTest, onDeckDel
             onBlur={commitName}
           />
           <p className="muted small">
-            {cards.length} card{cards.length === 1 ? '' : 's'} · from {deck.sourceFileName}
+            {cards.length} card{cards.length === 1 ? "" : "s"} · from{" "}
+            {deck.sourceFileName}
           </p>
         </div>
         <div className="manager-actions">
-          <button className="primary-btn" onClick={() => onStudy(deckId)} disabled={cards.length === 0}>
+          <button
+            className="primary-btn"
+            onClick={() => onStudy(deckId)}
+            disabled={cards.length === 0}
+          >
             Study this deck
           </button>
+          {/* One entry. The kind of test is chosen on the setup screen, which
+              has to offer the picker anyway, and nothing is written until the
+              button there is pressed — so there is nothing to decide this early. */}
           <button
             className="secondary-btn"
             onClick={() => onTest(deckId)}
@@ -209,7 +249,7 @@ export default function DeckManager({ deckId, onExit, onStudy, onTest, onDeckDel
             disabled={cards.length === 0}
             title="Copy the deck as delimited text"
           >
-            {copied ? 'Copied ✓' : 'Copy'}
+            {copied ? "Copied ✓" : "Copy"}
           </button>
         </div>
       </div>
@@ -225,26 +265,40 @@ export default function DeckManager({ deckId, onExit, onStudy, onTest, onDeckDel
                   className="candidate-front"
                   value={card.front}
                   rows={2}
-                  onChange={(e) => handleFieldChange(card.id, 'front', e.target.value)}
-                  onBlur={() => persistCard(cards.find((c) => c.id === card.id)!)}
+                  onChange={(e) =>
+                    handleFieldChange(card.id, "front", e.target.value)
+                  }
+                  onBlur={() =>
+                    persistCard(cards.find((c) => c.id === card.id)!)
+                  }
                   placeholder="Front"
                 />
                 <textarea
                   className="candidate-back"
                   value={card.back}
                   rows={2}
-                  onChange={(e) => handleFieldChange(card.id, 'back', e.target.value)}
-                  onBlur={() => persistCard(cards.find((c) => c.id === card.id)!)}
+                  onChange={(e) =>
+                    handleFieldChange(card.id, "back", e.target.value)
+                  }
+                  onBlur={() =>
+                    persistCard(cards.find((c) => c.id === card.id)!)
+                  }
                   placeholder="Back"
                 />
                 <span className="candidate-meta">
-                  {card.context && <span className="topic-chip">{card.context}</span>}
+                  {card.context && (
+                    <span className="topic-chip">{card.context}</span>
+                  )}
                   <span className={`source-label status-${card.status}`}>
                     {card.sourceLabel} · {card.status}
                   </span>
                 </span>
               </div>
-              <button className="icon-btn danger" title="Delete card" onClick={() => handleDelete(card.id)}>
+              <button
+                className="icon-btn danger"
+                title="Delete card"
+                onClick={() => handleDelete(card.id)}
+              >
                 ✕
               </button>
             </li>

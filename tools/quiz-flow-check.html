@@ -49,6 +49,8 @@
 
     const deckId = 'flow-deck';
     const QUESTIONS = 4;
+    /** Options a seeded (styleless, therefore recall) question presents. */
+    const EXPECTED_OPTIONS = 4;
     const cards = Array.from({ length: QUESTIONS }, (_, i) => ({
       id: deckId + '-c' + i,
       deckId,
@@ -105,7 +107,14 @@
     for (let i = 0; i < QUESTIONS + 2; i++) {
       const options = Array.from(document.querySelectorAll('#root .quiz-option'));
       if (options.length === 0) break;
-      check('question ' + (answered + 1) + ' offers four options', options.length === 4, options.length + ' options');
+      // Four for a recall question, five for a board-style one. The seeded
+      // questions carry no style, which means recall — see styleOf in types.ts.
+      const expected = EXPECTED_OPTIONS;
+      check(
+        'question ' + (answered + 1) + ' offers ' + expected + ' options',
+        options.length === expected,
+        options.length + ' options'
+      );
 
       // Pick the option whose text is the seeded correct answer, so the score
       // is a known number rather than whatever the shuffle produced.

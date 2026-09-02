@@ -82,15 +82,34 @@ Generation is rule-based, with no external AI call, so review the draft deck bef
 
 ## Testing a deck
 
-A saved deck can be studied or **tested**. A test is multiple choice, four options,
-graded on the spot with no model call — which is the whole reason the questions are
-written once and kept rather than drafted each time. Once a deck has its questions,
-testing works offline and costs nothing.
+A saved deck can be studied or **tested**. A test is multiple choice, graded on the
+spot with no model call — which is the whole reason the questions are written once and
+kept rather than drafted each time. Once a deck has its questions, testing works
+offline and costs nothing.
+
+Two question styles, chosen on the setup screen and stored side by side, so a deck can
+have both:
+
+- **Recall** — one fact per question, four options. The stem rewords the card's front
+  and the answer is its back.
+- **PANCE style** — a short clinical vignette, a board-style lead-in ("Which of the
+  following is the most likely diagnosis?"), and five options. Written for PA students
+  revising for the boards.
+
+The vignette style is deliberately constrained: every clinical fact must come from the
+deck's own cards, and the model may invent only the patient wrapper — an age, a sex,
+and a presentation the cards themselves describe. Never a vital sign, a lab value or a
+finding the lecture did not teach. A card that cannot carry a scenario without
+inventing one — a definition, a drug interaction list, a therapeutic range — gets a
+direct board-style question and no patient instead. Studying a fabricated finding as
+though it were examinable is worse than having one fewer question, so the prompt is
+written to leave the gap rather than fill it.
 
 The questions themselves need the AI helper, so "Test this deck" opens a setup screen
 that carries the drafting-mode panel inline when AI is off; there is no need to go
 back to the upload screen to switch it on. The first launch writes one question per
-card and stores them, ten cards to a request, saving each batch as it lands so an
+card and stores them — eight cards to a request for recall questions, four for the
+costlier vignettes — saving each batch as it lands so an
 interrupted run keeps everything it earned. Cards added later — or edited, which is
 noticed by a content hash rather than a save timestamp, since the deck manager writes
 a card on every blur — are offered on the next launch as "some questions are missing".

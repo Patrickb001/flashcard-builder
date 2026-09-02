@@ -43,6 +43,9 @@ export default function QuizResults({ asked, answers, cardFor, onAgain, onExit }
               const card = cardFor(prepared.question);
               return (
                 <li className="quiz-review-row" key={prepared.question.id}>
+                  {prepared.question.vignette && (
+                    <p className="quiz-vignette">{prepared.question.vignette}</p>
+                  )}
                   <p className="quiz-stem">{prepared.question.stem}</p>
                   {prepared.question.stemCode && <Snippet code={prepared.question.stemCode} />}
                   {prepared.question.stemImage && <Diagram image={prepared.question.stemImage} />}

@@ -44,7 +44,7 @@ export default function TestMode({ deckId, onExit }: Props) {
       <QuizGenerating
         deckName={quiz.deck.name}
         progress={quiz.progress}
-        written={quiz.pool.length}
+        written={quiz.visiblePool.length}
         onStop={quiz.stopGenerating}
       />
     );
@@ -55,15 +55,19 @@ export default function TestMode({ deckId, onExit }: Props) {
       <QuizSetup
         deck={quiz.deck}
         cards={quiz.cards}
-        pool={quiz.pool}
+        pool={quiz.visiblePool}
         unwritten={quiz.unwritten}
+        style={quiz.style}
+        onStyleChange={quiz.setStyle}
         ai={quiz.ai}
         onAiChange={quiz.setAi}
         notice={quiz.notice}
         noticeFailed={quiz.noticeFailed}
         count={quiz.count}
         onCountChange={quiz.setCount}
-        onWriteMissing={() => quiz.generate(quiz.unwritten, quiz.cards, quiz.deck!.name, quiz.ai)}
+        onWriteMissing={() =>
+          quiz.generate(quiz.unwritten, quiz.cards, quiz.deck!.name, quiz.ai, quiz.style)
+        }
         onStart={quiz.startTest}
         onExit={onExit}
       />
