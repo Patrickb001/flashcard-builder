@@ -55,19 +55,23 @@ const RETRY_BATCH_SIZE = 4;
 const VIGNETTE_BATCH_SIZE = 4;
 const VIGNETTE_RETRY_BATCH_SIZE = 2;
 
-/** Other answers offered per batch, as raw material for wrong answers. */
+/** Other cards offered per batch, as raw material for wrong answers. */
 const NEIGHBOUR_LIMIT = 20;
 
 /**
  * Related cards sent whole with a board-style batch, as grounding.
  *
- * The recall path sends neighbouring *answers* only, as raw material for
- * distractors. A vignette needs more: it has to describe a presentation, and the
- * only honest source for that is other cards from the same lecture. Sending
- * front and back together is what lets a scenario be clinically coherent without
- * the model inventing findings — it widens the grounded material rather than
- * licensing invention. Fewer of them than plain answers, because each costs
- * several times as much.
+ * The recall path also sends whole cards now, but for a different reason: there
+ * they are candidate distractors plus the question each one answers, so the
+ * model can tell whether a neighbour's answer is also correct for the stem it is
+ * writing. A vignette needs them as source material instead — it has to describe
+ * a presentation, and the only honest source for that is other cards from the
+ * same lecture, which is what lets a scenario be clinically coherent without the
+ * model inventing findings.
+ *
+ * Fewer than the recall path's neighbours, and given more room each: a
+ * neighbour only has to be recognisable as an option, where a context card is
+ * being read for the detail in it.
  */
 const CONTEXT_LIMIT = 12;
 const CONTEXT_CHARS = 200;
@@ -135,7 +139,7 @@ function truncate(text: string, max: number): string {
 }
 
 /**
- * Answers from elsewhere in the deck, as raw material for wrong answers.
+ * Cards from elsewhere in the deck, nearest first.
  *
  * The best wrong answer is a near miss the deck already contains — the adjacent
  * stage of a sequence, a sibling term, the next row of the same table — because
@@ -158,6 +162,43 @@ function nearestFirst(batch: Flashcard[], deckCards: Flashcard[]): Flashcard[] {
   };
 
   return deckCards.filter((card) => !excluded.has(card.id)).sort((a, b) => rank(a) - rank(b));
+}
+
+/**
+ * Neighbouring cards whole, for recall questions.
+ *
+ * The answers alone used to go over, on the reading that a distractor is an
+ * answer so an answer is all the model needs. That leaves it unable to do the
+ * one check the prompt calls most important: whether a neighbour's answer is
+ * ALSO correct for the stem being written. A deck that states the same fact
+ * twice — a recap card beside the card it recaps — offers an answer that reads
+ * as a perfect near miss and is simply right, and nothing in a bare list of
+ * answers reveals that.
+ *
+ * Sending the question each answer belongs to is what makes the check possible,
+ * and it gives the model the surrounding material to write a question that
+ * tests the distinction between two neighbouring facts rather than one fact in
+ * isolation.
+ *
+ * Near-identical to contextCards below, which serves the vignette path. They
+ * are kept apart so the board-style payload stays exactly as it was measured;
+ * fold them together when that path is next changed for its own reasons.
+ */
+function neighbourCards(batch: Flashcard[], deckCards: Flashcard[]) {
+  const seen = new Set<string>();
+  const out: { front: string; back: string }[] = [];
+
+  for (const card of nearestFirst(batch, deckCards)) {
+    if (out.length >= NEIGHBOUR_LIMIT) break;
+    const back = truncate(card.back.replace(/\s+/g, ' ').trim(), NEIGHBOUR_CHARS);
+    const front = truncate(card.front.replace(/\s+/g, ' ').trim(), NEIGHBOUR_CHARS);
+    const key = back.toLowerCase();
+    if (!back || !front || seen.has(key)) continue;
+    seen.add(key);
+    out.push({ front, back });
+  }
+
+  return out;
 }
 
 function neighbourAnswers(batch: Flashcard[], deckCards: Flashcard[]): string[] {
@@ -228,7 +269,12 @@ function serializeBatch(
         : null,
       diagramAlt: card.image?.alt ?? null,
     })),
-    neighbours: neighbourAnswers(batch, deckCards),
+    // The board-style payload is left exactly as it was measured: bare answers
+    // for distractors, plus its own `context` block for grounding a scenario.
+    neighbours:
+      style === 'vignette'
+        ? neighbourAnswers(batch, deckCards)
+        : neighbourCards(batch, deckCards),
     // Only the board-style prompt knows what to do with these, and they are the
     // most expensive thing in the payload — no reason to send them otherwise.
     ...(style === 'vignette' ? { context: contextCards(batch, deckCards) } : {}),

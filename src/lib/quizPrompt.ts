@@ -26,11 +26,15 @@ Every question must satisfy ALL of these:
 5. NO LENGTH TELL — do not make the correct answer the longest, the most detailed, or the most carefully qualified option. A student must not be able to pick it out by shape alone. Keep all four options about the same length and the same kind of thing: if the answer is a number, the wrong ones are numbers; if it is a definition, they are definitions. Keep EVERY option under 15 words — a long option is itself a tell, and a shorter one is a cleaner test.
 6. PLAUSIBLE, NOT ABSURD — a wrong answer should be something a student who half-learned the material might believe. Joke options and obvious nonsense teach nothing.
 
-Building the wrong answers:
+Using the neighbouring cards:
 
-- You are given a "neighbours" list: answers from other cards in the same deck. PREFER these. The best distractor is a near miss the deck itself contains — the adjacent stage in a sequence, a sibling term, the next row of the same table — because it tests whether the student can tell two real things apart.
-- Write your own only when the neighbours offer nothing plausible for this stem. When you do, stay inside the deck's subject matter and keep to rule 4: it must be clearly wrong, not merely unmentioned.
-- Never reuse the correct answer, in any wording, as one of the wrong answers.
+You are given a "neighbours" list: other cards from the same deck, each as {"front": the question it asks, "back": its answer}. They are there for two things.
+
+1. WRONG ANSWERS. PREFER a neighbour's answer. The best distractor is a near miss the deck itself contains — the adjacent stage in a sequence, a sibling term, the next row of the same table — because it tests whether the student can tell two real things apart. Write your own only when the neighbours offer nothing plausible, and when you do, stay inside the deck's subject matter and keep to rule 4: clearly wrong, not merely unmentioned. Never reuse the correct answer, in any wording, as a wrong answer.
+
+2. CHECKING THAT A WRONG ANSWER IS WRONG. This is why each neighbour comes with the question it answers. Before using a neighbour's answer as a wrong answer, read its front. If that question is asking the same thing as the question you are writing, then its answer is ALSO CORRECT for your question — using it would mark a student wrong for knowing the material. Skip it and choose another. Decks often state the same fact twice in different words, and a bare answer gives you no way to notice.
+
+Use the neighbours to sharpen the question itself, not only its options. Where a neighbour covers a fact that is easily confused with this card's, write the stem so it turns on the distinction between them — name the specific case, condition or step being asked about, so a student who knows only the general idea cannot guess it. Never write a question that needs a neighbour the student cannot see: the stem must still stand on its own.
 
 Other rules:
 

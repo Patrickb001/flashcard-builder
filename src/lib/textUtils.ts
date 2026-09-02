@@ -25,6 +25,129 @@ export function normalizeSlug(text: string): string {
 }
 
 /**
+ * Words too common to say anything about what a card is about.
+ *
+ * Deliberately short. This is not a linguistic stoplist — it only has to stop
+ * two questions looking alike because they both say "what" and "you".
+ */
+const STOPWORDS = new Set([
+  'what', 'when', 'where', 'which', 'that', 'this', 'those', 'these', 'with',
+  'from', 'your', 'you', 'the', 'and', 'for', 'not', 'but', 'its', 'into',
+  'does', 'doing', 'done', 'should', 'would', 'could', 'about', 'according',
+  'them', 'they', 'their', 'instead', 'rather', 'than', 'inside', 'within',
+  'without', 'like', 'such', 'also', 'have', 'has', 'are', 'was', 'were',
+]);
+
+/**
+ * Crude suffix stripping, applied until the word stops changing.
+ *
+ * Two cards that say "synchronize" and "synchronized" are talking about the
+ * same thing, and comparing raw tokens says they are not. Repeated rather than
+ * single-pass so "variables" and "variable" reach the same stem instead of one
+ * stopping a step short of the other.
+ *
+ * This is not a real stemmer and does not need to be: it feeds a similarity
+ * score whose only job is to decide whether two cards are near-duplicates.
+ */
+function stem(word: string): string {
+  let s = word;
+  for (;;) {
+    let next = s;
+    for (const suffix of ['ing', 'ed', 'es', 's', 'e']) {
+      if (s.endsWith(suffix) && s.length - suffix.length >= 4) {
+        next = s.slice(0, -suffix.length);
+        break;
+      }
+    }
+    if (next === s) return s;
+    s = next;
+  }
+}
+
+/** The words in a piece of text that carry its meaning, stemmed. */
+export function contentWords(text: string): Set<string> {
+  return new Set(
+    text
+      .toLowerCase()
+      .replace(/[^a-z0-9\s]/g, ' ')
+      .split(/\s+/)
+      // Anything with a digit is kept whatever its length. Dropping short
+      // tokens is right for words and catastrophic for numbers: "4 days" and
+      // "7 days" both reduce to "days", and two cards giving different
+      // durations, doses or thresholds would score as identical — exactly the
+      // cards where being wrong matters most.
+      .filter((w) => (w.length >= 4 || /\d/.test(w)) && !STOPWORDS.has(w))
+      .map((w) => (/\d/.test(w) ? w : stem(w)))
+  );
+}
+
+/**
+ * How much of the shorter text is contained in the longer, from 0 to 1.
+ *
+ * The overlap coefficient rather than Jaccard, on purpose. "How do you reset
+ * the state of an entire component tree?" and "What React technique lets you
+ * automatically reset a component's state when a prop like userId changes?"
+ * are the same question asked twice, but one is half the length of the other,
+ * and dividing by the union punishes the short one for being short — it scores
+ * them below any threshold that still excludes unrelated cards. Dividing by the
+ * shorter set asks the question that actually matters: is the smaller text
+ * saying a subset of what the larger one says?
+ *
+ * A very short text is all the more likely to be wholly contained in something
+ * else, so callers comparing against short answers should require a minimum
+ * size before trusting a high score.
+ */
+export function overlapRatio(a: string, b: string): number {
+  return wordOverlap(contentWords(a), contentWords(b));
+}
+
+/**
+ * The same measure over word sets already extracted.
+ *
+ * De-duplication compares every card against every card it kept, so tokenizing
+ * inside the comparison re-derives one card's words once per pair rather than
+ * once per card — and the pairs are quadratic. The cost lands hardest on the
+ * decks that need it least: a deck of genuinely distinct cards drops nothing,
+ * so every card is compared against every earlier one, and none of the cheap
+ * guards fire. Measured on 250 such cards it was 3.1 seconds against 36ms, and
+ * 500 took eight seconds — on the main thread, immediately after drafting,
+ * while someone waits to see their cards.
+ */
+export function wordOverlap(a: Set<string>, b: Set<string>): number {
+  if (a.size === 0 || b.size === 0) return 0;
+  const [small, large] = a.size <= b.size ? [a, b] : [b, a];
+  let shared = 0;
+  for (const word of small) if (large.has(word)) shared++;
+  return shared / small.size;
+}
+
+/**
+ * True when two texts both quote numbers and the numbers disagree.
+ *
+ * The one case where high word overlap is the strongest possible evidence that
+ * two things are NOT the same. "4 days, with observable change in functioning"
+ * and "7 days, with observable change in functioning" share four words in five
+ * and are the two halves of a distinction a student is being examined on;
+ * merging them would delete one side of it and leave no trace. The same holds
+ * for a therapeutic range against a toxic one, or two prevalence figures.
+ *
+ * Only decisive when both sides quote numbers. One card giving a figure and
+ * another not is ordinary — a definition beside a value — and says nothing.
+ */
+export function hasConflictingNumbers(a: string, b: string): boolean {
+  const numbers = (text: string) =>
+    new Set(text.match(/\d+(?:\.\d+)?/g) ?? []);
+
+  const A = numbers(a);
+  const B = numbers(b);
+  if (A.size === 0 || B.size === 0) return false;
+
+  for (const n of A) if (!B.has(n)) return true;
+  for (const n of B) if (!A.has(n)) return true;
+  return false;
+}
+
+/**
  * Strips a markdown fence a model wrapped its JSON in.
  *
  * Both prompts ask for bare JSON and both sometimes get it fenced anyway, so

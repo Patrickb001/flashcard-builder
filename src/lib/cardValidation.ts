@@ -1,5 +1,10 @@
 import type { CandidateCard } from '../types';
-import { normalizeSlug as normalize } from './textUtils';
+import {
+  contentWords,
+  hasConflictingNumbers,
+  normalizeSlug as normalize,
+  wordOverlap,
+} from './textUtils';
 
 /**
  * Last line of defence before a card reaches the review screen. These rules
@@ -112,14 +117,138 @@ export function isUsableCard(card: CandidateCard): boolean {
   return true;
 }
 
+/**
+ * How alike two cards must be to count as the same card.
+ *
+ * Both halves have to match. A deck legitimately asks several questions about
+ * one idea — "what is the therapeutic range" and "what raises the level" share
+ * most of their words and are different cards — so a similar front alone is not
+ * duplication. It is only duplication when the same question has the same
+ * answer, which is what the pair of thresholds expresses.
+ *
+ * Very high, and every step down from here was measured against the golden
+ * pages rather than guessed. At 0.75/0.6 this dropped seven cards from one
+ * page, including "Ternary Expression Conditional Statement" as a duplicate of
+ * "If-Else Conditional Statement", and three distinct for-loop variants whose
+ * answers are program output — "1 2 3 4 5" and "1 2 3 2 4 6 3 6 9" share four
+ * digits in five and score 0.8. Only near-verbatim restatement survives this
+ * threshold, which is the only thing word overlap can honestly identify.
+ *
+ * The cost of the two mistakes is not symmetric. A duplicate that survives is a
+ * card seen twice; a distinct card wrongly dropped is material the student never
+ * studies and cannot tell is missing.
+ *
+ * WHAT THIS DOES NOT CATCH, measured rather than assumed. Comparing words only
+ * finds duplicates that share vocabulary. Two cards that make the same point in
+ * different words survive:
+ *
+ *   "What general rule applies when keeping two state variables synchronized?"
+ *     -> "Try lifting state up instead of synchronizing two separate variables."
+ *   "What should you consider when synchronizing state across components?"
+ *     -> "Consider lifting state up."
+ *
+ * Those score 0.5 on their fronts — below any threshold that still keeps
+ * genuinely different cards, since a pair like "how do you fix a race
+ * condition" and "what else matters when fetching" scores 0.8 on fronts alone
+ * and must survive. Requiring both halves is what makes the second pair safe,
+ * and it is also what lets the first pair through.
+ *
+ * Catching restatements needs meaning, not spelling. The second chance is at
+ * selection time in quizSelection, where the model has reworded both cards into
+ * questions and the wording is more uniform than the cards were.
+ */
+const DUPLICATE_FRONT = 0.9;
+const DUPLICATE_BACK = 0.9;
+
+/**
+ * Too few words on either side to judge by overlap at all.
+ *
+ * The measure divides by the shorter text, which is what makes a terse card
+ * comparable to a wordy one — and what makes a very short one match everything.
+ * "What is function?" carries a single content word, so it scored 1.00 against
+ * every other card on the page and took six of nine cards with it, including
+ * "Built-in functions — what does this C++ program print?" whose answer was
+ * "Square Root: 5". One word in common is not evidence of anything.
+ *
+ * Below this on either the fronts or the backs, no judgement is made and the
+ * card is kept. Exact repeats are still caught by the normalized key.
+ */
+const MIN_WORDS_TO_COMPARE = 4;
+
+/**
+ * A card with its words already extracted.
+ *
+ * Every candidate is compared against every card kept before it, so tokenizing
+ * inside the comparison would re-derive one card's words hundreds of times over.
+ * Extracted once here instead, on the way in.
+ */
+interface Weighed {
+  card: CandidateCard;
+  front: Set<string>;
+  back: Set<string>;
+}
+
+const weigh = (card: CandidateCard): Weighed => ({
+  card,
+  front: contentWords(card.front),
+  back: contentWords(card.back),
+});
+
+/** True when two cards ask the same question and give the same answer. */
+function isNearDuplicate(a: Weighed, b: Weighed): boolean {
+  // Checked before anything else: two cards quoting different figures are the
+  // two sides of a contrast, and the more words they share the more certain
+  // that is. Merging them would delete half of a distinction silently.
+  if (hasConflictingNumbers(a.card.back, b.card.back)) return false;
+  if (hasConflictingNumbers(a.card.front, b.card.front)) return false;
+
+  // A page often states one idea three ways: as prose, as a snippet, and as a
+  // diagram. Those cards share their text and differ only in what they carry,
+  // so judging them on words alone throws away the snippet and keeps the prose.
+  // Anything the candidate carries that the kept card does not makes it a
+  // different card.
+  if ((b.card.frontCode || b.card.backCode) && !(a.card.frontCode || a.card.backCode)) return false;
+  if (b.card.image && !a.card.image) return false;
+
+  if (Math.min(a.front.size, b.front.size) < MIN_WORDS_TO_COMPARE) return false;
+  if (Math.min(a.back.size, b.back.size) < MIN_WORDS_TO_COMPARE) return false;
+
+  return (
+    wordOverlap(a.front, b.front) >= DUPLICATE_FRONT &&
+    wordOverlap(a.back, b.back) >= DUPLICATE_BACK
+  );
+}
+
+/**
+ * Drops cards that repeat one another.
+ *
+ * Exact repeats were always dropped. Near-repeats were not, and a deck built
+ * from a document that makes the same point in two places — a summary slide
+ * restating a body slide, a recap card beside the card it recaps — carried both.
+ * The reader then sees the same fact twice in study, and the test writes two
+ * questions with the same answer.
+ *
+ * The first card of a pair wins, so a deck keeps its document order and the
+ * earlier, usually fuller statement of a fact.
+ */
 export function dedupeCards(cards: CandidateCard[]): CandidateCard[] {
   const seen = new Set<string>();
-  const out: CandidateCard[] = [];
+  const out: Weighed[] = [];
+
   for (const card of cards) {
     const key = normalize(card.front);
     if (seen.has(key)) continue;
+
+    // O(n²) against what survived, not against the input, and comparing word
+    // sets rather than re-reading text — see wordOverlap, where tokenizing
+    // inside the comparison instead cost 3.1 seconds on 250 distinct cards.
+    // Set against sets it is 36ms, and this runs once per drafting run.
+    const candidate = weigh(card);
+    if (out.some((kept) => isNearDuplicate(kept, candidate))) continue;
+
     seen.add(key);
-    out.push(card);
+    out.push(candidate);
   }
-  return out;
+
+  return out.map((kept) => kept.card);
 }
