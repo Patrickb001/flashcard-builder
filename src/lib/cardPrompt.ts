@@ -1,4 +1,4 @@
-import { stripJsonFence } from './textUtils';
+import { salvageObjects, stripJsonFence } from './textUtils';
 
 /**
  * The prompt is shared between the browser (bring-your-own-key mode) and the
@@ -55,14 +55,26 @@ Cards worth making from a diagram: when a section carries an image block, make o
 Every card still needs front and back text that stand on their own: the attachment supports the text, it never replaces it. A back of "see the code" is not an answer.
 
 Return ONLY a JSON array, with no markdown fence and no commentary. Each element:
-{"front": string, "back": string, "context": string, "frontCode": string?, "backCode": string?, "image": string?}
+{"source": string, "front": string, "back": string, "context": string, "frontCode": string?, "backCode": string?, "image": string?}
 
-"context" is a short topic label (2-5 words) naming what the card is about, used as a chip on the card. Return [] if the section has nothing worth learning.`;
+"source" is the "source" value of the section this card came from, copied exactly. You may be given several sections at once; each card must name the one it was drawn from, so a student can find the page it came from.
+
+"context" is a short topic label (2-5 words) naming what the card is about, used as a chip on the card. Return [] if the section has nothing worth learning.
+
+Work through the sections in the order given, finishing one before starting the next.`;
 
 export interface LlmCard {
   front: string;
   back: string;
   context?: string;
+  /**
+   * The label of the section this card was drawn from, echoed by the model.
+   *
+   * Resolved against the batch's real sections by the caller. Before this
+   * existed every card in a batch was filed under the batch's FIRST section, so
+   * a four-page batch put three pages' worth of cards on the wrong page.
+   */
+  source?: string;
   /** Ids of blocks from the payload; resolved to real content by the caller. */
   frontCode?: string;
   backCode?: string;
@@ -74,31 +86,48 @@ function assetRef(value: unknown): string | undefined {
   return typeof value === 'string' && value.trim() ? value.trim() : undefined;
 }
 
-/** Parses a model response into cards, tolerating a stray markdown fence. */
+/**
+ * Parses a model response into cards, tolerating a fence or a cut-off reply.
+ *
+ * A dense page can ask for more cards than the token ceiling allows, and the
+ * reply then ends mid-array with no closing bracket. This used to return
+ * nothing at all in that case, so a page that had produced forty good cards and
+ * been cut off during the forty-first contributed none of them and the whole
+ * batch fell back to rule-based drafting. The salvage pass keeps every card
+ * that closed.
+ */
 export function parseCardsResponse(text: string): LlmCard[] {
   const cleaned = stripJsonFence(text);
 
   const start = cleaned.indexOf('[');
   const end = cleaned.lastIndexOf(']');
-  if (start === -1 || end === -1 || end < start) return [];
 
-  try {
-    const parsed = JSON.parse(cleaned.slice(start, end + 1));
-    if (!Array.isArray(parsed)) return [];
-    return parsed
-      .filter(
-        (c): c is LlmCard =>
-          !!c && typeof c.front === 'string' && typeof c.back === 'string'
-      )
-      .map((c) => ({
-        front: c.front.trim(),
-        back: c.back.trim(),
-        context: typeof c.context === 'string' ? c.context.trim() : undefined,
-        frontCode: assetRef(c.frontCode),
-        backCode: assetRef(c.backCode),
-        image: assetRef(c.image),
-      }));
-  } catch {
-    return [];
+  let parsed: unknown[] | null = null;
+  if (start !== -1 && end > start) {
+    try {
+      const asArray = JSON.parse(cleaned.slice(start, end + 1));
+      if (Array.isArray(asArray)) parsed = asArray;
+    } catch {
+      // Falls through to the salvage pass below.
+    }
   }
+
+  if (!parsed) parsed = salvageObjects(cleaned);
+
+  return parsed
+    .filter(
+      (c): c is LlmCard =>
+        !!c && typeof c === 'object' &&
+        typeof (c as LlmCard).front === 'string' &&
+        typeof (c as LlmCard).back === 'string'
+    )
+    .map((c) => ({
+      front: c.front.trim(),
+      back: c.back.trim(),
+      context: typeof c.context === 'string' ? c.context.trim() : undefined,
+      source: typeof c.source === 'string' ? c.source.trim() : undefined,
+      frontCode: assetRef(c.frontCode),
+      backCode: assetRef(c.backCode),
+      image: assetRef(c.image),
+    }));
 }

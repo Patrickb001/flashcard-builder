@@ -1,4 +1,4 @@
-import { normalizeSlug as normalizeOption, stripJsonFence } from './textUtils';
+import { normalizeSlug as normalizeOption, salvageObjects, stripJsonFence } from './textUtils';
 
 /**
  * The prompt that turns saved flashcards into multiple-choice questions.
@@ -103,57 +103,6 @@ function toQuestion(raw: unknown): LlmQuizQuestion | null {
   if (distractors.length < DISTRACTOR_COUNT) return null;
 
   return { id, stem, correct, distractors: distractors.slice(0, DISTRACTOR_COUNT), explanation };
-}
-
-/**
- * Pulls the complete objects out of a response whose array never closed.
- *
- * A quiz batch sits far closer to the token ceiling than a card batch does —
- * five strings per question rather than two — so a truncated reply is a real
- * outcome rather than a theoretical one. Parsing the array as a whole turns
- * that into the loss of every question in the batch, when all but the last are
- * intact. Scanning for balanced braces recovers them.
- *
- * String contents are tracked so a brace inside an option cannot end an object
- * early.
- */
-function salvageObjects(text: string): unknown[] {
-  const found: unknown[] = [];
-  let depth = 0;
-  let start = -1;
-  let inString = false;
-  let escaped = false;
-
-  for (let i = 0; i < text.length; i++) {
-    const ch = text[i];
-
-    if (inString) {
-      if (escaped) escaped = false;
-      else if (ch === '\\') escaped = true;
-      else if (ch === '"') inString = false;
-      continue;
-    }
-
-    if (ch === '"') {
-      inString = true;
-    } else if (ch === '{') {
-      if (depth === 0) start = i;
-      depth += 1;
-    } else if (ch === '}') {
-      if (depth === 0) continue;
-      depth -= 1;
-      if (depth === 0 && start >= 0) {
-        try {
-          found.push(JSON.parse(text.slice(start, i + 1)));
-        } catch {
-          // A malformed object among well-formed ones; the rest still stand.
-        }
-        start = -1;
-      }
-    }
-  }
-
-  return found;
 }
 
 /** Parses a model response into questions, tolerating a fence or a cut-off reply. */

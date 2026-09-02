@@ -1,6 +1,7 @@
 import { getDocument } from 'pdfjs-dist/legacy/build/pdf.mjs';
 import fs from 'node:fs';
-import { analyzePage, stripRepeatedFurniture } from '../src/lib/layoutAnalysis.ts';
+import { analyzePage } from '../src/lib/layoutAnalysis.ts';
+import { stripRepeatedFurniture } from '../src/lib/sectioning.ts';
 import { generateCandidates } from '../src/lib/flashcardGenerator.ts';
 
 const path = process.env.PDF || '/mnt/user-data/uploads/W1_Lecture_Lifespan_Development_1_-_Tagged.pdf';

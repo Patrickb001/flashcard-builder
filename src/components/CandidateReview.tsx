@@ -52,28 +52,52 @@ export default function CandidateReview({
   useEffect(() => {
     if (ai.mode === 'off') return;
     let cancelled = false;
+    // A real signal, so navigating away actually stops the run. A local flag
+    // alone left every remaining request in flight, drafting a document nobody
+    // was waiting for and billing for it.
+    const controller = new AbortController();
 
     (async () => {
       try {
-        const { cards, failedBatches, totalBatches, firstError } =
-          await generateCandidatesWithAi(sections, ai, (p) => !cancelled && setProgress(p));
-        if (cancelled) return;
+        const { cards, failedSections, truncatedBatches, firstError, aborted } =
+          await generateCandidatesWithAi(sections, ai, {
+            onProgress: (p) => !cancelled && setProgress(p),
+            signal: controller.signal,
+          });
+        if (cancelled || aborted) return;
         if (cards.length > 0) setCandidates(cards);
 
-        if (failedBatches === 0) {
+        const unit = UNIT_NOUN[sourceType];
+        // Reported in the document's own units. This counted batches before,
+        // so a 16-page PDF that lost three batches of four said "3 of 4" and
+        // read as though three quarters of the file had been unreadable.
+        const failed = failedSections.length;
+        // Named, but not all of them: a deck where thirty pages fell back would
+        // otherwise put thirty labels in a banner nobody can read.
+        const named =
+          failedSections.length > 6
+            ? `${failedSections.slice(0, 6).join(', ')} and ${failedSections.length - 6} more`
+            : failedSections.join(', ');
+        // A reply cut off by the length limit is the tool's fault and says so,
+        // rather than being reported as though the model had nothing to offer.
+        const why = truncatedBatches > 0
+          ? 'The model ran out of room mid-answer on a dense part of the document.'
+          : '';
+
+        if (failed === 0) {
           setAiNotice(null);
-        } else if (failedBatches === totalBatches) {
-          // Every batch failed, so nothing here came from the model. This must
-          // be unmissable: the cards look normal and the count alone will not
-          // reveal that the selected feature never ran.
+        } else if (failed === sections.length) {
+          // Nothing here came from the model. This must be unmissable: the
+          // cards look normal and the count alone will not reveal that the
+          // selected feature never ran.
           setAiFailed(true);
           setAiNotice(
-            `AI drafting did not run — these are rule-based cards. ${firstError ?? ''}`.trim()
+            `AI drafting did not run — these are rule-based cards. ${why} ${firstError ?? ''}`.trim()
           );
         } else {
           setAiFailed(false);
           setAiNotice(
-            `${failedBatches} of ${totalBatches} batches fell back to rule-based drafting. ${firstError ?? ''}`.trim()
+            `${failed} of ${sections.length} ${unit}${sections.length === 1 ? '' : 's'} fell back to rule-based drafting (${named}). ${why}`.trim()
           );
         }
       } catch (err) {
@@ -92,8 +116,9 @@ export default function CandidateReview({
 
     return () => {
       cancelled = true;
+      controller.abort();
     };
-  }, [sections, ai]);
+  }, [sections, ai, sourceType]);
   const [deckName, setDeckName] = useState(defaultDeckName(fileName));
   const [saving, setSaving] = useState(false);
 

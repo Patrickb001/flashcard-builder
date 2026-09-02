@@ -25,10 +25,17 @@ const DEFAULT_MODEL = 'claude-sonnet-5';
  * batches sit far closer to the ceiling. At 4000 they came back truncated
  * mid-JSON and the client silently lost the tail of every large batch.
  *
+ * Cards were left at 4000 on the assumption that two strings a card could not
+ * reach it. A dense reference page defeats that — the prompt asks for a card
+ * per table cell and per defined term — and a 16-page clinical deck truncated
+ * on three batches of four, falling back to rule-based cards for most of the
+ * document. Keep this in step with MAX_TOKENS in src/lib/aiTransport.ts, or
+ * hosted and bring-your-own-key mode draft differently from the same input.
+ *
  * Fixed here rather than accepted from the client, deliberately: a request
  * cannot ask the server to run up an unbounded bill.
  */
-const MAX_TOKENS: Record<string, number> = { cards: 4000, quiz: 8000 };
+const MAX_TOKENS: Record<string, number> = { cards: 16000, quiz: 8000 };
 
 /**
  * The prompt each task is answered with.
@@ -97,7 +104,12 @@ export async function handleGenerate(
       body: JSON.stringify({
         model: options.model || DEFAULT_MODEL,
         max_tokens: MAX_TOKENS[taskName] ?? MAX_TOKENS.cards,
-        system: systemPrompt,
+        // Sent as a cacheable block rather than a bare string. The prompt is
+        // byte-identical on every request of a run and sits ahead of the batch
+        // payload, so after the first request the rest of the run reads it from
+        // cache. Drafting a document is many requests behind one long prompt,
+        // which is exactly the shape caching pays for.
+        system: [{ type: 'text', text: systemPrompt, cache_control: { type: 'ephemeral' } }],
         messages: [{ role: 'user', content: payload }],
       }),
     });

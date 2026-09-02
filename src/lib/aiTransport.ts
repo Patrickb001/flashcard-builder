@@ -43,11 +43,90 @@ const MODEL = 'claude-sonnet-5';
  * truncated mid-JSON and the salvage pass quietly lost the tail — the cause of
  * test generation only ever covering part of a deck. A batch of eight at the
  * measured cost leaves a wide margin instead of sitting on a cliff.
+ *
+ * Cards were left at 4000 on the assumption that two strings a card could not
+ * reach it. A dense reference page defeats that: the prompt asks for one card
+ * per table cell and one per defined term, so a lecture slide of four bulleted
+ * quadrants alone is worth twenty cards, and a batch of such pages asks for
+ * fifty or more. A 16-page clinical deck hit the ceiling on three batches out
+ * of four and silently fell back to rule-based cards for three quarters of the
+ * document.
+ *
+ * The ceiling is a limit, not a reservation — an ordinary batch still generates
+ * and bills a couple of thousand tokens — so the headroom is close to free.
  */
 const MAX_TOKENS: Record<AiTask, number> = {
-  cards: 4000,
+  cards: 16000,
   quiz: 8000,
 };
+
+/**
+ * How long one request may run before it is abandoned.
+ *
+ * There was no timeout on this path at all: a request that never answered left
+ * "Claude is drafting cards" on screen indefinitely, with no way forward and
+ * nothing logged. Generous rather than tight, because a large batch at the card
+ * ceiling legitimately takes a while, and a batch abandoned early is a batch
+ * that falls back to rule-based cards for no reason.
+ */
+const REQUEST_TIMEOUT_MS = 120_000;
+
+/**
+ * A signal that fires on the caller's abort or on our own timeout.
+ *
+ * `AbortSignal.any` would say this in one line but is too new to rely on in
+ * every browser this runs in, so the two are wired together by hand. The timer
+ * is returned alongside so the caller can clear it — an uncleared 120-second
+ * timer keeps a reference to the controller for two minutes after the request
+ * it was guarding has already answered.
+ */
+function withTimeout(signal?: AbortSignal): {
+  signal: AbortSignal;
+  /** True when it was the timer, not the caller, that aborted the request. */
+  timedOut: () => boolean;
+  done: () => void;
+} {
+  const controller = new AbortController();
+  let timedOut = false;
+  const timer = setTimeout(() => {
+    timedOut = true;
+    controller.abort();
+  }, REQUEST_TIMEOUT_MS);
+
+  const onAbort = () => controller.abort();
+  if (signal) {
+    if (signal.aborted) controller.abort();
+    else signal.addEventListener('abort', onAbort, { once: true });
+  }
+
+  return {
+    signal: controller.signal,
+    timedOut: () => timedOut,
+    done: () => {
+      clearTimeout(timer);
+      signal?.removeEventListener('abort', onAbort);
+    },
+  };
+}
+
+/**
+ * Turns a timeout's abort into an ordinary failure.
+ *
+ * The two aborts have to stay distinguishable. A run the user stopped is not a
+ * failure and must end the whole run quietly; a request that timed out is a
+ * failure of one batch, which should be retried and then fall back. Both arrive
+ * here as the same AbortError, and letting a timeout keep that name would make
+ * one slow request look like the user pressing Stop and abandon every batch
+ * after it.
+ */
+function rethrowAsTimeout(err: unknown, guard: { timedOut: () => boolean }): never {
+  if (guard.timedOut()) {
+    throw new Error(
+      `The drafting request timed out after ${REQUEST_TIMEOUT_MS / 1000} seconds.`
+    );
+  }
+  throw err;
+}
 
 /**
  * The model's reply, with the reason it stopped.
@@ -63,15 +142,23 @@ export interface ModelReply {
 }
 
 async function callHosted(task: AiTask, payload: unknown, signal?: AbortSignal): Promise<ModelReply> {
-  const res = await fetch('/api/generate', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    // The field is still called "sections" though it now sometimes carries
-    // cards. It means "the JSON for the model"; renaming it would break the
-    // deployed function for no gain.
-    body: JSON.stringify({ task, sections: payload }),
-    signal,
-  });
+  const guard = withTimeout(signal);
+  let res: Response;
+  try {
+    res = await fetch('/api/generate', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      // The field is still called "sections" though it now sometimes carries
+      // cards. It means "the JSON for the model"; renaming it would break the
+      // deployed function for no gain.
+      body: JSON.stringify({ task, sections: payload }),
+      signal: guard.signal,
+    });
+  } catch (err) {
+    rethrowAsTimeout(err, guard);
+  } finally {
+    guard.done();
+  }
   if (res.status === 404) {
     throw new Error(
       'The /api/generate endpoint was not found. Start the app with `npm run dev` from the project root so the dev server serves it.'
@@ -100,23 +187,38 @@ async function callDirect(
   apiKey: string,
   signal?: AbortSignal
 ): Promise<ModelReply> {
-  const res = await fetch('https://api.anthropic.com/v1/messages', {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'x-api-key': apiKey,
-      'anthropic-version': '2023-06-01',
-      // Required for browser-originated calls.
-      'anthropic-dangerous-direct-browser-access': 'true',
-    },
-    body: JSON.stringify({
-      model: MODEL,
-      max_tokens: MAX_TOKENS[task],
-      system: PROMPTS[task],
-      messages: [{ role: 'user', content: JSON.stringify(payload) }],
-    }),
-    signal,
-  });
+  const guard = withTimeout(signal);
+  let res: Response;
+  try {
+    res = await fetch('https://api.anthropic.com/v1/messages', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'x-api-key': apiKey,
+        'anthropic-version': '2023-06-01',
+        // Required for browser-originated calls.
+        'anthropic-dangerous-direct-browser-access': 'true',
+      },
+      body: JSON.stringify({
+        model: MODEL,
+        max_tokens: MAX_TOKENS[task],
+        // Sent as a cacheable block rather than a bare string. The prompt is
+        // byte-identical on every request of a run and sits ahead of the batch
+        // payload, so after the first request the rest of the run reads it from
+        // cache. Drafting a document is many requests behind one long prompt,
+        // which is exactly the shape caching pays for.
+        system: [
+          { type: 'text', text: PROMPTS[task], cache_control: { type: 'ephemeral' } },
+        ],
+        messages: [{ role: 'user', content: JSON.stringify(payload) }],
+      }),
+      signal: guard.signal,
+    });
+  } catch (err) {
+    rethrowAsTimeout(err, guard);
+  } finally {
+    guard.done();
+  }
 
   if (!res.ok) {
     const detail = await res.text().catch(() => '');

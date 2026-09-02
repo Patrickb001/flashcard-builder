@@ -1,6 +1,7 @@
 import { getDocument } from 'pdfjs-dist/legacy/build/pdf.mjs';
 import fs from 'node:fs';
-import { analyzePage, stripRepeatedFurniture } from '../src/lib/layoutAnalysis.ts';
+import { analyzePage } from '../src/lib/layoutAnalysis.ts';
+import { stripRepeatedFurniture } from '../src/lib/sectioning.ts';
 import { parseCardsResponse } from '../src/lib/cardPrompt.ts';
 
 const path = process.env.PDF || '/mnt/user-data/uploads/TypeScript__Documentation_-_Everyday_Types.pdf';
@@ -34,10 +35,54 @@ console.log('\nSample payload (truncated):\n', json.slice(0, 700));
 
 // Parser robustness
 const cases = [
-  '[{"front":"A","back":"B","context":"C"}]',
-  '```json\n[{"front":"A","back":"B"}]\n```',
-  'Here you go:\n[{"front":"A","back":"B"}]\nHope that helps!',
-  'not json at all',
-  '[]',
+  ['well-formed', '[{"front":"A","back":"B","context":"C"}]', 1],
+  ['fenced', '```json\n[{"front":"A","back":"B"}]\n```', 1],
+  ['chatty', 'Here you go:\n[{"front":"A","back":"B"}]\nHope that helps!', 1],
+  ['not json', 'not json at all', 0],
+  ['empty array', '[]', 0],
+
+  // The regression this file exists for. A dense page asks for more cards than
+  // the response ceiling holds, and the reply ends mid-object with no closing
+  // bracket. This used to return 0 — the whole page fell back to rule-based
+  // cards despite most of its cards having arrived intact.
+  [
+    'truncated mid-object',
+    '[{"front":"A","back":"1"},{"front":"B","back":"2"},{"front":"C","back":"in',
+    2,
+  ],
+  [
+    'truncated after a complete object',
+    '[{"front":"A","back":"1"},{"front":"B","back":"2"},',
+    2,
+  ],
+  // A brace inside a value must not end the object early.
+  [
+    'braces inside strings, truncated',
+    '[{"front":"What does {x:1} mean?","back":"An object"},{"front":"D","back":"cut',
+    1,
+  ],
+  // source is echoed back so a card lands on the page it came from.
+  [
+    'source echoed',
+    '[{"source":"Page 7","front":"A","back":"B"}]',
+    1,
+  ],
 ];
-console.log('\nparser results:', cases.map(c => parseCardsResponse(c).length));
+
+let failures = 0;
+console.log('\nparser results:');
+for (const [name, input, expected] of cases) {
+  const got = parseCardsResponse(input).length;
+  const ok = got === expected;
+  if (!ok) failures++;
+  console.log(`  ${ok ? 'ok  ' : 'FAIL'} ${name.padEnd(32)} expected ${expected}, got ${got}`);
+}
+
+const sourced = parseCardsResponse('[{"source":"Page 7","front":"A","back":"B"}]')[0];
+if (sourced?.source !== 'Page 7') {
+  failures++;
+  console.log(`  FAIL source not parsed: ${JSON.stringify(sourced?.source)}`);
+}
+
+console.log(failures === 0 ? '\nPASS: parser handles every case.' : `\nFAIL: ${failures} case(s).`);
+process.exit(failures === 0 ? 0 : 1);
