@@ -65,7 +65,22 @@ export default function StudyMode({ deckId, onExit }: Props) {
 
   const current = order[position];
   const finished = order.length > 0 && position >= order.length;
-  const hasMedia = Boolean(current?.frontCode || current?.backCode || current?.image);
+
+  /**
+   * Whether ANY card in this deck carries a snippet or a diagram — not whether
+   * the card on screen does.
+   *
+   * The card's height follows from this, so every card in a deck is the same
+   * size and moving through them doesn't resize the box under the cursor. Asked
+   * per card instead, the deck jumped between two heights as you went.
+   *
+   * A deck with no media anywhere still gets the compact card: there is nothing
+   * for the extra room to hold, and nothing to be consistent with.
+   */
+  const deckHasMedia = useMemo(
+    () => cards.some((c) => c.frontCode || c.backCode || c.image),
+    [cards]
+  );
 
   const progressPct = useMemo(() => {
     if (order.length === 0) return 0;
@@ -148,7 +163,9 @@ export default function StudyMode({ deckId, onExit }: Props) {
           </p>
 
           <div
-            className={`flip-card ${flipped ? 'is-flipped' : ''} ${hasMedia ? 'has-media' : ''}`}
+            className={`flip-card ${flipped ? 'is-flipped' : ''} ${
+              deckHasMedia ? 'deck-has-media' : ''
+            }`}
             onClick={() => setFlipped((f) => !f)}
             role="button"
             tabIndex={0}
