@@ -154,7 +154,10 @@ export default function CandidateReview({
       createdAt: now,
       cardCount: toSave.length,
     };
-    const cards: Flashcard[] = toSave.map((c) => ({
+    // `order` is what preserves the review screen's order into the deck. Every
+    // card here shares one `createdAt`, so nothing else in the record can say
+    // which came first.
+    const cards: Flashcard[] = toSave.map((c, index) => ({
       id: crypto.randomUUID(),
       deckId,
       front: c.front.trim(),
@@ -168,6 +171,7 @@ export default function CandidateReview({
       image: c.image,
       status: 'new',
       createdAt: now,
+      order: index,
     }));
 
     try {
