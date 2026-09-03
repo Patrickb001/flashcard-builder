@@ -1464,12 +1464,38 @@ textarea {
   gap: 1rem;
 }
 
+/* The stripe down the left is what makes a run of results readable at a
+   glance, so it carries the verdict: warm for missed, calm for correct. */
 .quiz-review-row {
   padding: 1.1rem 1.25rem;
   border: 1px solid var(--border-soft);
   border-left: 3px solid var(--warm);
   border-radius: 12px;
   background: var(--panel);
+}
+
+.quiz-review-row.correct {
+  border-left-color: var(--calm);
+}
+
+.quiz-verdict {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  margin: 0 0 0.6rem;
+  font-family: var(--font-ui);
+  font-size: 0.7rem;
+  font-weight: 600;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+
+.quiz-verdict.missed {
+  color: var(--warm);
+}
+
+.quiz-verdict.correct {
+  color: var(--calm);
 }
 
 .quiz-review-row .quiz-stem {
