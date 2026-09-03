@@ -128,23 +128,9 @@ export async function getDeck(deckId: string): Promise<Deck | undefined> {
   return db.get('decks', deckId);
 }
 
-/**
- * A deck's cards in the order it was saved in.
- *
- * The index hands them back in primary-key order — by random UUID — so they
- * have to be put back in order here. `order` is the real answer: a save stamps
- * every card with one `Date.now()`, so sorting on `createdAt` sorts equal keys
- * and leaves the UUID order untouched, which is what read as a shuffle.
- *
- * Decks written before `order` existed have none, and there is nothing in those
- * records to recover a position from; they keep the old `createdAt` sort rather
- * than being migrated to an order that would be no more correct.
- */
 export async function getCardsForDeck(deckId: string): Promise<Flashcard[]> {
   const db = await getDB();
   const cards = await db.getAllFromIndex('flashcards', 'by-deckId', deckId);
-  const ordered = cards.every((card) => typeof card.order === 'number');
-  if (ordered) return cards.sort((a, b) => a.order! - b.order!);
   return cards.sort((a, b) => a.createdAt - b.createdAt);
 }
 

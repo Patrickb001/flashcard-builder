@@ -92,12 +92,6 @@ export default function DeckManager({
 
   const handleAdd = async () => {
     if (!deck) return;
-    // Past the last card, so a hand-added one lands at the end of the deck
-    // instead of wherever its UUID happened to fall.
-    const lastOrder = cards.reduce(
-      (max, c) => (typeof c.order === "number" && c.order > max ? c.order : max),
-      -1,
-    );
     const newCard: Flashcard = {
       id: crypto.randomUUID(),
       deckId,
@@ -106,7 +100,6 @@ export default function DeckManager({
       sourceLabel: "Manual",
       status: "new",
       createdAt: Date.now(),
-      order: lastOrder + 1,
     };
     try {
       await addCard(newCard);

@@ -47,18 +47,6 @@ export interface Flashcard extends CardMedia {
   context?: string;
   status: CardStatus;
   createdAt: number;
-  /**
-   * Where the card sits in its deck, 0-based, as the review screen left it.
-   *
-   * Timestamps cannot carry this: a save writes every card with the same
-   * `Date.now()`, so sorting on `createdAt` sorts a set of equal keys and the
-   * cards come back in IndexedDB's own order — by random UUID, which reads as a
-   * shuffle. This is the position the deck was saved in, kept explicitly.
-   *
-   * Absent on every card written before the field existed; getCardsForDeck
-   * falls back to `createdAt` for those decks rather than forcing a migration.
-   */
-  order?: number;
 }
 
 export interface CandidateCard extends CardMedia {
