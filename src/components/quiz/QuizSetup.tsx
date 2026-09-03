@@ -1,6 +1,7 @@
 import type { Deck, Flashcard, QuestionStyle, TestQuestion } from '../../types';
 import type { AiSettings } from '../../lib/aiGenerator';
 import AiSettingsPanel from '../AiSettingsPanel';
+import ScreenHeader from '../ui/ScreenHeader';
 import { MIN_SLIDER_POOL } from './useDeckQuiz';
 
 interface Props {
@@ -81,12 +82,7 @@ export default function QuizSetup({
 
   return (
     <div className="quiz quiz-setup">
-      <div className="study-header">
-        <div>
-          <p className="eyebrow">Testing</p>
-          <h1>{deck.name}</h1>
-        </div>
-      </div>
+      <ScreenHeader eyebrow="Testing" title={deck.name} />
 
       {notice && (
         <div className={`ai-notice ${noticeFailed ? 'failed' : 'partial'}`} role="alert">

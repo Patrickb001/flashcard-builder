@@ -1,6 +1,7 @@
 import type { Flashcard, TestQuestion } from '../../types';
 import type { PreparedQuestion } from '../../lib/quizSelection';
-import { Diagram, Snippet } from '../CardMedia';
+import ProgressBar from '../ui/ProgressBar';
+import QuestionStem from './QuestionStem';
 
 interface Props {
   /** Every question in this test, in the order it will be asked. */
@@ -39,14 +40,11 @@ export default function QuizRunner({
 }: Props) {
   const current = asked[position];
   const card = cardFor(current.question);
-  const pct = Math.round((position / asked.length) * 100);
   const last = position + 1 >= asked.length;
 
   return (
     <div className="quiz">
-      <div className="progress-track">
-        <div className="progress-fill" style={{ width: `${pct}%` }} />
-      </div>
+      <ProgressBar fraction={position / asked.length} />
 
       <p className="muted small centered">
         Question {position + 1} of {asked.length} · {current.question.sourceLabel}
@@ -54,15 +52,7 @@ export default function QuizRunner({
 
       <div className="quiz-question">
         {current.question.context && <span className="topic-chip">{current.question.context}</span>}
-        {/* Board-style items open with a scenario; recall questions have none,
-            and so does a board item whose card could not carry one. */}
-        {current.question.vignette && (
-          <p className="quiz-vignette">{current.question.vignette}</p>
-        )}
-        <p className="quiz-stem">{current.question.stem}</p>
-        {current.question.stemCode && <Snippet code={current.question.stemCode} />}
-        {current.question.stemImage && <Diagram image={current.question.stemImage} />}
-        {!current.question.stemCode && card?.frontCode && <Snippet code={card.frontCode} />}
+        <QuestionStem question={current.question} fallbackCode={card?.frontCode} />
       </div>
 
       <ul className="quiz-options" role="radiogroup" aria-label="Answer options">

@@ -1,6 +1,6 @@
 import type { Flashcard, TestQuestion } from '../../types';
 import type { PreparedQuestion } from '../../lib/quizSelection';
-import { Diagram, Snippet } from '../CardMedia';
+import QuestionStem from './QuestionStem';
 
 interface Props {
   /** The questions that were asked, in the order they were asked. */
@@ -65,12 +65,7 @@ export default function QuizResults({ asked, answers, cardFor, onAgain, onExit }
                     {wasCorrect ? 'Correct' : 'Missed'}
                   </p>
 
-                  {prepared.question.vignette && (
-                    <p className="quiz-vignette">{prepared.question.vignette}</p>
-                  )}
-                  <p className="quiz-stem">{prepared.question.stem}</p>
-                  {prepared.question.stemCode && <Snippet code={prepared.question.stemCode} />}
-                  {prepared.question.stemImage && <Diagram image={prepared.question.stemImage} />}
+                  <QuestionStem question={prepared.question} />
 
                   <p className={`quiz-answer-line ${wasCorrect ? 'correct' : 'picked'}`}>
                     <span className="quiz-answer-tag">You chose</span>

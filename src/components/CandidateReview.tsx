@@ -5,7 +5,8 @@ import { generateCandidates } from '../lib/flashcardGenerator';
 import type { AiSettings, AiProgress } from '../lib/aiGenerator';
 import { generateCandidatesWithAi } from '../lib/aiGenerator';
 import { saveDeckWithCards } from '../db/db';
-import { Diagram, Snippet } from './CardMedia';
+import CardAttachments from './ui/CardAttachments';
+import DraftingBanner from './ui/DraftingBanner';
 
 interface Props {
   /**
@@ -235,15 +236,7 @@ export default function CandidateReview({
         your own before saving.
       </p>
 
-      {drafting && (
-        <div className="drafting-banner">
-          <span className="chalk-spinner small" aria-hidden="true" />
-          <span>
-            Claude is drafting cards
-            {progress ? ` — batch ${progress.done} of ${progress.total}` : '…'}
-          </span>
-        </div>
-      )}
+      {drafting && <DraftingBanner activity="drafting cards" progress={progress} />}
 
       {notice && (
         <div className="ai-notice partial" role="status">
@@ -307,46 +300,10 @@ export default function CandidateReview({
                 placeholder="Back (answer / definition)"
                 rows={2}
               />
-              {(candidate.frontCode || candidate.backCode || candidate.image) && (
-                <div className="candidate-media">
-                  {candidate.frontCode && (
-                    <div className="candidate-attachment">
-                      <span className="attachment-tag">Shown with the question</span>
-                      <Snippet code={candidate.frontCode} />
-                      <button
-                        className="ghost-btn small"
-                        onClick={() => updateCandidate(i, { frontCode: undefined })}
-                      >
-                        Remove snippet
-                      </button>
-                    </div>
-                  )}
-                  {candidate.backCode && (
-                    <div className="candidate-attachment">
-                      <span className="attachment-tag">Shown with the answer</span>
-                      <Snippet code={candidate.backCode} />
-                      <button
-                        className="ghost-btn small"
-                        onClick={() => updateCandidate(i, { backCode: undefined })}
-                      >
-                        Remove snippet
-                      </button>
-                    </div>
-                  )}
-                  {candidate.image && (
-                    <div className="candidate-attachment">
-                      <span className="attachment-tag">Shown with the answer</span>
-                      <Diagram image={candidate.image} />
-                      <button
-                        className="ghost-btn small"
-                        onClick={() => updateCandidate(i, { image: undefined })}
-                      >
-                        Remove diagram
-                      </button>
-                    </div>
-                  )}
-                </div>
-              )}
+              <CardAttachments
+                media={candidate}
+                onRemove={(attachment) => updateCandidate(i, { [attachment]: undefined })}
+              />
               <span className="candidate-meta">
                 {candidate.context && <span className="topic-chip">{candidate.context}</span>}
                 <span className="source-label">{candidate.sourceLabel}</span>

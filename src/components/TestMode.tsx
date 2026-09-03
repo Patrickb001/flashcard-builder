@@ -3,6 +3,7 @@ import QuizGenerating from './quiz/QuizGenerating';
 import QuizSetup from './quiz/QuizSetup';
 import QuizRunner from './quiz/QuizRunner';
 import QuizResults from './quiz/QuizResults';
+import DeckGate from './ui/DeckGate';
 
 interface Props {
   /** The deck to test. Everything else is derived from it by useDeckQuiz. */
@@ -25,20 +26,18 @@ interface Props {
 export default function TestMode({ deckId, onExit }: Props) {
   const quiz = useDeckQuiz(deckId);
 
-  if (quiz.phase === 'loading') return <p className="muted">Loading deck…</p>;
-
-  // A deck that is absent and a deck that could not be read are different
-  // things, and saying "couldn't be found" for a storage failure sends people
-  // looking for a deck that is sitting right there.
-  if (!quiz.deck && quiz.noticeFailed && quiz.notice) {
+  if (quiz.phase === 'loading' || !quiz.deck) {
     return (
-      <div className="ai-notice failed">
-        <strong>This deck could not be opened</strong>
-        <p>{quiz.notice}</p>
-      </div>
+      <DeckGate
+        loading={quiz.phase === 'loading'}
+        // Only a failure notice counts as a read error here; the same field also
+        // carries ordinary generation outcomes, which must not be reported as
+        // the deck being unopenable.
+        error={quiz.noticeFailed ? quiz.notice : null}
+        deck={quiz.deck}
+      />
     );
   }
-  if (!quiz.deck) return <p className="muted">This deck couldn't be found.</p>;
 
   if (quiz.phase === 'generating') {
     return (
