@@ -255,12 +255,10 @@ export function buildBatches(
 }
 
 /** The same shape question writing reports; one definition, two features. */
-export type AiProgress = BatchProgress;
-
 /** Optional hooks for a drafting run. */
 export interface AiGenerationOptions {
   /** Fired after every batch, for the progress banner. */
-  onProgress?: (progress: AiProgress) => void;
+  onProgress?: (progress: BatchProgress) => void;
   signal?: AbortSignal;
 }
 

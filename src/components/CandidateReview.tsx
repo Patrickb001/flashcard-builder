@@ -2,7 +2,8 @@ import { useEffect, useMemo, useState } from 'react';
 import type { CandidateCard, Deck, Flashcard, SourceType } from '../types';
 import type { DocumentSection } from '../lib/documentModel';
 import { generateCandidates } from '../lib/flashcardGenerator';
-import type { AiSettings, AiProgress } from '../lib/aiGenerator';
+import type { AiSettings } from '../lib/aiGenerator';
+import type { BatchProgress } from '../lib/batchRunner';
 import { generateCandidatesWithAi } from '../lib/aiGenerator';
 import { saveDeckWithCards } from '../db/db';
 import CardAttachments from './ui/CardAttachments';
@@ -65,7 +66,7 @@ export default function CandidateReview({
   const initialCandidates = useMemo(() => generateCandidates(sections), [sections]);
   const [candidates, setCandidates] = useState<CandidateCard[]>(initialCandidates);
   const [drafting, setDrafting] = useState(ai.mode !== 'off');
-  const [progress, setProgress] = useState<AiProgress | null>(null);
+  const [progress, setProgress] = useState<BatchProgress | null>(null);
   const [aiNotice, setAiNotice] = useState<string | null>(null);
   const [aiFailed, setAiFailed] = useState(false);
 

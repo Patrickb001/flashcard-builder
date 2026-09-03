@@ -1,4 +1,4 @@
-import { salvageObjects, stripJsonFence } from './textUtils';
+import { parseJsonArray } from './textUtils';
 
 /**
  * The prompt is shared between the browser (bring-your-own-key mode) and the
@@ -95,24 +95,7 @@ function assetRef(value: unknown): string | undefined {
  * salvage pass keeps every card object that closed.
  */
 export function parseCardsResponse(text: string): LlmCard[] {
-  const cleaned = stripJsonFence(text);
-
-  const start = cleaned.indexOf('[');
-  const end = cleaned.lastIndexOf(']');
-
-  let parsed: unknown[] | null = null;
-  if (start !== -1 && end > start) {
-    try {
-      const asArray = JSON.parse(cleaned.slice(start, end + 1));
-      if (Array.isArray(asArray)) parsed = asArray;
-    } catch {
-      // Falls through to the salvage pass below.
-    }
-  }
-
-  if (!parsed) parsed = salvageObjects(cleaned);
-
-  return parsed
+  return parseJsonArray(text)
     .filter(
       (item): item is LlmCard =>
         !!item && typeof item === 'object' &&

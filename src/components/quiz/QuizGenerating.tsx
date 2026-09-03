@@ -1,4 +1,4 @@
-import type { QuizProgress } from '../../lib/quizGenerator';
+import type { BatchProgress } from '../../lib/batchRunner';
 import DraftingBanner from '../ui/DraftingBanner';
 import ProgressBar from '../ui/ProgressBar';
 import ScreenHeader from '../ui/ScreenHeader';
@@ -6,7 +6,7 @@ import ScreenHeader from '../ui/ScreenHeader';
 interface Props {
   deckName: string;
   /** Batches done out of total, or null before the first one lands. */
-  progress: QuizProgress | null;
+  progress: BatchProgress | null;
   /**
    * Questions saved so far, counting this run and every earlier one. Shown
    * because stopping keeps them — see the component note below.

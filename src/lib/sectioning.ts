@@ -26,7 +26,12 @@ const SECTION_CHAR_BUDGET = 1200;
 /** Longer snippets are truncated; the opening lines carry the idea. */
 const MAX_SECTION_CODE_CHARS = 1200;
 
-/** Shortens a snippet at a line boundary, so it never ends mid-statement. */
+/**
+ * Shortens a snippet at a line boundary, so it never ends mid-statement.
+ *
+ * The line-aware one of the app's three truncations: a program cut in the
+ * middle of a line reads as broken code rather than as an excerpt.
+ */
 export function truncateCode(text: string): string {
   if (text.length <= MAX_SECTION_CODE_CHARS) return text;
   const cut = text.slice(0, MAX_SECTION_CODE_CHARS);

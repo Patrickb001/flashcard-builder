@@ -1,4 +1,4 @@
-import { normalizeSlug as normalizeOption, salvageObjects, stripJsonFence } from './textUtils';
+import { normalizeSlug as normalizeOption, parseJsonArray } from './textUtils';
 
 /**
  * The prompt that turns saved flashcards into multiple-choice questions.
@@ -198,23 +198,7 @@ function toQuestion(raw: unknown, distractorCount: number): LlmQuizQuestion | nu
 
 /** Parses a model response into questions, tolerating a fence or a cut-off reply. */
 function parseResponse(text: string, distractorCount: number): LlmQuizQuestion[] {
-  const cleaned = stripJsonFence(text);
-
-  const start = cleaned.indexOf('[');
-  const end = cleaned.lastIndexOf(']');
-
-  let parsed: unknown[] | null = null;
-  if (start !== -1 && end > start) {
-    try {
-      const asArray = JSON.parse(cleaned.slice(start, end + 1));
-      if (Array.isArray(asArray)) parsed = asArray;
-    } catch {
-      // Falls through to the salvage pass below.
-    }
-  }
-
-  if (!parsed) parsed = salvageObjects(cleaned);
-
+  const parsed = parseJsonArray(text);
   const questions: LlmQuizQuestion[] = [];
   const usedIds = new Set<string>();
   for (const raw of parsed) {

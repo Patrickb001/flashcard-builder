@@ -187,7 +187,12 @@ async function fetchPageSections(rawUrl: string): Promise<PageResult> {
   return { sections, name: title || deckNameForUrl(finalUrl), url: finalUrl };
 }
 
-/** Keeps a source label short enough to sit on a card. */
+/**
+ * Keeps a source label short enough to sit on a card.
+ *
+ * Unlike the other two truncations, the result is never longer than `max` —
+ * this fits a label into a width, where they mark an excerpt of content.
+ */
 function shorten(name: string, max = 34): string {
   return name.length > max ? `${name.slice(0, max - 1).trimEnd()}…` : name;
 }

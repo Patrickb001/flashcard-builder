@@ -11,7 +11,8 @@ import {
 } from '../../db/db';
 import type { AiSettings } from '../../lib/aiGenerator';
 import { loadAiSettings } from '../../lib/aiGenerator';
-import { generateQuestionsForCards, hashCard, type QuizProgress } from '../../lib/quizGenerator';
+import { generateQuestionsForCards, hashCard } from '../../lib/quizGenerator';
+import type { BatchProgress } from '../../lib/batchRunner';
 import { prepareQuestions, selectQuestions, type PreparedQuestion } from '../../lib/quizSelection';
 
 /**
@@ -46,7 +47,7 @@ export function useDeckQuiz(deckId: string) {
   const [pool, setPool] = useState<TestQuestion[]>([]);
   const [ai, setAi] = useState<AiSettings>({ mode: 'off' });
 
-  const [progress, setProgress] = useState<QuizProgress | null>(null);
+  const [progress, setProgress] = useState<BatchProgress | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const [noticeFailed, setNoticeFailed] = useState(false);
 

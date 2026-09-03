@@ -161,12 +161,6 @@ export function stripJsonFence(text: string): string {
  *
  * String contents are tracked so a brace inside a value cannot end an object
  * early.
- *
- * This lived in quizPrompt, where a truncated reply was found first. Cards hit
- * exactly the same wall on a dense document — a lecture page that asks for
- * fifty cards overruns the ceiling the same way a batch of quiz questions does
- * — and the card parser's own "no closing bracket, return nothing" guard threw
- * away whole pages that had arrived almost complete.
  */
 export function salvageObjects(text: string): unknown[] {
   const found: unknown[] = [];
@@ -205,4 +199,34 @@ export function salvageObjects(text: string): unknown[] {
   }
 
   return found;
+}
+
+/**
+ * Reads a model's reply as a JSON array, tolerating a fence or a cut-off reply.
+ *
+ * Three things can be wrong with a reply and all three are ordinary: it may be
+ * wrapped in a markdown fence, it may carry prose either side of the array, and
+ * it may have been stopped mid-array by the token ceiling. The first two are
+ * handled by slicing between the outermost brackets; the third falls through to
+ * the salvage pass, which keeps every object that closed.
+ *
+ * Returns an empty array when nothing could be read. Both prompt parsers use
+ * this, so a truncated reply degrades the same way whichever one asked.
+ */
+export function parseJsonArray(text: string): unknown[] {
+  const cleaned = stripJsonFence(text);
+
+  const start = cleaned.indexOf('[');
+  const end = cleaned.lastIndexOf(']');
+
+  if (start !== -1 && end > start) {
+    try {
+      const parsed = JSON.parse(cleaned.slice(start, end + 1));
+      if (Array.isArray(parsed)) return parsed;
+    } catch {
+      // Falls through to the salvage pass.
+    }
+  }
+
+  return salvageObjects(cleaned);
 }

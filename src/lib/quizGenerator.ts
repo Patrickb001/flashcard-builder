@@ -72,9 +72,6 @@ const MAX_PROMPT_CODE_CHARS = 4000;
 /** Batches are split again if their JSON would come near the server's cap. */
 const MAX_PAYLOAD_CHARS = 100_000;
 
-/** The same shape card drafting reports; one definition, two features. */
-export type QuizProgress = BatchProgress;
-
 export interface QuizGenerationResult {
   questions: TestQuestion[];
   /** Cards that came back with nothing. Reported to the user, never hidden. */
@@ -95,7 +92,7 @@ export interface QuizGenerationResult {
 }
 
 export interface QuizGenerationOptions {
-  onProgress?: (p: QuizProgress) => void;
+  onProgress?: (progress: BatchProgress) => void;
   /** Fired after each successful batch so the caller can save as it goes. */
   onBatch?: (questions: TestQuestion[]) => Promise<void>;
   signal?: AbortSignal;
@@ -121,6 +118,14 @@ export function hashCard(card: Pick<Flashcard, 'front' | 'back'>): string {
   return (hash >>> 0).toString(16);
 }
 
+/**
+ * Cuts payload text at a character count, marking the cut on its own line.
+ *
+ * Blunt on purpose — this trims prose as often as code, and there is no line
+ * boundary worth finding in a card's back. sectioning's truncateCode is the
+ * snippet-aware one, and pageSource's shorten fits a label inside a width;
+ * three contracts rather than one function with three flags.
+ */
 function truncate(text: string, max: number): string {
   return text.length <= max ? text : `${text.slice(0, max)}\n…`;
 }
@@ -151,47 +156,81 @@ function nearestFirst(batch: Flashcard[], deckCards: Flashcard[]): Flashcard[] {
   return deckCards.filter((card) => !excluded.has(card.id)).sort((a, b) => rank(a) - rank(b));
 }
 
+/** One card as a payload entry: whitespace collapsed and truncated to fit. */
+interface TrimmedCard {
+  front: string;
+  back: string;
+  topic: string | null;
+}
+
+/** Collapses a card's text to one line each, cut to `chars`. */
+function trimCard(card: Flashcard, chars: number): TrimmedCard {
+  return {
+    front: truncate(card.front.replace(/\s+/g, ' ').trim(), chars),
+    back: truncate(card.back.replace(/\s+/g, ' ').trim(), chars),
+    topic: card.context ?? null,
+  };
+}
+
 /**
- * Neighbouring cards whole, as raw material for a recall question's distractors.
+ * Cards from around the batch, trimmed for the payload, nearest first.
  *
- * Both halves travel, not just the answers, because the prompt's most important
- * check is whether a neighbour's answer is ALSO correct for the stem being
- * written — and a bare list of answers cannot show that. A deck that states one
- * fact twice otherwise offers a perfect near miss that happens to be right.
- *
- * See "Neighbour and context payloads" in docs/tuning-notes.md.
+ * The one gatherer behind all three payload shapes. `dedupeOnBack` drops cards
+ * whose answer repeats one already taken, which matters for a distractor list —
+ * two identical wrong options waste a slot and read as a bug — and is skipped
+ * for vignette context, where a repeated answer still carries different detail.
  */
-function neighbourCards(batch: Flashcard[], deckCards: Flashcard[]) {
+function neighbours(
+  batch: Flashcard[],
+  deckCards: Flashcard[],
+  { limit, chars, dedupeOnBack }: { limit: number; chars: number; dedupeOnBack: boolean }
+): TrimmedCard[] {
   const seen = new Set<string>();
-  const out: { front: string; back: string }[] = [];
+  const out: TrimmedCard[] = [];
 
   for (const card of nearestFirst(batch, deckCards)) {
-    if (out.length >= NEIGHBOUR_LIMIT) break;
-    const back = truncate(card.back.replace(/\s+/g, ' ').trim(), NEIGHBOUR_CHARS);
-    const front = truncate(card.front.replace(/\s+/g, ' ').trim(), NEIGHBOUR_CHARS);
-    const key = back.toLowerCase();
-    if (!back || !front || seen.has(key)) continue;
-    seen.add(key);
-    out.push({ front, back });
+    if (out.length >= limit) break;
+    const trimmed = trimCard(card, chars);
+    if (!trimmed.front || !trimmed.back) continue;
+
+    if (dedupeOnBack) {
+      const key = trimmed.back.toLowerCase();
+      if (seen.has(key)) continue;
+      seen.add(key);
+    }
+
+    out.push(trimmed);
   }
 
   return out;
 }
 
+/**
+ * Neighbouring cards for a recall batch: both halves of each.
+ *
+ * The answers alone are what a distractor is made of, but the prompt's most
+ * important check is whether a neighbour's answer is ALSO correct for the stem
+ * being written — and a bare list of answers cannot show that. A deck that
+ * states one fact twice otherwise offers a perfect near miss that is simply
+ * right.
+ *
+ * See "Neighbour and context payloads" in docs/tuning-notes.md.
+ */
+function neighbourCards(batch: Flashcard[], deckCards: Flashcard[]) {
+  return neighbours(batch, deckCards, {
+    limit: NEIGHBOUR_LIMIT,
+    chars: NEIGHBOUR_CHARS,
+    dedupeOnBack: true,
+  }).map(({ front, back }) => ({ front, back }));
+}
+
+/** The same neighbours as bare answers, which is all the vignette prompt reads. */
 function neighbourAnswers(batch: Flashcard[], deckCards: Flashcard[]): string[] {
-  const seen = new Set<string>();
-  const answers: string[] = [];
-
-  for (const card of nearestFirst(batch, deckCards)) {
-    if (answers.length >= NEIGHBOUR_LIMIT) break;
-    const answer = truncate(card.back.replace(/\s+/g, ' ').trim(), NEIGHBOUR_CHARS);
-    const key = answer.toLowerCase();
-    if (!answer || seen.has(key)) continue;
-    seen.add(key);
-    answers.push(answer);
-  }
-
-  return answers;
+  return neighbours(batch, deckCards, {
+    limit: NEIGHBOUR_LIMIT,
+    chars: NEIGHBOUR_CHARS,
+    dedupeOnBack: true,
+  }).map((card) => card.back);
 }
 
 /**
@@ -203,13 +242,11 @@ function neighbourAnswers(batch: Flashcard[], deckCards: Flashcard[]): string[] 
  * the lecture and a model drawing on itself.
  */
 function contextCards(batch: Flashcard[], deckCards: Flashcard[]) {
-  return nearestFirst(batch, deckCards)
-    .slice(0, CONTEXT_LIMIT)
-    .map((card) => ({
-      front: truncate(card.front.replace(/\s+/g, ' ').trim(), CONTEXT_CHARS),
-      back: truncate(card.back.replace(/\s+/g, ' ').trim(), CONTEXT_CHARS),
-      topic: card.context ?? null,
-    }));
+  return neighbours(batch, deckCards, {
+    limit: CONTEXT_LIMIT,
+    chars: CONTEXT_CHARS,
+    dedupeOnBack: false,
+  });
 }
 
 /**
