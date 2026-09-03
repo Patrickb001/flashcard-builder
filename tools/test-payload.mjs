@@ -1,10 +1,11 @@
 import { getDocument } from 'pdfjs-dist/legacy/build/pdf.mjs';
 import fs from 'node:fs';
+import { requirePdfPath } from './pdfPath.mjs';
 import { analyzePage } from '../src/lib/layoutAnalysis.ts';
 import { stripRepeatedFurniture } from '../src/lib/sectioning.ts';
 import { parseCardsResponse } from '../src/lib/cardPrompt.ts';
 
-const path = process.env.PDF || '/mnt/user-data/uploads/TypeScript__Documentation_-_Everyday_Types.pdf';
+const path = requirePdfPath();
 const pdf = await getDocument({ data: new Uint8Array(fs.readFileSync(path)), useSystemFonts: true }).promise;
 const sections = [];
 for (let p = 1; p <= pdf.numPages; p++) {

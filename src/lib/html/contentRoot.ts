@@ -12,7 +12,7 @@ import { tag, textOf } from './domText';
  */
 
 /** Wrappers that never hold article text. */
-export const NOISE_TAGS = [
+const NOISE_TAGS = [
   'script',
   'style',
   'noscript',
@@ -35,7 +35,7 @@ export const NOISE_TAGS = [
 ];
 
 /** Landmarks and states that mark a region as chrome. */
-export const NOISE_SELECTORS = [
+const NOISE_SELECTORS = [
   '[aria-hidden="true"]',
   '[hidden]',
   '[role="navigation"]',
@@ -53,7 +53,7 @@ export const NOISE_SELECTORS = [
 ];
 
 /** Where the article usually lives, most specific first. */
-export const CONTENT_SELECTORS = [
+const CONTENT_SELECTORS = [
   'article',
   '.mw-parser-output',
   '[role="main"]',
@@ -84,7 +84,7 @@ export function contentBody(doc: Document): Element | null {
 }
 
 /** True when any ancestor of `el` is one of `tags`. */
-export function hasAncestor(el: Element, tags: string[]): boolean {
+function hasAncestor(el: Element, tags: string[]): boolean {
   let parent = el.parentElement;
   while (parent) {
     if (tags.includes(tag(parent))) return true;

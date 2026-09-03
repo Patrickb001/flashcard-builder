@@ -141,6 +141,8 @@ export interface PreparedQuestion {
  * The order is decided here, at presentation, rather than being stored. Models
  * have a habit of putting the correct answer first, and a stored order would
  * bake that habit into every sitting of the test.
+ *
+ * Exported one-at-a-time for tools/test-quiz.mjs; the app calls prepareQuestions.
  */
 export function prepareQuestion(question: TestQuestion): PreparedQuestion {
   const options = shuffle([question.correctAnswer, ...question.distractors]);
@@ -151,6 +153,7 @@ export function prepareQuestion(question: TestQuestion): PreparedQuestion {
   };
 }
 
+/** Lays out a whole test, each question's options independently shuffled. */
 export function prepareQuestions(questions: TestQuestion[]): PreparedQuestion[] {
   return questions.map(prepareQuestion);
 }

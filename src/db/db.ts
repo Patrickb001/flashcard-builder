@@ -155,11 +155,9 @@ export async function updateCard(card: Flashcard): Promise<void> {
 /**
  * Adds one card and keeps its deck's running count in step.
  *
- * One transaction across both stores, where this was three separate
- * auto-commit transactions: put the card, read the deck, write the count.
- * Two cards added at once would both read the same count and both write the
- * same increment, so the deck would report one fewer card than it holds.
- * deleteCard already had this shape - see the comment there.
+ * One transaction across both stores rather than three auto-commit ones. Split
+ * apart, two cards added at once both read the same count and both write the
+ * same increment, so the deck reports one fewer card than it holds.
  */
 export async function addCard(card: Flashcard): Promise<void> {
   const db = await getDB();
@@ -297,7 +295,6 @@ export async function recordQuestionsAsked(
 
   await Promise.all([...writes, tx.done]);
 }
-
 
 /**
  * Drops questions whose source card is gone, and reports how many.

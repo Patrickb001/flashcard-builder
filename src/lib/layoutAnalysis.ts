@@ -103,7 +103,7 @@ function normalizeSpacing(text: string): string {
 // Step 2: assemble lines (gutter-safe)
 // ---------------------------------------------------------------------------
 
-export interface Line {
+interface Line {
   text: string;
   x: number;
   xEnd: number;

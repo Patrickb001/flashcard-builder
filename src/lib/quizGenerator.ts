@@ -67,7 +67,7 @@ const CONTEXT_CHARS = 200;
 const NEIGHBOUR_CHARS = 160;
 
 /** A snippet longer than this is truncated before it goes to the model. */
-const MAX_CODE_CHARS = 4000;
+const MAX_PROMPT_CODE_CHARS = 4000;
 
 /** Batches are split again if their JSON would come near the server's cap. */
 const MAX_PAYLOAD_CHARS = 100_000;
@@ -237,10 +237,10 @@ function serializeBatch(
       back: card.back,
       topic: card.context ?? null,
       questionCode: card.frontCode
-        ? { language: card.frontCode.language ?? null, text: truncate(card.frontCode.text, MAX_CODE_CHARS) }
+        ? { language: card.frontCode.language ?? null, text: truncate(card.frontCode.text, MAX_PROMPT_CODE_CHARS) }
         : null,
       answerCode: card.backCode
-        ? { language: card.backCode.language ?? null, text: truncate(card.backCode.text, MAX_CODE_CHARS) }
+        ? { language: card.backCode.language ?? null, text: truncate(card.backCode.text, MAX_PROMPT_CODE_CHARS) }
         : null,
       diagramAlt: card.image?.alt ?? null,
     })),

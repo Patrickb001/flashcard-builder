@@ -157,6 +157,8 @@ function serializeBatch(sections: DocumentSection[]): { payload: unknown[]; asse
  *
  * Only ever used to decide where to close a batch, so being wrong by a little
  * costs nothing and being wrong by a lot costs one retry.
+ *
+ * Exported for tools/test-ai-batching.mjs; nothing in the app calls it directly.
  */
 export function estimateCards(section: DocumentSection): number {
   let cost = 0;
@@ -187,6 +189,9 @@ export function estimateCards(section: DocumentSection): number {
  * A single section that is worth more than the yield cap on its own still goes
  * out alone rather than being dropped — there is nothing smaller to split it
  * into, and the retry pass and the salvage parser are what cover it.
+ *
+ * Exported for tools/test-ai-batching.mjs; the app reaches it through
+ * generateCandidatesWithAi.
  */
 export function buildBatches(
   sections: DocumentSection[],

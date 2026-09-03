@@ -16,27 +16,27 @@ import type { Block, ImageBlock } from '../documentModel';
  * path routinely contains a word like "banner" in a directory that has nothing
  * to do with the picture itself.
  */
-export const ICON_NAMES =
+const ICON_NAMES =
   /(^|[/_.-])(logos?|icons?|sprite|avatar|profile|badge|spinner|loader|pixel|beacon|tracking|ads?|advert|banner|thumb|placeholder|emoji|flag|arrow|chevron|caret|star|share|bullet|divider|separator)([/_.-]|$)/i;
 
 /** Alt text that describes a control rather than a picture. */
-export const ICON_ALT =
+const ICON_ALT =
   /^(logo|icon|search( icon)?|menu|close|arrow|location|share|image|picture|photo|banner|ad|advertisement|avatar|profile|user|star|rating|thumbnail|placeholder|loading)$/i;
 
 /** Below this an image is a spacer or a bullet, not a diagram. */
-export const MIN_IMAGE_PX = 100;
+const MIN_IMAGE_PX = 100;
 
 /** An inline data URI larger than this is not worth carrying on every card. */
-export const MAX_DATA_URI_CHARS = 200_000;
+const MAX_DATA_URI_CHARS = 200_000;
 
 /** A dimension attribute, when it is a plain number rather than "inherit" or "100%". */
-export function pixelAttr(img: Element, name: string): number | null {
+function pixelAttr(img: Element, name: string): number | null {
   const m = (img.getAttribute(name) ?? '').trim().match(/^(\d+)(px)?$/i);
   return m ? Number(m[1]) : null;
 }
 
 /** The address an image loads from, lazy-loading attributes included. */
-export function imageSource(img: Element): string | null {
+function imageSource(img: Element): string | null {
   for (const attr of ['src', 'data-src', 'data-original', 'data-lazy-src']) {
     const value = (img.getAttribute(attr) ?? '').trim();
     if (value) return value;

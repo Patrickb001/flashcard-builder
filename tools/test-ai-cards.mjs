@@ -14,7 +14,7 @@ import { estimateCards, generateCandidatesWithAi } from '../src/lib/aiGenerator.
  * most of the document, and nothing in the pure tests could see that.
  *
  *   PDF="…/W3_Lecture_Depressive_Bipolar_STUDENT - Tagged.pdf" \
- *     node --experimental-strip-types --loader ./tools/ts-ext-hooks.mjs tools/test-ai-cards.mjs
+ *     node --experimental-strip-types --import ./tools/register.mjs tools/test-ai-cards.mjs
  *
  * Calls the model, so it costs real money and only runs with a key present.
  */

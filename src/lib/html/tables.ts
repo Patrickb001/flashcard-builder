@@ -10,7 +10,7 @@ import { boldLead, isChrome, joinNodes, tag, textOf, tidyInline } from './domTex
  */
 
 /** Text of one list item, excluding any list nested inside it. */
-export function ownText(li: Element): string {
+function ownText(li: Element): string {
   return tidyInline(
     joinNodes(Array.from(li.childNodes), (child) => tag(child) === 'ul' || tag(child) === 'ol')
   );
@@ -24,7 +24,7 @@ export function ownText(li: Element): string {
  * run-on clause once the tags are gone. Putting the colon back is what lets the
  * card generator see a term and its definition instead of a sentence.
  */
-export function itemText(li: Element): string {
+function itemText(li: Element): string {
   const lead = boldLead(li);
   if (lead && lead.rest.length >= 15 && lead.label.split(/\s+/).length <= 6) {
     const term = lead.label.replace(/[:\s]+$/, '');
@@ -47,7 +47,7 @@ export function listItems(list: Element): string[] {
   return items;
 }
 
-export function rowCells(row: Element): string[] {
+function rowCells(row: Element): string[] {
   return Array.from(row.children)
     .filter((c) => tag(c) === 'td' || tag(c) === 'th')
     .map((c) => textOf(c));

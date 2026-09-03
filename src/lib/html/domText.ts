@@ -17,7 +17,7 @@ export const INLINE_TAGS = new Set([
 ]);
 
 /** Page controls that survive the structural filters because they read as prose. */
-export const CHROME_TEXT =
+const CHROME_TEXT =
   /^(is this page useful\??|was this (page )?helpful\??|edit (this )?page|previous|next|on this page|table of contents|in this article|share (this)?|copy( link| code)?|skip to (main )?content|back to top|menu|search|subscribe|sign (in|up)|log in|accept( all)?( cookies)?|cookie (policy|settings)|advertisement|loading…?|show more|read more)$/i;
 
 export const MIN_BLOCK_CHARS = 3;
@@ -27,7 +27,7 @@ export function tag(el: Element): string {
 }
 
 /** Node types worth reading: elements and text. Comments are not text. */
-export const ELEMENT_NODE = 1;
+const ELEMENT_NODE = 1;
 
 export const TEXT_NODE = 3;
 
@@ -53,7 +53,7 @@ export function tidyInline(text: string): string {
  * The two are told apart by what sits on either side of the join. Words run
  * together across a boundary show a case change; a word split in half does not.
  */
-export function needsSpace(before: string, after: string): boolean {
+function needsSpace(before: string, after: string): boolean {
   if (!before || !after) return false;
   const left = before[before.length - 1];
   const right = after[0];
@@ -123,10 +123,10 @@ export function isChrome(text: string): boolean {
   return text.length < MIN_BLOCK_CHARS || CHROME_TEXT.test(text);
 }
 
-export const LABEL_TAGS = new Set(['b', 'strong']);
+const LABEL_TAGS = new Set(['b', 'strong']);
 
 /** A list marker an editor left outside the bold run: "1. ", "(2) ". */
-export const ORDINAL_LEAD = /^\s*\(?\d{1,2}[.)]\s*$/;
+const ORDINAL_LEAD = /^\s*\(?\d{1,2}[.)]\s*$/;
 
 /**
  * A bolded lead-in and whatever text follows it.

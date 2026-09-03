@@ -14,7 +14,6 @@ import { sectionsFromBlocks, truncateCode } from './sectioning';
  * block structure only, and every extra dependency ships to the browser.
  */
 
-
 // ---------------------------------------------------------------------------
 // Inline syntax
 // ---------------------------------------------------------------------------

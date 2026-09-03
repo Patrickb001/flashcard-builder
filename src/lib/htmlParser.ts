@@ -36,7 +36,6 @@ import { sectionsFromBlocks, truncateCode } from './sectioning';
  * is no HTML tokenizer here and no dependency to ship.
  */
 
-
 /**
  * Callout labels that documentation sites mark up as headings.
  *
@@ -46,7 +45,6 @@ import { sectionsFromBlocks, truncateCode } from './sectioning';
  */
 const CALLOUT_HEADINGS =
   /^(note|notes|pitfall|caution|warning|tip|hint|deep dive|illustrated by|under the hood|remember|example|examples|try it out)$/i;
-
 
 // ---------------------------------------------------------------------------
 // Walk
@@ -82,7 +80,6 @@ function isTextContainer(el: Element): boolean {
   }
   return true;
 }
-
 
 /**
  * A paragraph, split into its bolded label and its prose when it has both.

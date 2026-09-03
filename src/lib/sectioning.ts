@@ -24,11 +24,11 @@ import { normalizeSlug } from './textUtils';
 const SECTION_CHAR_BUDGET = 1200;
 
 /** Longer snippets are truncated; the opening lines carry the idea. */
-export const MAX_CODE_CHARS = 1200;
+const MAX_SECTION_CODE_CHARS = 1200;
 
 export function truncateCode(text: string): string {
-  if (text.length <= MAX_CODE_CHARS) return text;
-  const cut = text.slice(0, MAX_CODE_CHARS);
+  if (text.length <= MAX_SECTION_CODE_CHARS) return text;
+  const cut = text.slice(0, MAX_SECTION_CODE_CHARS);
   const lastBreak = cut.lastIndexOf('\n');
   return `${lastBreak > 0 ? cut.slice(0, lastBreak) : cut}\n…`;
 }

@@ -9,7 +9,7 @@ import { generateCandidates } from '../src/lib/flashcardGenerator.ts';
  * Node has no DOM, so `linkedom` stands in for the browser's DOMParser here;
  * the app itself uses the browser's own and ships no HTML parser.
  *
- *   node --experimental-strip-types --experimental-loader ./tools/ts-ext-hooks.mjs \
+ *   node --experimental-strip-types --import ./tools/register.mjs \
  *     tools/test-html.mjs page.html [base-url]
  *   URL=https://example.com/page node ... tools/test-html.mjs
  */

@@ -43,7 +43,7 @@ const PROMPTS = new Map<string, string>([
 ]);
 
 /** Anything larger than this is refused before it reaches the model. */
-const MAX_PAYLOAD_CHARS = 120_000;
+const MAX_REQUEST_CHARS = 120_000;
 
 export interface GenerateOptions {
   apiKey: string | undefined;
@@ -81,7 +81,7 @@ export async function handleGenerate(
   }
 
   const payload = JSON.stringify(sections);
-  if (payload.length > MAX_PAYLOAD_CHARS) {
+  if (payload.length > MAX_REQUEST_CHARS) {
     return { status: 413, body: { error: 'Payload too large.' } };
   }
 

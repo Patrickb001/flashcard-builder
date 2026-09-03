@@ -24,7 +24,7 @@ const DELIMITER_SUBSTITUTIONS: Array<[RegExp, string]> = [
  * and line breaks the user typed survive the round trip unchanged, which keeps
  * the export honest about what the card says.
  */
-export function sanitizeField(text: string): string {
+function sanitizeField(text: string): string {
   return DELIMITER_SUBSTITUTIONS.reduce(
     (acc, [pattern, replacement]) => acc.replace(pattern, replacement),
     text,

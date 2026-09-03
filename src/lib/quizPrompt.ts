@@ -137,7 +137,6 @@ export interface LlmQuizQuestion {
 const DISTRACTOR_COUNT = 3;
 const VIGNETTE_DISTRACTOR_COUNT = 4;
 
-
 function trimmedString(value: unknown): string {
   return typeof value === 'string' ? value.trim() : '';
 }
