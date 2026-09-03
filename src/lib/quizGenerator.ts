@@ -22,17 +22,12 @@ import { parseQuizResponse, parseVignetteResponse } from './quizPrompt';
 /**
  * Cards per request.
  *
- * The binding constraint is the server's response ceiling, not the request
- * size. Measured on real cards, a question costs about 420 output tokens when
- * options run to full sentences, so ten needed ~4200 against a ceiling fixed at
- * 4000: batches came back stopped at exactly max_tokens, truncated mid-JSON,
- * and the salvage pass kept only the objects that had closed. That is why a run
- * covered roughly half a deck.
- *
- * The ceiling is now 8000 for quiz work and options are capped at 15 words
- * (~330 tokens a question), so eight cards costs ~2600 — a wide margin rather
+ * The binding constraint is the response ceiling in aiTransport, not the request
+ * size: eight questions cost roughly a third of it, which is a margin rather
  * than a cliff. Eight also keeps a 100-card deck to 13 requests, comfortably
- * under the 20/min limit; five would need 20 and sit right on it.
+ * under the 20/min rate limit, where five would need 20 and sit right on it.
+ *
+ * See "Batch sizes" in docs/tuning-notes.md.
  */
 const BATCH_SIZE = 8;
 
@@ -48,9 +43,8 @@ const RETRY_BATCH_SIZE = 4;
  * The same two numbers for board-style items, which cost about twice as much.
  *
  * A vignette is a four-sentence scenario, five options and an explanation where
- * a recall question is a stem and four short options. Halving the batch keeps a
- * request the same distance from the ceiling as the recall path sits at, which
- * is the margin that stops replies coming back truncated.
+ * a recall question is a stem and four short options. Halving the batch holds a
+ * request the same distance from the ceiling as the recall path sits at.
  */
 const VIGNETTE_BATCH_SIZE = 4;
 const VIGNETTE_RETRY_BATCH_SIZE = 2;
@@ -59,19 +53,12 @@ const VIGNETTE_RETRY_BATCH_SIZE = 2;
 const NEIGHBOUR_LIMIT = 20;
 
 /**
- * Related cards sent whole with a board-style batch, as grounding.
+ * Related cards sent whole with a board-style batch, as source material.
  *
- * The recall path also sends whole cards now, but for a different reason: there
- * they are candidate distractors plus the question each one answers, so the
- * model can tell whether a neighbour's answer is also correct for the stem it is
- * writing. A vignette needs them as source material instead — it has to describe
- * a presentation, and the only honest source for that is other cards from the
- * same lecture, which is what lets a scenario be clinically coherent without the
- * model inventing findings.
- *
- * Fewer than the recall path's neighbours, and given more room each: a
- * neighbour only has to be recognisable as an option, where a context card is
- * being read for the detail in it.
+ * A vignette has to describe how something presents, and the only honest source
+ * for that is other cards from the same lecture. Fewer than the recall path's
+ * neighbours and given more room each, because a neighbour only has to be
+ * recognisable as an option where a context card is read for the detail in it.
  */
 const CONTEXT_LIMIT = 12;
 const CONTEXT_CHARS = 200;
@@ -165,24 +152,14 @@ function nearestFirst(batch: Flashcard[], deckCards: Flashcard[]): Flashcard[] {
 }
 
 /**
- * Neighbouring cards whole, for recall questions.
+ * Neighbouring cards whole, as raw material for a recall question's distractors.
  *
- * The answers alone used to go over, on the reading that a distractor is an
- * answer so an answer is all the model needs. That leaves it unable to do the
- * one check the prompt calls most important: whether a neighbour's answer is
- * ALSO correct for the stem being written. A deck that states the same fact
- * twice — a recap card beside the card it recaps — offers an answer that reads
- * as a perfect near miss and is simply right, and nothing in a bare list of
- * answers reveals that.
+ * Both halves travel, not just the answers, because the prompt's most important
+ * check is whether a neighbour's answer is ALSO correct for the stem being
+ * written — and a bare list of answers cannot show that. A deck that states one
+ * fact twice otherwise offers a perfect near miss that happens to be right.
  *
- * Sending the question each answer belongs to is what makes the check possible,
- * and it gives the model the surrounding material to write a question that
- * tests the distinction between two neighbouring facts rather than one fact in
- * isolation.
- *
- * Near-identical to contextCards below, which serves the vignette path. They
- * are kept apart so the board-style payload stays exactly as it was measured;
- * fold them together when that path is next changed for its own reasons.
+ * See "Neighbour and context payloads" in docs/tuning-notes.md.
  */
 function neighbourCards(batch: Flashcard[], deckCards: Flashcard[]) {
   const seen = new Set<string>();
@@ -220,12 +197,10 @@ function neighbourAnswers(batch: Flashcard[], deckCards: Flashcard[]): string[] 
 /**
  * Related cards sent whole, so a clinical scenario has something to stand on.
  *
- * The answers alone are enough to build a wrong option out of, but not to
- * describe a patient. A vignette has to say how the thing presents, and the only
- * source for that which the student has actually been taught is the rest of
- * their own deck. Front and back travel together here for that reason: it is the
- * difference between a model drawing on the lecture and a model drawing on
- * itself.
+ * An answer alone is enough to build a wrong option out of, but not to describe
+ * a patient, and the only source for that which the student has been taught is
+ * the rest of their own deck. This is the difference between a model drawing on
+ * the lecture and a model drawing on itself.
  */
 function contextCards(batch: Flashcard[], deckCards: Flashcard[]) {
   return nearestFirst(batch, deckCards)

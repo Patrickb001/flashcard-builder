@@ -10,8 +10,8 @@ import type { SourceType } from '../components/Uploader';
  * not a document's worth of parsed sections.
  *
  * History state does not survive a reload, which is why /review redirects to
- * /upload when it arrives empty. Persisting the draft so a reload resumes it is
- * the next phase; this type is what will be stored.
+ * /upload when it arrives empty. A draft is therefore never recoverable once
+ * the tab is refreshed; re-uploading is the only way back to it.
  */
 export interface ReviewDraft {
   sections: DocumentSection[];

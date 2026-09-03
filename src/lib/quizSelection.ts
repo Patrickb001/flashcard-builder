@@ -5,16 +5,13 @@ import { contentWords, hasConflictingNumbers, wordOverlap } from './textUtils';
 /**
  * How alike two questions must be to count as the same question.
  *
- * The weight sits on the ANSWER, which is the opposite of the card thresholds
- * and deliberate. By this point the model has reworded both cards, so two
- * questions written from a duplicated fact often share little stem vocabulary —
- * but they still have to arrive at the same answer, because the underlying fact
- * is the same. A matching answer with a related stem is the signal; a matching
- * stem with different answers is two good questions about one topic.
+ * The weight sits on the ANSWER, which is the opposite of the card thresholds in
+ * cardValidation and deliberate: by this point the model has reworded both
+ * cards, so two questions written from one fact often share little stem
+ * vocabulary but must still reach the same answer. A matching stem with
+ * different answers is two good questions about one topic, not a duplicate.
  *
- * "What is the therapeutic range for lithium?" and "at what level is it toxic?"
- * share four stem words in five and must both be asked. Their answers share
- * almost nothing, which is what keeps them.
+ * See "Question de-duplication" in docs/tuning-notes.md for the measurements.
  */
 const SAME_STEM = 0.5;
 const SAME_ANSWER = 0.8;
@@ -22,23 +19,11 @@ const SAME_ANSWER = 0.8;
 /**
  * Too few words in an answer to read a high score as agreement.
  *
- * The same trap the card thresholds guard against, and sharper here, because
- * the prompt caps every option at fifteen words and the good ones are far
- * shorter than that. An answer of one content word is a subset of any answer
- * containing that word, so it scores 1.00 against them all. Measured: "Which
- * phase compares element trees?" -> "Reconciliation" and "Which phase commits
- * changes to the DOM?" -> "Reconciliation phase" score 0.50 on their stems and
- * 1.00 on their answers, and one of two genuinely different questions was
- * dropped from the test.
- *
- * Two is deliberately the lowest bar that closes that hole rather than a
- * tuned figure: "Lifting state up" carries exactly two content words and is a
- * real duplicate that must still be caught. Raising it further would start
- * discarding the detections this exists for.
- *
- * The cost of the two mistakes is as asymmetric as it is for cards. A duplicate
- * that survives is a test that asks something twice; a distinct question wrongly
- * dropped is a shorter test missing material the student needed.
+ * The same trap the card thresholds guard against, and sharper here because the
+ * prompt caps options at fifteen words: a one-word answer is a subset of every
+ * answer containing that word, so it scores 1.00 against them all. Two is the
+ * lowest bar that closes the hole rather than a tuned figure — raising it would
+ * start discarding the detections this exists for.
  */
 const MIN_ANSWER_WORDS = 2;
 

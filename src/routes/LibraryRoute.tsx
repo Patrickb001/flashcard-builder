@@ -7,10 +7,9 @@ import DeckLibrary from '../components/DeckLibrary';
 /**
  * The deck list, and the state behind it.
  *
- * This used to live in App, which meant every screen that changed the decks had
- * to remember to refresh it — the save and delete paths each awaited a refresh
- * before navigating. Now that the list belongs to the route, arriving here
- * mounts it and loading is simply what mounting does.
+ * The list belongs to this route rather than to App, so arriving here mounts it
+ * and loading is simply what mounting does. No other screen has to remember to
+ * refresh the library after saving or deleting a deck.
  */
 export default function LibraryRoute() {
   const navigate = useNavigate();

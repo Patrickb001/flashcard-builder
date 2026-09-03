@@ -2,23 +2,32 @@ import type { Flashcard, TestQuestion } from '../../types';
 import type { PreparedQuestion } from '../../lib/quizSelection';
 import { Diagram, Snippet } from '../CardMedia';
 
-/**
- * One question at a time.
- *
- * Nothing here reaches the network or the database: the pool was written once
- * and kept, and grading is a comparison against the stored answer. That is the
- * whole reason a test works offline.
- */
 interface Props {
+  /** Every question in this test, in the order it will be asked. */
   asked: PreparedQuestion[];
+  /** Index into `asked` of the question on screen. */
   position: number;
+  /** The option the user has picked but not yet committed, or null. */
   selected: number | null;
   onSelect: (index: number) => void;
+  /** Locks the current answer in and advances. The caller records it. */
   onCommit: () => void;
+  /**
+   * The card a question was written from, for the snippet a stem may need.
+   * Passed in rather than looked up here, because the deck's cards belong to
+   * the hook that loaded them.
+   */
   cardFor: (question: TestQuestion) => Flashcard | undefined;
   onExit: () => void;
 }
 
+/**
+ * One question at a time, with its options.
+ *
+ * Reaches nothing itself: the pool was written once and kept, and grading is a
+ * comparison against the stored answer, which is why a test runs offline. The
+ * one write a test makes is `onCommit`'s, recorded by the caller.
+ */
 export default function QuizRunner({
   asked,
   position,

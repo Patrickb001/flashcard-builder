@@ -17,11 +17,9 @@ import { prepareQuestions, selectQuestions, type PreparedQuestion } from '../../
 /**
  * Everything a test needs to run, with none of its layout.
  *
- * TestMode's own comment used to note that the question pool has to survive the
- * move from setup to test to results, and that App holds no domain state to
- * lift it into — so all of it lived in one component alongside four full page
- * layouts. This is the layer that was missing: the state and the transitions
- * live here, and each screen renders one phase of it.
+ * A test spans four screens — setup, generating, taking, results — and the
+ * question pool has to survive all of them, so the state and the transitions
+ * between phases live here and each screen renders one phase of it.
  */
 
 export type Phase = 'loading' | 'setup' | 'generating' | 'taking' | 'results';
@@ -59,6 +57,12 @@ export function useDeckQuiz(deckId: string) {
 
   const abortRef = useRef<AbortController | null>(null);
 
+  /** The questions in the style currently selected. Everything below reads this. */
+  const visiblePool = useMemo(
+    () => pool.filter((question) => styleOf(question) === style),
+    [pool, style]
+  );
+
   /**
    * Cards whose question is missing, or was written from different text.
    *
@@ -68,18 +72,14 @@ export function useDeckQuiz(deckId: string) {
    * Memoised because hashing every card in the deck on every render is real
    * work for a value only the setup screen reads.
    */
-  /** The questions in the style currently selected. Everything below reads this. */
-  const visiblePool = useMemo(
-    () => pool.filter((q) => styleOf(q) === style),
-    [pool, style]
-  );
-
   const unwritten = useMemo(() => {
     // Keyed on card AND style. Keyed on card alone, the two styles of the same
     // card overwrite each other and "cards without a question" goes wrong in
     // both directions — offering cards that are already written, and hiding
     // cards that are not.
-    const byCard = new Map(pool.map((q) => [`${q.cardId}:${styleOf(q)}`, q]));
+    const byCard = new Map(
+      pool.map((question) => [`${question.cardId}:${styleOf(question)}`, question])
+    );
     return cards.filter((card) => {
       const question = byCard.get(`${card.id}:${style}`);
       return !question || question.cardHash !== hashCard(card);
@@ -174,18 +174,12 @@ export function useDeckQuiz(deckId: string) {
   );
 
   /*
-   * First load. Always lands on setup; writing questions is never automatic.
+   * First load. Always lands on setup; writing questions is never automatic,
+   * even for a deck with no questions yet.
    *
-   * An empty deck used to go straight into generation on mount, on the reading
-   * that "Test this deck" had already asked for it. That was wrong once there
-   * was more than one kind of question to write: the run started before the
-   * screen offering the choice had rendered, so picking the board style meant
-   * pressing Stop on a batch of recall questions you did not want and had
-   * already paid for. Nobody should have to interrupt the app to tell it what
-   * they wanted.
-   *
-   * Setup states the position plainly and offers the button, which costs one
-   * click and removes a spend nobody asked for.
+   * Generating on mount would start spending before the screen that offers the
+   * style choice had rendered, leaving someone who wanted board-style items to
+   * press Stop on a batch of recall questions they had already paid for.
    */
   useEffect(() => {
     let cancelled = false;

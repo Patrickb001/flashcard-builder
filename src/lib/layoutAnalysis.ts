@@ -178,9 +178,10 @@ function assembleLines(items: PositionedItem[]): Line[] {
         cur.parts.push(cur.parts.length === 0 ? str : joiner + str);
         cur.xEnd = raw.x + raw.width;
         cur.fontSize = Math.max(cur.fontSize, fontSize);
-        // The flag reflects how the line STARTS. A letter-spaced heading often
-        // ends with normal-spaced text ("SENSORIMOTOR" + "(0-2 yr)"), and
-        // downgrading here would lose the heading signal entirely.
+        // Note what is NOT updated here: `wasSpaced` reflects how the line
+        // STARTS and is set once, when it opens. A letter-spaced heading often
+        // ends with normal-spaced text ("SENSORIMOTOR" + "(0-2 yr)"), so
+        // recomputing it per fragment would lose the heading signal entirely.
         cur.anchors.push(raw.x);
         continue;
       }

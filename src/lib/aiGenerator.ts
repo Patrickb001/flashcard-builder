@@ -262,11 +262,10 @@ export interface AiGenerationResult {
 /**
  * Drafts cards with the model, batch by batch.
  *
- * Sections the model could not cover are offered again in smaller batches
- * before anything is written off, and only what is still empty after that falls
- * back to the rule-based generator — so a document degrades page by page rather
- * than in blocks of four, and a single overrun no longer costs three pages that
- * were never attempted.
+ * Sections the model could not cover are offered again in smaller batches before
+ * anything is written off, and only what is still empty after that falls back to
+ * the rule-based generator. A document therefore degrades one page at a time
+ * instead of losing a whole batch to a single overrun.
  */
 export async function generateCandidatesWithAi(
   sections: DocumentSection[],

@@ -69,17 +69,14 @@ export const CONTENT_SELECTORS = [
 ];
 
 /**
- * The element to search for content.
+ * The element to search for content, or null when there is nothing to descend
+ * into — `doc.body` is null on a document parsed from a fragment.
  *
  * `document.body` is preferred, but a document parsed outside a browser (the
  * test harness, a saved page with markup before `<body>`) can report an empty
  * one while the real content hangs off the root, so an empty body is not
  * trusted.
  */
-// Returns null when the document has no element to descend into. The
-// signature said Element, but the ?? fallback below and every caller
-// already treated the result as possibly absent - doc.body is null on a
-// document parsed from a fragment.
 export function contentBody(doc: Document): Element | null {
   const body = doc.body;
   if (body && body.children.length > 0) return body;

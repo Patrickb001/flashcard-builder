@@ -52,10 +52,9 @@ function getDB() {
        * store, and `oldVersion` is 0 for a browser that has never opened this
        * app — so a first run falls through every block and gets all three.
        *
-       * The version check is not decoration. This callback used to create both
-       * stores unconditionally, which is harmless while the version never
-       * moves and throws `ConstraintError` on the first bump, leaving every
-       * existing user unable to open their decks at all.
+       * The version guards are load-bearing, not decoration: creating a store
+       * that already exists throws ConstraintError, which on a version bump
+       * would leave every existing user unable to open their decks at all.
        */
       upgrade(db, oldVersion) {
         if (oldVersion < 1) {
@@ -181,10 +180,9 @@ export async function addCard(card: Flashcard): Promise<void> {
  * Deletes a card, its deck's running count, and any test question written from
  * it.
  *
- * One transaction across all three, where this used to be three separate
- * awaits: apart, a card could be gone while the deck still claimed to hold it.
- * A question left behind would be worse than untidy — it would go on being
- * asked about a card that no longer exists.
+ * All three in one transaction, so they cannot come apart: a card gone while
+ * its deck still claims to hold it is untidy, but a question left behind is
+ * worse — it goes on being asked about a card that no longer exists.
  */
 export async function deleteCard(cardId: string, deckId: string): Promise<void> {
   const db = await getDB();

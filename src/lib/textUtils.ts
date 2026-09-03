@@ -15,7 +15,8 @@
  * same thing: two options that say the same, a heading repeated across pages,
  * a card whose front restates its label.
  *
- * This existed three times over, byte for byte, under three different names.
+ * The one definition — it is easy to write a fourth by hand, and a key that
+ * disagrees with this one silently stops matching things it should.
  */
 export function normalizeSlug(text: string): string {
   return text
@@ -82,36 +83,26 @@ export function contentWords(text: string): Set<string> {
 }
 
 /**
- * How much of the shorter text is contained in the longer, from 0 to 1.
+ * The string-taking form of `wordOverlap`, tokenizing both sides first.
  *
- * The overlap coefficient rather than Jaccard, on purpose. "How do you reset
- * the state of an entire component tree?" and "What React technique lets you
- * automatically reset a component's state when a prop like userId changes?"
- * are the same question asked twice, but one is half the length of the other,
- * and dividing by the union punishes the short one for being short — it scores
- * them below any threshold that still excludes unrelated cards. Dividing by the
- * shorter set asks the question that actually matters: is the smaller text
- * saying a subset of what the larger one says?
- *
- * A very short text is all the more likely to be wholly contained in something
- * else, so callers comparing against short answers should require a minimum
- * size before trusting a high score.
+ * Kept for the dedupe test harness (`tools/test-dedupe.mjs`), which compares raw
+ * card text. App code holds word sets already and should call `wordOverlap`.
  */
 export function overlapRatio(a: string, b: string): number {
   return wordOverlap(contentWords(a), contentWords(b));
 }
 
 /**
- * The same measure over word sets already extracted.
+ * How much of the shorter word set is contained in the longer, from 0 to 1.
  *
- * De-duplication compares every card against every card it kept, so tokenizing
- * inside the comparison re-derives one card's words once per pair rather than
- * once per card — and the pairs are quadratic. The cost lands hardest on the
- * decks that need it least: a deck of genuinely distinct cards drops nothing,
- * so every card is compared against every earlier one, and none of the cheap
- * guards fire. Measured on 250 such cards it was 3.1 seconds against 36ms, and
- * 500 took eight seconds — on the main thread, immediately after drafting,
- * while someone waits to see their cards.
+ * The overlap coefficient rather than Jaccard: dividing by the union punishes a
+ * short text for being short, and the same question asked at two lengths is a
+ * duplicate. A very short text is correspondingly likely to be wholly contained
+ * in anything, so callers must require a minimum size before trusting a high
+ * score.
+ *
+ * Takes sets rather than strings because de-duplication is quadratic in the
+ * cards it keeps — see "The overlap measure" in docs/tuning-notes.md.
  */
 export function wordOverlap(a: Set<string>, b: Set<string>): number {
   if (a.size === 0 || b.size === 0) return 0;

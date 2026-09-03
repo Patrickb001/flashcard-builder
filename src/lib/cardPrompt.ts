@@ -90,11 +90,9 @@ function assetRef(value: unknown): string | undefined {
  * Parses a model response into cards, tolerating a fence or a cut-off reply.
  *
  * A dense page can ask for more cards than the token ceiling allows, and the
- * reply then ends mid-array with no closing bracket. This used to return
- * nothing at all in that case, so a page that had produced forty good cards and
- * been cut off during the forty-first contributed none of them and the whole
- * batch fell back to rule-based drafting. The salvage pass keeps every card
- * that closed.
+ * reply then ends mid-array with no closing bracket. Rather than discard the
+ * batch — forty good cards lost because the forty-first was cut off — the
+ * salvage pass keeps every card object that closed.
  */
 export function parseCardsResponse(text: string): LlmCard[] {
   const cleaned = stripJsonFence(text);

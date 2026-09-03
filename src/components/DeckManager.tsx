@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import type { Deck, Flashcard } from "../types";
 import {
   addCard,
@@ -47,30 +47,34 @@ export default function DeckManager({
     };
   }, []);
 
-  // Every one of these handlers is fired from an onClick and its promise is
-  // dropped, so anything that throws inside would otherwise surface only as an
-  // unhandled rejection in the console. Each one reports instead.
-  const load = async () => {
+  /**
+   * Reads the deck and its cards into state.
+   *
+   * Fired from onClick handlers whose promises are dropped, so it reports its
+   * own failures rather than surfacing them as unhandled rejections. `loading`
+   * is cleared on both paths: clearing it only on success leaves the screen on
+   * "Loading deck…" forever whenever IndexedDB is unavailable.
+   */
+  const load = useCallback(async () => {
     try {
-      const [d, c] = await Promise.all([
+      const [loadedDeck, loadedCards] = await Promise.all([
         getDeck(deckId),
         getCardsForDeck(deckId),
       ]);
-      setDeck(d ?? null);
-      setCards(c);
-      setNameDraft(d?.name ?? "");
+      setDeck(loadedDeck ?? null);
+      setCards(loadedCards);
+      setNameDraft(loadedDeck?.name ?? "");
     } catch (err) {
       console.error("[manager] Could not read the deck:", err);
       setError("This deck could not be read from the browser database.");
     } finally {
       setLoading(false);
     }
-  };
+  }, [deckId]);
 
   useEffect(() => {
     load();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [deckId]);
+  }, [load]);
 
   const handleFieldChange = (
     id: string,

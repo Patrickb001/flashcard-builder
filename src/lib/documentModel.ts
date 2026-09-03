@@ -1,10 +1,10 @@
 /**
- * A layout-aware document model.
+ * A layout-aware document model: the shared vocabulary every parser emits.
  *
- * The old pipeline flattened every page into a single string, which destroyed
- * column boundaries and table structure. Parsers now emit typed Blocks instead,
- * and the card generator reads those blocks. This is what lets us generate
- * correct cards from tables and multi-column slides.
+ * Each source format — PDF, pptx, Markdown, HTML — produces typed Blocks rather
+ * than a string of page text, and the card generator reads only these. Keeping
+ * column boundaries and table structure in the model is what makes correct cards
+ * from a table or a two-column slide possible at all.
  */
 
 export interface TableBlock {

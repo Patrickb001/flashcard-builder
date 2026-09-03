@@ -1,5 +1,6 @@
 import type { Block, DocumentSection } from './documentModel';
 import { applyContext } from './documentModel';
+import { normalizeSlug } from './textUtils';
 
 /**
  * Turns a flat block stream into sections.
@@ -228,7 +229,7 @@ export function stripRepeatedFurniture(sections: DocumentSection[]): DocumentSec
   // whose text matches a different section's title is navigation, not content.
   const titles = new Map<string, string>();
   for (const s of sections) {
-    if (s.title) titles.set(normalizeTitle(s.title), s.label);
+    if (s.title) titles.set(normalizeSlug(s.title), s.label);
   }
 
   return sections.map((section) => ({
@@ -238,14 +239,10 @@ export function stripRepeatedFurniture(sections: DocumentSection[]): DocumentSec
       if (b.kind !== 'paragraph' && b.kind !== 'heading') return true;
       const text = b.text;
       if (text.length > 60) return true;
-      const owner = titles.get(normalizeTitle(text));
+      const owner = titles.get(normalizeSlug(text));
       return !owner || owner === section.label;
     }),
   }));
-}
-
-function normalizeTitle(text: string): string {
-  return text.toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim();
 }
 
 function blockSignature(block: Block): string {

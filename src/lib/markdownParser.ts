@@ -174,11 +174,10 @@ function dedent(body: string[]): string[] {
 /**
  * Reads a fenced code block starting at `i`; returns it and the next index.
  *
- * Code used to be discarded, on the theory that syntax makes poor flashcard
- * text. In a technical document that threw away most of the content: whole
- * sections were left as a heading with nothing under it, and the model had
- * nothing to write a card from. The snippet is the answer to "how do I do
- * this?", so it is kept and handed to the drafter like any other block.
+ * Snippets are content, not decoration: in a technical document the code is the
+ * answer to "how do I do this?". Discarding it leaves whole sections as a
+ * heading with nothing under them, so a fence is kept and handed to the drafter
+ * like any other block.
  */
 function readCode(lines: string[], i: number): { block: CodeBlock | null; next: number } {
   const m = lines[i].match(FENCE_RE)!;
