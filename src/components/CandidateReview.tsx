@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useState } from 'react';
 import type { CandidateCard, Deck, Flashcard, SourceType } from '../types';
 import type { DocumentSection } from '../lib/documentModel';
 import { generateCandidates } from '../lib/flashcardGenerator';
@@ -37,6 +37,20 @@ const UNIT_NOUN: Record<SourceType, string> = {
   html: 'section',
 };
 
+/**
+ * A candidate plus a key that survives the list being edited.
+ *
+ * The key exists only for React. Rows can be removed, so an index key makes the
+ * row below inherit the removed row's DOM node — and with it the caret of
+ * whoever was typing in it.
+ */
+type Draft = CandidateCard & { key: string };
+
+/** Tags freshly drafted candidates so each row keeps its identity. */
+function withKeys(cards: CandidateCard[]): Draft[] {
+  return cards.map((card) => ({ ...card, key: crypto.randomUUID() }));
+}
+
 /** The file name with its extension removed, as the deck's opening name. */
 function defaultDeckName(fileName: string): string {
   return fileName.replace(/\.(pdf|pptx|md|markdown|mdown|mkd|html?|xhtml)$/i, '');
@@ -62,9 +76,11 @@ export default function CandidateReview({
   onCancel,
 }: Props) {
   // Rule-based cards are computed immediately so there is always something on
-  // screen; AI drafting then replaces them when it finishes.
-  const initialCandidates = useMemo(() => generateCandidates(sections), [sections]);
-  const [candidates, setCandidates] = useState<CandidateCard[]>(initialCandidates);
+  // screen; AI drafting then replaces them when it finishes. Computed in a lazy
+  // initialiser rather than a memo: useState ignores its argument after mount,
+  // so a memo here would be recomputed on every `sections` change and thrown
+  // away, which reads as though the list tracks the prop when it does not.
+  const [candidates, setCandidates] = useState<Draft[]>(() => withKeys(generateCandidates(sections)));
   const [drafting, setDrafting] = useState(ai.mode !== 'off');
   const [progress, setProgress] = useState<BatchProgress | null>(null);
   const [aiNotice, setAiNotice] = useState<string | null>(null);
@@ -86,7 +102,7 @@ export default function CandidateReview({
             signal: controller.signal,
           });
         if (cancelled || aborted) return;
-        if (cards.length > 0) setCandidates(cards);
+        if (cards.length > 0) setCandidates(withKeys(cards));
 
         const unit = UNIT_NOUN[sourceType];
         // Reported in the document's own units. This counted batches before,
@@ -160,7 +176,7 @@ export default function CandidateReview({
   /** Opens an empty card at the top of the list, for writing one by hand. */
   const addBlankCard = () => {
     setCandidates((prev) => [
-      { front: '', back: '', sourceLabel: 'Manual', include: true },
+      { front: '', back: '', sourceLabel: 'Manual', include: true, key: crypto.randomUUID() },
       ...prev,
     ]);
   };
@@ -279,7 +295,10 @@ export default function CandidateReview({
 
       <ul className="candidate-list">
         {candidates.map((candidate, i) => (
-          <li key={i} className={`candidate-row ${candidate.include ? '' : 'excluded'}`}>
+          <li
+            key={candidate.key}
+            className={`candidate-row ${candidate.include ? '' : 'excluded'}`}
+          >
             <input
               type="checkbox"
               checked={candidate.include}

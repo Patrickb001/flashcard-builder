@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import type { Deck } from '../types';
-import { getAllDecks, isUpgradeBlocked } from '../db/db';
+import { getAllDecks, onUpgradeBlocked } from '../db/db';
 import DeckLibrary from '../components/DeckLibrary';
 
 /**
@@ -43,21 +43,18 @@ export default function LibraryRoute() {
   /**
    * Reports an upgrade another tab is holding open.
    *
-   * That case never rejects and never resolves - idb's open promise simply
-   * never settles - so the catch above cannot see it. Polling the flag is what
-   * turns a permanent spinner into a sentence telling you to close the tab.
+   * That case never rejects and never resolves — idb's open promise simply
+   * never settles — so the catch above cannot see it, and without this the
+   * screen would spin forever with nothing to explain why.
    */
   useEffect(() => {
-    if (!loading) return;
-    const timer = setInterval(() => {
-      if (!isUpgradeBlocked()) return;
+    return onUpgradeBlocked(() => {
       setError(
         'Another tab has an older version of this app open, which is blocking an upgrade. Close the other tabs and reload.'
       );
       setLoading(false);
-    }, 400);
-    return () => clearInterval(timer);
-  }, [loading]);
+    });
+  }, []);
 
   return (
     <DeckLibrary

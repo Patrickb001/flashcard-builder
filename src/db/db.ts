@@ -31,9 +31,33 @@ let dbPromise: Promise<IDBPDatabase<FlashcardForgeDB>> | null = null;
  */
 let upgradeBlocked = false;
 
+/** Listeners waiting to hear that an upgrade is blocked. */
+const upgradeBlockedListeners = new Set<() => void>();
+
 /** True once an upgrade has been refused; read by the UI, set by blocked(). */
 export function isUpgradeBlocked(): boolean {
   return upgradeBlocked;
+}
+
+/**
+ * Calls `listener` when an upgrade turns out to be blocked, and returns an
+ * unsubscribe function.
+ *
+ * A blocked open never settles — the promise neither resolves nor rejects while
+ * another tab holds the old version — so nothing downstream can await its way to
+ * finding out. This is the push half of that: the UI would otherwise have to
+ * poll `isUpgradeBlocked` on a timer to notice.
+ *
+ * Fires immediately when it is already blocked, so a listener that subscribes
+ * late does not miss the only notification it was ever going to get.
+ */
+export function onUpgradeBlocked(listener: () => void): () => void {
+  if (upgradeBlocked) {
+    listener();
+    return () => {};
+  }
+  upgradeBlockedListeners.add(listener);
+  return () => upgradeBlockedListeners.delete(listener);
 }
 
 /**
@@ -84,6 +108,7 @@ function getDB() {
         console.error(
           '[db] Database upgrade is blocked by another tab with this app open. Close the other tabs and reload.'
         );
+        for (const listener of upgradeBlockedListeners) listener();
       },
 
       /** The browser dropped the connection; let the next call reopen it. */
