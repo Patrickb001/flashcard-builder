@@ -1093,11 +1093,18 @@ textarea {
   text-align: left;
 }
 
+/* Nothing on a face is allowed to be wider than the face. */
+.face-body > * {
+  max-width: 100%;
+}
+
 /* The text keeps its full height; the snippet gives up whatever room is short
    and scrolls the rest. The floor stops it collapsing to a sliver behind a
    long question. */
 .face-body > p {
   flex: none;
+  /* Card text runs to identifiers and paths with no spaces to break at. */
+  overflow-wrap: break-word;
 }
 
 .face-body .card-code {
@@ -1105,11 +1112,27 @@ textarea {
   min-height: 5rem;
   display: flex;
   flex-direction: column;
+  /*
+   * The snippet is exactly as wide as the card, on both faces, and never wider.
+   *
+   * `align-self` is the load-bearing one: the front face centres its items
+   * rather than stretching them, which sizes this panel to its own content —
+   * and a snippet's content is as wide as its longest line, so the panel ran
+   * off the side of the card with the overhang unreachable. Stretched, the
+   * panel is the card's width and the line scrolls inside it.
+   *
+   * `min-width: 0` is the companion guard: without it the panel's automatic
+   * minimum size is that same longest line, which would undo the stretch.
+   */
+  align-self: stretch;
+  min-width: 0;
+  max-width: 100%;
 }
 
 .face-body .card-code pre {
   flex: 1 1 auto;
   min-height: 0;
+  min-width: 0;
   /* The card's height is the limit here, not the viewport's. */
   max-height: none;
 }
