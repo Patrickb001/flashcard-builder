@@ -198,6 +198,15 @@ function parseSlide(xmlDoc: Document, label: string): DocumentSection {
   return { label, title, blocks };
 }
 
+/**
+ * Reads a .pptx into one section per slide — the entry point of the pptx path.
+ *
+ * A .pptx is a zip of OOXML, so unlike a PDF the structure is still intact:
+ * shapes carry positions, tables are real `<a:tbl>` elements and bullet levels
+ * are explicit. Reading shape by shape means columns can never interleave,
+ * which is why a native deck generally yields better cards than the same deck
+ * exported to PDF.
+ */
 export async function extractPptxSections(file: File): Promise<DocumentSection[]> {
   const buffer = await file.arrayBuffer();
   const zip = await JSZip.loadAsync(buffer);

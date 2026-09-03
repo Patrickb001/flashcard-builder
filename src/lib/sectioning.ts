@@ -26,6 +26,7 @@ const SECTION_CHAR_BUDGET = 1200;
 /** Longer snippets are truncated; the opening lines carry the idea. */
 const MAX_SECTION_CODE_CHARS = 1200;
 
+/** Shortens a snippet at a line boundary, so it never ends mid-statement. */
 export function truncateCode(text: string): string {
   if (text.length <= MAX_SECTION_CODE_CHARS) return text;
   const cut = text.slice(0, MAX_SECTION_CODE_CHARS);
@@ -115,6 +116,7 @@ function buildRuns(blocks: Block[], titles: string[], minLevel: number): Run[] {
   return runs;
 }
 
+/** Options for sectionsFromBlocks. */
 export interface SectionOptions {
   /**
    * Title for a document that has no headings at all — the file name, or the
@@ -124,6 +126,18 @@ export interface SectionOptions {
   fallbackTitle?: string;
 }
 
+/**
+ * Cuts a flat block stream into sections, the entry point Markdown and HTML
+ * both use.
+ *
+ * Four passes over each run: split at headings (descending a level whenever a
+ * run exceeds the size budget), copy the blocks so the caller's array is never
+ * written into, propagate the nearest heading onto unlabelled lists, snippets
+ * and images, then prefix each section's title with its heading path.
+ *
+ * Section size, not document size, is what sets how many cards a document
+ * yields — see SECTION_CHAR_BUDGET above.
+ */
 export function sectionsFromBlocks(blocks: Block[], options: SectionOptions = {}): DocumentSection[] {
   const runs = buildRuns(blocks, [], 1);
 

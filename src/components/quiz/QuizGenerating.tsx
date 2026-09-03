@@ -1,5 +1,17 @@
 import type { QuizProgress } from '../../lib/quizGenerator';
 
+interface Props {
+  deckName: string;
+  /** Batches done out of total, or null before the first one lands. */
+  progress: QuizProgress | null;
+  /**
+   * Questions saved so far, counting this run and every earlier one. Shown
+   * because stopping keeps them — see the component note below.
+   */
+  written: number;
+  onStop: () => void;
+}
+
 /**
  * The screen shown while the model writes questions.
  *
@@ -7,13 +19,6 @@ import type { QuizProgress } from '../../lib/quizGenerator';
  * stopping here keeps everything written so far, and the message has to make
  * that clear or Stop reads as "throw this away".
  */
-interface Props {
-  deckName: string;
-  progress: QuizProgress | null;
-  written: number;
-  onStop: () => void;
-}
-
 export default function QuizGenerating({ deckName, progress, written, onStop }: Props) {
   const pct = progress ? Math.round((progress.done / progress.total) * 100) : 0;
 

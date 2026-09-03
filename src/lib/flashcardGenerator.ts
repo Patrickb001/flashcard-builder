@@ -439,6 +439,16 @@ function cardsFromSection(section: DocumentSection): CandidateCard[] {
   return cards.slice(0, MAX_CARDS_PER_SECTION);
 }
 
+/**
+ * Drafts cards from parsed sections using pattern rules alone — no model, no
+ * network. The entry point of the rule-based path, and the fallback the AI path
+ * falls back to when a batch fails.
+ *
+ * Each section is read block by block, with the phrasing helpers turning a
+ * heading, a table row or a labelled term into a question. Everything is then
+ * filtered through isUsableCard and deduped, because rules produce a lot of
+ * near-misses and the review screen should not be the first line of defence.
+ */
 export function generateCandidates(sections: DocumentSection[]): CandidateCard[] {
   const all: CandidateCard[] = [];
   for (const section of sections) {

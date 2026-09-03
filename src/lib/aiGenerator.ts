@@ -18,6 +18,13 @@ import { generateCandidates } from './flashcardGenerator';
  * Either way the model receives the structured blocks, never raw page text.
  */
 
+/**
+ * How drafting reaches the model, if at all.
+ *
+ * "off" is rules only — instant, private, free. "hosted" goes through this
+ * app's own endpoint, which holds the API key so a visitor needs none. "byok"
+ * calls Anthropic straight from the browser with a key the user pasted.
+ */
 export type AiMode = 'off' | 'hosted' | 'byok';
 
 const SETTINGS_KEY = 'flashcard-forge:ai';
@@ -53,11 +60,20 @@ const MAX_BATCH_CARDS = 40;
 /** Batches are split again if their JSON would come near the server's cap. */
 const MAX_PAYLOAD_CHARS = 100_000;
 
+/** The drafting mode, and the user's own key when they supplied one. */
 export interface AiSettings {
   mode: AiMode;
+  /** Set only in "byok" mode. Stored in this browser and sent nowhere else. */
   apiKey?: string;
 }
 
+/**
+ * Reads the saved settings, defaulting to rules-only.
+ *
+ * Every failure path returns `{ mode: 'off' }` rather than throwing: storage is
+ * unavailable in some private windows, and a browser that cannot remember a
+ * preference should still be able to make a deck.
+ */
 export function loadAiSettings(): AiSettings {
   try {
     const raw = localStorage.getItem(SETTINGS_KEY);
@@ -69,6 +85,7 @@ export function loadAiSettings(): AiSettings {
   }
 }
 
+/** Persists the settings, silently doing nothing when storage is unavailable. */
 export function saveAiSettings(settings: AiSettings): void {
   try {
     localStorage.setItem(SETTINGS_KEY, JSON.stringify(settings));
@@ -240,12 +257,16 @@ export function buildBatches(
 /** The same shape question writing reports; one definition, two features. */
 export type AiProgress = BatchProgress;
 
+/** Optional hooks for a drafting run. */
 export interface AiGenerationOptions {
-  onProgress?: (p: AiProgress) => void;
+  /** Fired after every batch, for the progress banner. */
+  onProgress?: (progress: AiProgress) => void;
   signal?: AbortSignal;
 }
 
+/** What a drafting run produced, including what it could not do. */
 export interface AiGenerationResult {
+  /** Every card drafted, model-written and rule-based fallbacks alike. */
   cards: CandidateCard[];
   failedBatches: number;
   totalBatches: number;

@@ -71,13 +71,29 @@ function domainNoun(context: string | undefined): string | null {
   return known ? (known.endsWith('s') ? known : `${known}s`) : null;
 }
 
+/** One cell of a table, named by its row and column, for phrasing a question. */
 export interface TableQuestionInput {
+  /** The row column's own header, e.g. "Age" — decides some phrasings. */
   rowHeader?: string;
+  /** The row's label, which identifies the thing being asked about. */
   rowKey: string;
+  /** The column's header, which names the property being asked for. */
   colHeader: string;
+  /** The table's section title, for a domain noun like "milestones". */
   context?: string;
 }
 
+/**
+ * Phrases a question for one table cell, from its row and column labels.
+ *
+ * Five branches, chosen by what the row looks like: an age reads as "At 2 mo,
+ * what are…", a compared dimension as "In normal aging, what is expected for…",
+ * and so on down to a plain "What is the X of Y?".
+ *
+ * The branching exists for subject-verb agreement. A generic template produces
+ * "What are the onset?" often enough to be noticed, and a card that reads as
+ * broken English is one a student stops trusting.
+ */
 export function tableQuestion({ rowHeader, rowKey, colHeader, context }: TableQuestionInput): string {
   const row = stripParenthetical(rowKey);
   const col = lower(colHeader.trim());
@@ -116,6 +132,13 @@ export function tableQuestion({ rowHeader, rowKey, colHeader, context }: TableQu
     : `What ${verb} the ${col} of ${row}?`;
 }
 
+/**
+ * The same cell asked backwards: given the value, name the row.
+ *
+ * A table is worth two cards per cell, and recognising a finding is a different
+ * skill from recalling one. The row header supplies the noun, so a table with
+ * no usable header falls back to the vaguer "What is characterized by…".
+ */
 export function reverseTableQuestion(
   rowHeader: string | undefined,
   cellValue: string

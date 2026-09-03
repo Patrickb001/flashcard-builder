@@ -20,8 +20,10 @@ export const INLINE_TAGS = new Set([
 const CHROME_TEXT =
   /^(is this page useful\??|was this (page )?helpful\??|edit (this )?page|previous|next|on this page|table of contents|in this article|share (this)?|copy( link| code)?|skip to (main )?content|back to top|menu|search|subscribe|sign (in|up)|log in|accept( all)?( cookies)?|cookie (policy|settings)|advertisement|loading…?|show more|read more)$/i;
 
+/** Shorter than this and a block is a label or a stray, not content. */
 export const MIN_BLOCK_CHARS = 3;
 
+/** An element's tag name, lowercased. */
 export function tag(el: Element): string {
   return el.tagName.toLowerCase();
 }
@@ -29,6 +31,7 @@ export function tag(el: Element): string {
 /** Node types worth reading: elements and text. Comments are not text. */
 const ELEMENT_NODE = 1;
 
+/** Node.TEXT_NODE, spelled out because Node is not defined outside a browser. */
 export const TEXT_NODE = 3;
 
 /** Collapses the whitespace a page's markup leaves between inline elements. */
@@ -119,6 +122,7 @@ export function isLinkRow(el: Element): boolean {
   return total > 0 && linkChars >= total * 0.9;
 }
 
+/** True when a run of text is page furniture rather than article content. */
 export function isChrome(text: string): boolean {
   return text.length < MIN_BLOCK_CHARS || CHROME_TEXT.test(text);
 }

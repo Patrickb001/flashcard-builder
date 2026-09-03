@@ -5,6 +5,7 @@ import QuizRunner from './quiz/QuizRunner';
 import QuizResults from './quiz/QuizResults';
 
 interface Props {
+  /** The deck to test. Everything else is derived from it by useDeckQuiz. */
   deckId: string;
   onExit: () => void;
 }

@@ -31,6 +31,7 @@ let dbPromise: Promise<IDBPDatabase<FlashcardForgeDB>> | null = null;
  */
 let upgradeBlocked = false;
 
+/** True once an upgrade has been refused; read by the UI, set by blocked(). */
 export function isUpgradeBlocked(): boolean {
   return upgradeBlocked;
 }
@@ -116,12 +117,14 @@ export async function saveDeckWithCards(deck: Deck, cards: Flashcard[]): Promise
   await Promise.all([...writes, tx.done]);
 }
 
+/** Every deck, newest first — the order the library grid shows them in. */
 export async function getAllDecks(): Promise<Deck[]> {
   const db = await getDB();
   const decks = await db.getAllFromIndex('decks', 'by-createdAt');
   return decks.reverse();
 }
 
+/** One deck by id, or undefined once it has been deleted. */
 export async function getDeck(deckId: string): Promise<Deck | undefined> {
   const db = await getDB();
   return db.get('decks', deckId);
@@ -147,6 +150,13 @@ export async function getCardsForDeck(deckId: string): Promise<Flashcard[]> {
   return cards.sort((a, b) => a.createdAt - b.createdAt);
 }
 
+/**
+ * Overwrites one card in place.
+ *
+ * The deck's cardCount is untouched, because this never adds or removes a card
+ * — use addCard or deleteCard for that. Called on every textarea blur in the
+ * deck manager, including blurs that changed nothing.
+ */
 export async function updateCard(card: Flashcard): Promise<void> {
   const db = await getDB();
   await db.put('flashcards', card);
@@ -205,6 +215,14 @@ export async function deleteCard(cardId: string, deckId: string): Promise<void> 
   await tx.done;
 }
 
+/**
+ * Deletes a deck and everything written from it — its cards and their test
+ * questions — as one transaction across all three stores.
+ *
+ * Cursors rather than a bulk delete, because IndexedDB has no "delete by index"
+ * operation; the two child stores are swept by their by-deckId index. Nothing
+ * here is recoverable, so the caller is expected to have confirmed first.
+ */
 export async function deleteDeck(deckId: string): Promise<void> {
   const db = await getDB();
   const tx = db.transaction(['decks', 'flashcards', 'testQuestions'], 'readwrite');

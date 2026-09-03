@@ -2,6 +2,21 @@ import type { Flashcard, TestQuestion } from '../../types';
 import type { PreparedQuestion } from '../../lib/quizSelection';
 import { Diagram, Snippet } from '../CardMedia';
 
+interface Props {
+  /** The questions that were asked, in the order they were asked. */
+  asked: PreparedQuestion[];
+  /**
+   * The option chosen for each question, by index into that question's options,
+   * or null where it was left unanswered. Parallel to `asked`.
+   */
+  answers: (number | null)[];
+  /** The card a question came from, for the "from the card" line. */
+  cardFor: (question: TestQuestion) => Flashcard | undefined;
+  /** Starts another test over the same deck. */
+  onAgain: () => void;
+  onExit: () => void;
+}
+
 /**
  * The score, and a review of every question asked.
  *
@@ -11,14 +26,6 @@ import { Diagram, Snippet } from '../CardMedia';
  * failures. The explanation is written to teach the distinction rather than to
  * restate the answer, which is worth reading on a lucky guess too.
  */
-interface Props {
-  asked: PreparedQuestion[];
-  answers: (number | null)[];
-  cardFor: (question: TestQuestion) => Flashcard | undefined;
-  onAgain: () => void;
-  onExit: () => void;
-}
-
 export default function QuizResults({ asked, answers, cardFor, onAgain, onExit }: Props) {
   const correctCount = asked.reduce(
     (total, prepared, index) => total + (answers[index] === prepared.correctIndex ? 1 : 0),

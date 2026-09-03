@@ -1,20 +1,28 @@
 import { useEffect, useMemo, useState } from 'react';
-import type { CandidateCard, Deck, Flashcard } from '../types';
+import type { CandidateCard, Deck, Flashcard, SourceType } from '../types';
 import type { DocumentSection } from '../lib/documentModel';
 import { generateCandidates } from '../lib/flashcardGenerator';
 import type { AiSettings, AiProgress } from '../lib/aiGenerator';
 import { generateCandidatesWithAi } from '../lib/aiGenerator';
 import { saveDeckWithCards } from '../db/db';
 import { Diagram, Snippet } from './CardMedia';
-import type { SourceType } from './Uploader';
 
 interface Props {
+  /**
+   * The parsed document. Cards are drafted from this on mount, and the identity
+   * of the array is what decides whether drafting runs again — so it must be
+   * stable across renders, or a paid model call repeats.
+   */
   sections: DocumentSection[];
+  /** Seeds the deck name, minus its extension. */
   fileName: string;
+  /** Names the unit a section is, so the notices can say "page" or "slide". */
   sourceType: SourceType;
+  /** Whether to draft with the model, and how to reach it. */
   ai: AiSettings;
   /** Set when some sources were skipped, e.g. a page that could not be read. */
   notice?: string;
+  /** Fired with the new deck's id once it is safely in the database. */
   onSaved: (deckId: string) => void;
   onCancel: () => void;
 }
@@ -27,10 +35,21 @@ const UNIT_NOUN: Record<SourceType, string> = {
   html: 'section',
 };
 
+/** The file name with its extension removed, as the deck's opening name. */
 function defaultDeckName(fileName: string): string {
   return fileName.replace(/\.(pdf|pptx|md|markdown|mdown|mkd|html?|xhtml)$/i, '');
 }
 
+/**
+ * Step two: check the drafted cards, then save them as a deck.
+ *
+ * Rule-based cards are computed synchronously so the list is never empty, and
+ * the model's cards replace them when drafting finishes. That is deliberate —
+ * a screen with something on it degrades to worse cards if the model fails,
+ * where an empty one waiting on a network call degrades to nothing.
+ *
+ * Everything here is local until Save. Navigating away costs the session.
+ */
 export default function CandidateReview({
   sections,
   fileName,

@@ -22,12 +22,23 @@ import { prepareQuestions, selectQuestions, type PreparedQuestion } from '../../
  * between phases live here and each screen renders one phase of it.
  */
 
+/** Which of the four test screens is showing, plus the initial read. */
 export type Phase = 'loading' | 'setup' | 'generating' | 'taking' | 'results';
 
 /** Below this many questions a slider has nothing useful to offer. */
 export const MIN_SLIDER_POOL = 5;
 const DEFAULT_COUNT = 20;
 
+/**
+ * Loads a deck's question pool and drives a test through its four phases.
+ *
+ * Owns everything that has to outlive a single screen: the pool, the style
+ * lens onto it, the drawn questions and the answers given. TestMode reads the
+ * phase and renders one screen per value.
+ *
+ * Nothing here writes questions on its own — generation is always started by an
+ * explicit call, because it costs a model request.
+ */
 export function useDeckQuiz(deckId: string) {
   const [phase, setPhase] = useState<Phase>('loading');
   const [deck, setDeck] = useState<Deck | null>(null);
@@ -86,6 +97,7 @@ export function useDeckQuiz(deckId: string) {
     });
   }, [cards, pool, style]);
 
+  /** Reads the deck, its cards and its question pool in one pass. */
   const load = useCallback(async () => {
     const [loadedDeck, loadedCards] = await Promise.all([getDeck(deckId), getCardsForDeck(deckId)]);
     // A question whose card is gone would still be asked. The delete cascade
@@ -207,12 +219,14 @@ export function useDeckQuiz(deckId: string) {
     };
   }, [deckId, load]);
 
-  // Keep the requested count inside what the selected style can actually supply.
-  useEffect(() => {
-    if (visiblePool.length === 0) return;
-    setCount((current) => Math.min(Math.max(current, 1), visiblePool.length));
-  }, [visiblePool.length]);
-
+  /**
+   * Draws a test from the pool and moves to the taking phase.
+   *
+   * `count` is clamped here rather than being held in range by an effect: the
+   * setup slider already renders `Math.min(count, pool.length)`, so clamping at
+   * both points of use means switching style cannot leave a stale number in
+   * state between the change and the effect that would have corrected it.
+   */
   const startTest = useCallback(() => {
     const drawn = selectQuestions(visiblePool, Math.min(count, visiblePool.length));
     setAsked(prepareQuestions(drawn));
@@ -245,11 +259,13 @@ export function useDeckQuiz(deckId: string) {
     else setPosition((p) => p + 1);
   }, [selected, asked, position]);
 
+  /** The card a question was written from, for a stem that carries a snippet. */
   const cardFor = useCallback(
     (question: TestQuestion) => cards.find((card) => card.id === question.cardId),
     [cards]
   );
 
+  /** Stops a generation run. Whatever has already been saved is kept. */
   const stopGenerating = useCallback(() => abortRef.current?.abort(), []);
 
   return {

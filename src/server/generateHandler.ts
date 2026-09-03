@@ -53,6 +53,18 @@ export interface GenerateOptions {
   onError?: (message: string) => void;
 }
 
+/**
+ * The whole server contract for talking to the model: validate the request,
+ * pick the prompt for the named task, call Anthropic, and shape the reply.
+ *
+ * Everything the client can influence is checked before a paid call is made —
+ * the task must name a known prompt, the payload must be under the size cap,
+ * and max_tokens is fixed here rather than accepted from the request.
+ *
+ * Never throws. Every failure, including an upstream one, comes back as a
+ * HandlerResult with a status, because both adapters just serialise what they
+ * are given.
+ */
 export async function handleGenerate(
   body: unknown,
   options: GenerateOptions

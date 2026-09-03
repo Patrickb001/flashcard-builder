@@ -438,12 +438,19 @@ function titleFromFileName(fileName: string): string {
     .trim();
 }
 
+/**
+ * Reads Markdown source into sections — normalize, parse to blocks, then split.
+ *
+ * `fileName` is the fallback title for a document whose content never states
+ * one; without it a file with no headings has no topic label and yields nothing.
+ */
 export function parseMarkdownSections(markdown: string, fileName = ''): DocumentSection[] {
   return sectionsFromBlocks(parseBlocks(normalize(markdown)), {
     fallbackTitle: titleFromFileName(fileName),
   });
 }
 
+/** The File-taking form, and the entry point the uploader imports lazily. */
 export async function extractMarkdownSections(file: File): Promise<DocumentSection[]> {
   return parseMarkdownSections(await file.text(), file.name);
 }

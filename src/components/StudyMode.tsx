@@ -5,10 +5,12 @@ import { Diagram, Snippet } from "./CardMedia";
 import { shuffle } from "../lib/shuffle";
 
 interface Props {
+  /** The deck to study. Its cards are read once, on mount. */
   deckId: string;
   onExit: () => void;
 }
 
+/** Splits a count into groups of five, the way tally marks are gated. */
 function tallyGroups(n: number): number[] {
   const groups: number[] = [];
   let remaining = n;
@@ -19,6 +21,7 @@ function tallyGroups(n: number): number[] {
   return groups;
 }
 
+/** A running count drawn as chalk tally marks, five to a gate. */
 function Tally({ count }: { count: number }) {
   if (count === 0) return <span className="tally-zero">—</span>;
   return (
@@ -34,6 +37,14 @@ function Tally({ count }: { count: number }) {
   );
 }
 
+/**
+ * A study run: one card at a time, flipped by click or space, marked known or
+ * still-learning.
+ *
+ * Marking a card writes its status straight to the database and advances, so a
+ * run interrupted halfway is not lost. A failed write is reported but does not
+ * stop the run — losing one card's status is not worth interrupting studying.
+ */
 export default function StudyMode({ deckId, onExit }: Props) {
   const [deck, setDeck] = useState<Deck | null>(null);
   const [cards, setCards] = useState<Flashcard[]>([]);
@@ -90,6 +101,7 @@ export default function StudyMode({ deckId, onExit }: Props) {
     return Math.round((Math.min(position, order.length) / order.length) * 100);
   }, [position, order.length]);
 
+  /** Records how the current card went, saves it, and moves to the next. */
   const mark = async (status: "known" | "unknown") => {
     if (!current) return;
     if (status === "known") setKnown((k) => k + 1);
@@ -108,6 +120,7 @@ export default function StudyMode({ deckId, onExit }: Props) {
     setPosition((p) => p + 1);
   };
 
+  /** Starts the deck again, in document order or shuffled. */
   const restart = (shuffled: boolean) => {
     setOrder(shuffled ? shuffle(cards) : cards);
     setPosition(0);

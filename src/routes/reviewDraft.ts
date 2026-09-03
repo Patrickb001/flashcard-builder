@@ -1,6 +1,6 @@
 import type { DocumentSection } from '../lib/documentModel';
 import type { AiSettings } from '../lib/aiGenerator';
-import type { SourceType } from '../components/Uploader';
+import type { SourceType } from '../types';
 
 /**
  * A parsed document on its way to the review screen.

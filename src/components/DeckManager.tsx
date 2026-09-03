@@ -17,13 +17,26 @@ import {
 import { Diagram, Snippet } from "./CardMedia";
 
 interface Props {
+  /** The deck to manage. Everything on screen is read from it on mount. */
   deckId: string;
   onExit: () => void;
   onStudy: (deckId: string) => void;
   onTest: (deckId: string) => void;
+  /**
+   * Fired after the deck is deleted, so the caller can navigate away. This
+   * screen cannot show a deck that no longer exists, so it does not try.
+   */
   onDeckDeleted: () => void;
 }
 
+/**
+ * The deck detail screen: rename the deck, edit its cards, export it, delete it.
+ *
+ * Card edits are held in local state and written on blur rather than on every
+ * keystroke, so typing does not queue an IndexedDB write per character. A failed
+ * write leaves the edit on screen and says so, because losing what someone just
+ * typed is worse than a stale row in the database.
+ */
 export default function DeckManager({
   deckId,
   onExit,
@@ -76,6 +89,7 @@ export default function DeckManager({
     load();
   }, [load]);
 
+  /** Updates a card in local state only; persistCard writes it on blur. */
   const handleFieldChange = (
     id: string,
     field: "front" | "back",
@@ -86,6 +100,7 @@ export default function DeckManager({
     );
   };
 
+  /** Writes one edited card. A failed write leaves the edit on screen. */
   const persistCard = async (card: Flashcard) => {
     try {
       await updateCard(card);
@@ -95,12 +110,14 @@ export default function DeckManager({
     }
   };
 
+  /** Appends a blank card to the end of the deck, then reloads. */
   const handleAdd = async () => {
     if (!deck) return;
     // Past the last card, so a hand-added one lands at the end of the deck
     // instead of wherever its UUID happened to fall.
     const lastOrder = cards.reduce(
-      (max, c) => (typeof c.order === "number" && c.order > max ? c.order : max),
+      (max, existing) =>
+        typeof existing.order === "number" && existing.order > max ? existing.order : max,
       -1,
     );
     const newCard: Flashcard = {
@@ -122,6 +139,7 @@ export default function DeckManager({
     }
   };
 
+  /** Removes one card, along with any test question written from it. */
   const handleDelete = async (cardId: string) => {
     try {
       await deleteCard(cardId, deckId);
@@ -132,6 +150,12 @@ export default function DeckManager({
     }
   };
 
+  /**
+   * Deletes the deck and everything in it, after confirming.
+   *
+   * Irreversible — nothing is kept elsewhere and there is no undo — so the
+   * confirmation names the deck rather than asking a generic "are you sure".
+   */
   const handleDeleteDeck = async () => {
     if (!deck) return;
     if (
@@ -149,6 +173,7 @@ export default function DeckManager({
     }
   };
 
+  /** Saves the deck as a delimited .txt file, for importing elsewhere. */
   const handleExport = () => {
     if (!deck) return;
     try {
@@ -159,6 +184,7 @@ export default function DeckManager({
     }
   };
 
+  /** The same text to the clipboard, with a two-second confirmation. */
   const handleCopy = async () => {
     try {
       await navigator.clipboard.writeText(formatDeckForExport(cards));
@@ -172,6 +198,7 @@ export default function DeckManager({
     }
   };
 
+  /** Saves a renamed deck on blur, restoring the old name if the write fails. */
   const commitName = async () => {
     if (!deck) return;
     const trimmed = nameDraft.trim() || "Untitled deck";

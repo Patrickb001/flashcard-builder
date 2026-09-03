@@ -53,6 +53,11 @@ function rowCells(row: Element): string[] {
     .map((cell) => textOf(cell));
 }
 
+/**
+ * Reads a <table> into a table block, or into paragraphs when it is not really
+ * tabular — a header row with a hole in it means the markup is being used for
+ * layout, and forcing it into a grid would misalign every cell.
+ */
 export function parseTable(table: Element): Block[] {
   const rows = Array.from(table.querySelectorAll('tr'));
   if (rows.length < 2) return [];
