@@ -21,9 +21,9 @@
 
   /* Fraunces for display, Source Serif for card faces (serifs are easier to
      track across long study sessions), IBM Plex Sans for UI chrome. */
-  --font-display: 'Fraunces', Georgia, serif;
-  --font-read: 'Source Serif 4', Georgia, serif;
-  --font-ui: 'IBM Plex Sans', system-ui, -apple-system, sans-serif;
+  --font-display: "Fraunces", Georgia, serif;
+  --font-read: "Source Serif 4", Georgia, serif;
+  --font-ui: "IBM Plex Sans", system-ui, -apple-system, sans-serif;
 
   --line-comfortable: 1.65;
 
@@ -45,8 +45,16 @@ body {
   font-size: 16.5px;
   line-height: var(--line-comfortable);
   background-image:
-    radial-gradient(ellipse at 20% -10%, rgba(255, 255, 255, 0.05), transparent 45%),
-    radial-gradient(ellipse at 80% 110%, rgba(255, 255, 255, 0.035), transparent 45%);
+    radial-gradient(
+      ellipse at 20% -10%,
+      rgba(255, 255, 255, 0.05),
+      transparent 45%
+    ),
+    radial-gradient(
+      ellipse at 80% 110%,
+      rgba(255, 255, 255, 0.035),
+      transparent 45%
+    );
   color: var(--text-primary);
   font-family: var(--font-ui);
   -webkit-font-smoothing: antialiased;
@@ -220,7 +228,10 @@ p {
   border-radius: 8px;
   padding: 0.65rem 1.15rem;
   cursor: pointer;
-  transition: transform 0.12s ease, background 0.15s ease, border-color 0.15s ease;
+  transition:
+    transform 0.12s ease,
+    background 0.15s ease,
+    border-color 0.15s ease;
   border: 2px solid transparent;
 }
 
@@ -361,7 +372,9 @@ p {
   border-radius: 12px;
   padding: 1.1rem 1.2rem 1.3rem;
   cursor: pointer;
-  transition: transform 0.15s ease, box-shadow 0.15s ease;
+  transition:
+    transform 0.15s ease,
+    box-shadow 0.15s ease;
   display: flex;
   flex-direction: column;
   gap: 0.5rem;
@@ -431,7 +444,9 @@ p {
   padding: 3.5rem 1.5rem;
   text-align: center;
   cursor: pointer;
-  transition: border-color 0.15s ease, background 0.15s ease;
+  transition:
+    border-color 0.15s ease,
+    background 0.15s ease;
 }
 
 .dropzone:hover,
@@ -491,7 +506,7 @@ p {
   color: var(--text-secondary);
 }
 
-input[type='text'],
+input[type="text"],
 .deck-name-row input {
   background: var(--panel);
   border: 1px solid rgba(255, 255, 255, 0.1);
@@ -531,15 +546,28 @@ input[type='text'],
   opacity: 0.45;
 }
 
-.candidate-row input[type='checkbox'] {
+.candidate-row input[type="checkbox"] {
   margin-top: 0.6rem;
   width: 16px;
   height: 16px;
   accent-color: var(--accent);
+  /* Squared out of existence otherwise, once a wide snippet makes the middle
+     column fight for room. */
+  flex: none;
+}
+
+/* The remove button, same reason. */
+.candidate-row > .icon-btn {
+  flex: none;
 }
 
 .candidate-fields {
   flex: 1;
+  /* A flex item's default `min-width: auto` refuses to shrink below the widest
+     thing inside it, and a code snippet is as wide as its longest line. Without
+     this the column grows past the row, and the `width: 100%` textareas — sized
+     against that column, not the row — spill out over the card's border. */
+  min-width: 0;
   display: flex;
   flex-direction: column;
   gap: 0.4rem;
@@ -674,15 +702,26 @@ textarea {
 
 .flip-card {
   perspective: 1400px;
-  height: 340px;
   margin: 1.5rem 0;
   cursor: pointer;
 }
 
+/*
+ * The card is a fixed, moderate size — a long snippet scrolls inside it rather
+ * than stretching it, so every card in a deck is the same shape and the study
+ * buttons stay where you left them.
+ *
+ * The two faces share one grid cell instead of being taken out of flow. The
+ * single `minmax(0, 1fr)` track is what makes the height stick: it holds each
+ * face to exactly the card's height, which is what lets the snippet inside be
+ * shrunk to fit and scrolled instead of overflowing.
+ */
 .flip-card-inner {
   position: relative;
   width: 100%;
-  height: 100%;
+  display: grid;
+  grid-template: minmax(0, 1fr) / minmax(0, 1fr);
+  height: 380px;
   text-align: center;
   transition: transform 0.5s cubic-bezier(0.4, 0.2, 0.2, 1);
   transform-style: preserve-3d;
@@ -693,8 +732,8 @@ textarea {
 }
 
 .flip-card-face {
-  position: absolute;
-  inset: 0;
+  grid-area: 1 / 1;
+  position: relative;
   backface-visibility: hidden;
   border-radius: 18px;
   border: 1px solid var(--border-soft);
@@ -702,7 +741,10 @@ textarea {
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  padding: 2rem;
+  /* Roomier top and bottom than the sides: the topic chip and the Front/Back
+     tag are pinned inside those edges, and a full-height body would otherwise
+     run under them. */
+  padding: 2.75rem 2rem 2.5rem;
   background: var(--panel);
 }
 
@@ -826,8 +868,8 @@ textarea {
     font-size: 2.1rem;
   }
 
-  .flip-card {
-    height: 260px;
+  .flip-card-inner {
+    height: 300px;
   }
 
   .study-header {
@@ -839,7 +881,6 @@ textarea {
     gap: 0.75rem;
   }
 }
-
 
 /* ---------- Topic context ---------- */
 
@@ -1029,6 +1070,12 @@ textarea {
    of the card is unreadable, and so is a paragraph that shifts left and right
    as the answer changes length. The face centres the body as a block; the body
    lays its own contents out from the left. */
+/*
+ * Sized by its content, but allowed to shrink when that content is taller than
+ * the card (`flex: 0 1 auto` plus `min-height: 0`). The rules below then hand
+ * all of that shrinking to the snippet, so the question and answer text is
+ * never what gets squeezed.
+ */
 .face-body {
   display: flex;
   flex-direction: column;
@@ -1036,10 +1083,35 @@ textarea {
   gap: 0.9rem;
   width: 100%;
   max-width: 46ch;
+  min-width: 0;
+  flex: 0 1 auto;
   min-height: 0;
-  max-height: 100%;
+  /* Last resort only, for a question long enough to fill the card on its own.
+     A card with a snippet never reaches it: the snippet absorbs the overflow
+     first, and scrolls where you can see that it does. */
   overflow-y: auto;
   text-align: left;
+}
+
+/* The text keeps its full height; the snippet gives up whatever room is short
+   and scrolls the rest. The floor stops it collapsing to a sliver behind a
+   long question. */
+.face-body > p {
+  flex: none;
+}
+
+.face-body .card-code {
+  flex: 0 1 auto;
+  min-height: 5rem;
+  display: flex;
+  flex-direction: column;
+}
+
+.face-body .card-code pre {
+  flex: 1 1 auto;
+  min-height: 0;
+  /* The card's height is the limit here, not the viewport's. */
+  max-height: none;
 }
 
 .flip-card-front .face-body {
@@ -1050,11 +1122,15 @@ textarea {
   text-align: center;
 }
 
-/* A card carrying a snippet or a diagram needs room that a two-line question
-   does not, so the extra height is asked for only when there is something to
-   put in it. */
-.flip-card.has-media {
-  height: 480px;
+/* Snippets and diagrams need room that a two-line question does not, so a deck
+   containing any of them studies at the taller size — every card of it, media
+   or not, so the box never changes size as you move through the deck. A deck
+   with none of them keeps the compact card above.
+
+   Capped against the viewport as well as in pixels, so a laptop screen still
+   has the card and both study buttons in view at once. */
+.flip-card.deck-has-media .flip-card-inner {
+  height: clamp(420px, 62vh, 560px);
 }
 
 .card-code {
@@ -1068,7 +1144,11 @@ textarea {
 .card-code pre {
   margin: 0;
   padding: 0.85rem 0.9rem;
-  overflow-x: auto;
+  overflow: auto;
+  /* The one height limit left, and the only place a limit reads honestly: a
+     snippet past this scrolls in a panel that plainly scrolls, rather than
+     being silently cut off by the card around it. */
+  max-height: 60vh;
   /* The snippet keeps the spacing it was published with. Wrapping a program to
      fit the card would put its indentation in the wrong place, which is the one
      thing a reader uses to follow it. */
@@ -1077,7 +1157,7 @@ textarea {
 }
 
 .card-code code {
-  font-family: 'IBM Plex Mono', ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-family: "IBM Plex Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
   font-size: 0.82rem;
   line-height: 1.55;
   color: var(--text-primary);
@@ -1120,11 +1200,15 @@ textarea {
 
 /* ---------- Attachments in the review list ---------- */
 
+/* `min-width: 0` repeats down every level a snippet's width could push
+   through, so the widening stops at the snippet's own scrollbar rather than
+   travelling up to the row. */
 .candidate-media {
   display: flex;
   flex-direction: column;
   gap: 0.6rem;
   margin: 0.5rem 0 0.15rem;
+  min-width: 0;
 }
 
 .candidate-attachment {
@@ -1136,10 +1220,14 @@ textarea {
   border: 1px solid var(--border-soft);
   border-radius: 10px;
   background: var(--ink);
+  min-width: 0;
+  max-width: 100%;
 }
 
 .candidate-attachment .card-code {
   width: 100%;
+  min-width: 0;
+  max-width: 100%;
 }
 
 .candidate-attachment .card-image {
@@ -1155,8 +1243,8 @@ textarea {
 }
 
 @media (max-width: 640px) {
-  .flip-card.has-media {
-    height: 400px;
+  .flip-card.deck-has-media .flip-card-inner {
+    height: clamp(360px, 58vh, 440px);
   }
 
   .card-code code {
@@ -1196,7 +1284,7 @@ textarea {
   color: var(--text-secondary);
 }
 
-.quiz-count-row input[type='range'] {
+.quiz-count-row input[type="range"] {
   flex: 1 1 14rem;
   /* Without this the track renders in the browser's default blue, which is the
      one colour nothing else on this page uses. */
@@ -1251,7 +1339,9 @@ textarea {
   border-radius: 12px;
   color: inherit;
   font: inherit;
-  transition: border-color 0.15s ease, background 0.15s ease;
+  transition:
+    border-color 0.15s ease,
+    background 0.15s ease;
 }
 
 .quiz-style-option:hover {
@@ -1327,7 +1417,9 @@ textarea {
   border: 1px solid var(--border-soft);
   border-radius: 12px;
   cursor: pointer;
-  transition: border-color 0.15s ease, background 0.15s ease;
+  transition:
+    border-color 0.15s ease,
+    background 0.15s ease;
 }
 
 .quiz-option:hover {

@@ -1,8 +1,8 @@
-import { useEffect, useMemo, useState } from 'react';
-import type { Deck, Flashcard } from '../types';
-import { getCardsForDeck, getDeck, updateCard } from '../db/db';
-import { Diagram, Snippet } from './CardMedia';
-import { shuffle } from '../lib/shuffle';
+import { useEffect, useMemo, useState } from "react";
+import type { Deck, Flashcard } from "../types";
+import { getCardsForDeck, getDeck, updateCard } from "../db/db";
+import { Diagram, Snippet } from "./CardMedia";
+import { shuffle } from "../lib/shuffle";
 
 interface Props {
   deckId: string;
@@ -48,13 +48,16 @@ export default function StudyMode({ deckId, onExit }: Props) {
   useEffect(() => {
     (async () => {
       try {
-        const [d, c] = await Promise.all([getDeck(deckId), getCardsForDeck(deckId)]);
+        const [d, c] = await Promise.all([
+          getDeck(deckId),
+          getCardsForDeck(deckId),
+        ]);
         setDeck(d ?? null);
         setCards(c);
         setOrder(c);
       } catch (err) {
-        console.error('[study] Could not read the deck:', err);
-        setError('This deck could not be read from the browser database.');
+        console.error("[study] Could not read the deck:", err);
+        setError("This deck could not be read from the browser database.");
       } finally {
         // Cleared on both paths: clearing it only on success left this screen
         // on "Loading deck…" forever whenever IndexedDB was unavailable.
@@ -65,16 +68,31 @@ export default function StudyMode({ deckId, onExit }: Props) {
 
   const current = order[position];
   const finished = order.length > 0 && position >= order.length;
-  const hasMedia = Boolean(current?.frontCode || current?.backCode || current?.image);
+
+  /**
+   * Whether ANY card in this deck carries a snippet or a diagram — not whether
+   * the card on screen does.
+   *
+   * The card's height follows from this, so every card in a deck is the same
+   * size and moving through them doesn't resize the box under the cursor. Asked
+   * per card instead, the deck jumped between two heights as you went.
+   *
+   * A deck with no media anywhere still gets the compact card: there is nothing
+   * for the extra room to hold, and nothing to be consistent with.
+   */
+  const deckHasMedia = useMemo(
+    () => cards.some((c) => c.frontCode || c.backCode || c.image),
+    [cards],
+  );
 
   const progressPct = useMemo(() => {
     if (order.length === 0) return 0;
     return Math.round((Math.min(position, order.length) / order.length) * 100);
   }, [position, order.length]);
 
-  const mark = async (status: 'known' | 'unknown') => {
+  const mark = async (status: "known" | "unknown") => {
     if (!current) return;
-    if (status === 'known') setKnown((k) => k + 1);
+    if (status === "known") setKnown((k) => k + 1);
     else setUnknown((u) => u + 1);
     const updated: Flashcard = { ...current, status };
     try {
@@ -82,8 +100,8 @@ export default function StudyMode({ deckId, onExit }: Props) {
     } catch (err) {
       // The card still advances: losing a status write is not worth
       // interrupting a study run over, but it should not be silent either.
-      console.error('[study] Could not save the card status:', err);
-      setError('Your progress on that card could not be saved.');
+      console.error("[study] Could not save the card status:", err);
+      setError("Your progress on that card could not be saved.");
     }
     setCards((prev) => prev.map((c) => (c.id === updated.id ? updated : c)));
     setFlipped(false);
@@ -148,12 +166,14 @@ export default function StudyMode({ deckId, onExit }: Props) {
           </p>
 
           <div
-            className={`flip-card ${flipped ? 'is-flipped' : ''} ${hasMedia ? 'has-media' : ''}`}
+            className={`flip-card ${flipped ? "is-flipped" : ""} ${
+              deckHasMedia ? "deck-has-media" : ""
+            }`}
             onClick={() => setFlipped((f) => !f)}
             role="button"
             tabIndex={0}
             onKeyDown={(e) => {
-              if (e.key === ' ' || e.key === 'Enter') {
+              if (e.key === " " || e.key === "Enter") {
                 e.preventDefault();
                 setFlipped((f) => !f);
               }
@@ -161,7 +181,9 @@ export default function StudyMode({ deckId, onExit }: Props) {
           >
             <div className="flip-card-inner">
               <div className="flip-card-face flip-card-front">
-                {current.context && <span className="topic-chip">{current.context}</span>}
+                {current.context && (
+                  <span className="topic-chip">{current.context}</span>
+                )}
                 <span className="face-tag">Front</span>
                 <div className="face-body">
                   <p>{current.front}</p>
@@ -170,7 +192,9 @@ export default function StudyMode({ deckId, onExit }: Props) {
                 <span className="tap-hint">Click or press space to flip</span>
               </div>
               <div className="flip-card-face flip-card-back">
-                {current.context && <span className="topic-chip">{current.context}</span>}
+                {current.context && (
+                  <span className="topic-chip">{current.context}</span>
+                )}
                 <span className="face-tag">Back</span>
                 <div className="face-body">
                   <p>{current.back}</p>
@@ -182,10 +206,16 @@ export default function StudyMode({ deckId, onExit }: Props) {
           </div>
 
           <div className="study-actions">
-            <button className="secondary-btn learning" onClick={() => mark('unknown')}>
+            <button
+              className="secondary-btn learning"
+              onClick={() => mark("unknown")}
+            >
               Still learning
             </button>
-            <button className="secondary-btn knew" onClick={() => mark('known')}>
+            <button
+              className="secondary-btn knew"
+              onClick={() => mark("known")}
+            >
               Knew it
             </button>
           </div>
@@ -196,7 +226,8 @@ export default function StudyMode({ deckId, onExit }: Props) {
         <div className="study-summary">
           <h2>Deck complete</h2>
           <p className="muted">
-            {known} knew it · {unknown} still learning, out of {order.length} cards.
+            {known} knew it · {unknown} still learning, out of {order.length}{" "}
+            cards.
           </p>
           <div className="form-actions">
             <button className="ghost-btn" onClick={onExit}>
