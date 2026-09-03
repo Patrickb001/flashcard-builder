@@ -14,6 +14,7 @@ import {
   exportFileName,
   formatDeckForExport,
 } from "../lib/deckExport";
+import { Diagram, Snippet } from "./CardMedia";
 
 interface Props {
   deckId: string;
@@ -292,6 +293,38 @@ export default function DeckManager({
                   }
                   placeholder="Back"
                 />
+                {/* Laid out as the review screen lays it out, so a card looks
+                    the same before and after it is saved. Read-only here: the
+                    text is editable, but a snippet is the source's own and
+                    there is nothing on this screen to write one with. */}
+                {(card.frontCode || card.backCode || card.image) && (
+                  <div className="candidate-media">
+                    {card.frontCode && (
+                      <div className="candidate-attachment">
+                        <span className="attachment-tag">
+                          Shown with the question
+                        </span>
+                        <Snippet code={card.frontCode} />
+                      </div>
+                    )}
+                    {card.backCode && (
+                      <div className="candidate-attachment">
+                        <span className="attachment-tag">
+                          Shown with the answer
+                        </span>
+                        <Snippet code={card.backCode} />
+                      </div>
+                    )}
+                    {card.image && (
+                      <div className="candidate-attachment">
+                        <span className="attachment-tag">
+                          Shown with the answer
+                        </span>
+                        <Diagram image={card.image} />
+                      </div>
+                    )}
+                  </div>
+                )}
                 <span className="candidate-meta">
                   {card.context && (
                     <span className="topic-chip">{card.context}</span>
