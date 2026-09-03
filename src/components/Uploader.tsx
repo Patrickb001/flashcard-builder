@@ -111,7 +111,7 @@ export default function Uploader({ onParsed, onCancel }: Props) {
             ? failures[0].error
             : `None of those ${failures.length} pages could be read. ${failures
                 .slice(0, 3)
-                .map((f) => `${deckNameForUrl(f.url)} — ${f.error}`)
+                .map((failure) => `${deckNameForUrl(failure.url)} — ${failure.error}`)
                 .join('; ')}`
         );
         setStatus('error');

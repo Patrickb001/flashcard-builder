@@ -129,12 +129,12 @@ export function hasConflictingNumbers(a: string, b: string): boolean {
   const numbers = (text: string) =>
     new Set(text.match(/\d+(?:\.\d+)?/g) ?? []);
 
-  const A = numbers(a);
-  const B = numbers(b);
-  if (A.size === 0 || B.size === 0) return false;
+  const first = numbers(a);
+  const second = numbers(b);
+  if (first.size === 0 || second.size === 0) return false;
 
-  for (const n of A) if (!B.has(n)) return true;
-  for (const n of B) if (!A.has(n)) return true;
+  for (const number of first) if (!second.has(number)) return true;
+  for (const number of second) if (!first.has(number)) return true;
   return false;
 }
 

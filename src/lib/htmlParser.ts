@@ -342,10 +342,10 @@ function attachOutputs(blocks: Block[]): Block[] {
  * Left in, it becomes a section of its own with nothing in it worth learning.
  */
 function dropLeadingCrumbs(blocks: Block[]): Block[] {
-  const firstHeading = blocks.findIndex((b) => b.kind === 'heading');
+  const firstHeading = blocks.findIndex((block) => block.kind === 'heading');
   if (firstHeading <= 0) return blocks;
   const lead = blocks.slice(0, firstHeading);
-  const allCrumbs = lead.every((b) => b.kind === 'paragraph' && b.text.length <= 60);
+  const allCrumbs = lead.every((block) => block.kind === 'paragraph' && block.text.length <= 60);
   return allCrumbs ? blocks.slice(firstHeading) : blocks;
 }
 

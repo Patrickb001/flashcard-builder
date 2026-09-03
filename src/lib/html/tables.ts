@@ -49,8 +49,8 @@ export function listItems(list: Element): string[] {
 
 function rowCells(row: Element): string[] {
   return Array.from(row.children)
-    .filter((c) => tag(c) === 'td' || tag(c) === 'th')
-    .map((c) => textOf(c));
+    .filter((cell) => tag(cell) === 'td' || tag(cell) === 'th')
+    .map((cell) => textOf(cell));
 }
 
 export function parseTable(table: Element): Block[] {
@@ -60,7 +60,7 @@ export function parseTable(table: Element): Block[] {
   const grid = rows.map(rowCells).filter((cells) => cells.length > 0);
   const [headers, ...body] = grid;
 
-  if (!headers || headers.length < 2 || body.length === 0 || headers.some((h) => !h)) {
+  if (!headers || headers.length < 2 || body.length === 0 || headers.some((header) => !header)) {
     // Not a usable header row — keep the text rather than dropping the table.
     return grid
       .map((cells) => cells.filter(Boolean).join(' — '))

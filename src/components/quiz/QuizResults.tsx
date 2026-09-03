@@ -20,7 +20,10 @@ interface Props {
 }
 
 export default function QuizResults({ asked, answers, cardFor, onAgain, onExit }: Props) {
-  const correctCount = asked.reduce((n, q, i) => n + (answers[i] === q.correctIndex ? 1 : 0), 0);
+  const correctCount = asked.reduce(
+    (total, prepared, index) => total + (answers[index] === prepared.correctIndex ? 1 : 0),
+    0
+  );
   const pct = asked.length === 0 ? 0 : Math.round((correctCount / asked.length) * 100);
   const missedCount = asked.length - correctCount;
 

@@ -82,7 +82,7 @@ export default function DeckManager({
     value: string,
   ) => {
     setCards((prev) =>
-      prev.map((c) => (c.id === id ? { ...c, [field]: value } : c)),
+      prev.map((existing) => (existing.id === id ? { ...existing, [field]: value } : existing)),
     );
   };
 
@@ -281,7 +281,7 @@ export default function DeckManager({
                     handleFieldChange(card.id, "front", e.target.value)
                   }
                   onBlur={() =>
-                    persistCard(cards.find((c) => c.id === card.id)!)
+                    persistCard(card)
                   }
                   placeholder="Front"
                 />
@@ -293,7 +293,7 @@ export default function DeckManager({
                     handleFieldChange(card.id, "back", e.target.value)
                   }
                   onBlur={() =>
-                    persistCard(cards.find((c) => c.id === card.id)!)
+                    persistCard(card)
                   }
                   placeholder="Back"
                 />

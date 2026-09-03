@@ -91,7 +91,7 @@ export function useDeckQuiz(deckId: string) {
     // A question whose card is gone would still be asked. The delete cascade
     // handles this; the sweep is here for any deck left behind by an earlier
     // build, and costs one index scan.
-    await pruneOrphanQuestions(deckId, new Set(loadedCards.map((c) => c.id)));
+    await pruneOrphanQuestions(deckId, new Set(loadedCards.map((card) => card.id)));
     const loadedPool = await getQuestionsForDeck(deckId);
 
     setDeck(loadedDeck ?? null);
@@ -246,7 +246,7 @@ export function useDeckQuiz(deckId: string) {
   }, [selected, asked, position]);
 
   const cardFor = useCallback(
-    (question: TestQuestion) => cards.find((c) => c.id === question.cardId),
+    (question: TestQuestion) => cards.find((card) => card.id === question.cardId),
     [cards]
   );
 

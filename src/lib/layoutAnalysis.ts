@@ -223,15 +223,18 @@ function assembleLines(items: PositionedItem[]): Line[] {
 // Step 3: table detection
 // ---------------------------------------------------------------------------
 
+/** Groups nearby values and returns the mean of each group. */
 function clusterValues(values: number[], tolerance: number): number[] {
   const sorted = [...values].sort((a, b) => a - b);
   const clusters: number[][] = [];
-  for (const v of sorted) {
+  for (const value of sorted) {
     const last = clusters[clusters.length - 1];
-    if (last && v - last[last.length - 1] <= tolerance) last.push(v);
-    else clusters.push([v]);
+    if (last && value - last[last.length - 1] <= tolerance) last.push(value);
+    else clusters.push([value]);
   }
-  return clusters.map((c) => c.reduce((s, v) => s + v, 0) / c.length);
+  return clusters.map(
+    (cluster) => cluster.reduce((sum, value) => sum + value, 0) / cluster.length
+  );
 }
 
 /**
@@ -240,31 +243,32 @@ function clusterValues(values: number[], tolerance: number): number[] {
  * distinct baselines are almost certainly column starts.
  */
 function detectColumnAnchors(lines: Line[]): number[] {
-  const xs = lines.map((l) => l.x);
+  const xs = lines.map((line) => line.x);
   const candidates = clusterValues(xs, COLUMN_ANCHOR_TOLERANCE);
 
   const scored = candidates
     .map((anchor) => {
       const rows = new Set(
         lines
-          .filter((l) => Math.abs(l.x - anchor) <= COLUMN_ANCHOR_TOLERANCE)
-          .map((l) => Math.round(l.y))
+          .filter((line) => Math.abs(line.x - anchor) <= COLUMN_ANCHOR_TOLERANCE)
+          .map((line) => Math.round(line.y))
       );
       return { anchor, count: rows.size };
     })
-    .filter((c) => c.count >= MIN_TABLE_ROWS)
+    .filter((candidate) => candidate.count >= MIN_TABLE_ROWS)
     .sort((a, b) => a.anchor - b.anchor);
 
-  return scored.map((s) => s.anchor);
+  return scored.map((candidate) => candidate.anchor);
 }
 
+/** Index of the anchor `x` sits closest to. */
 function assignColumn(x: number, anchors: number[]): number {
   let best = 0;
   let bestDist = Infinity;
   for (let i = 0; i < anchors.length; i++) {
-    const d = Math.abs(x - anchors[i]);
-    if (d < bestDist) {
-      bestDist = d;
+    const distance = Math.abs(x - anchors[i]);
+    if (distance < bestDist) {
+      bestDist = distance;
       best = i;
     }
   }
@@ -319,7 +323,7 @@ interface TableCandidate {
 function tryExtractTable(lines: Line[]): TableCandidate | null {
   // Bulleted content is a panel layout (side-by-side text boxes), not a grid.
   // Slides use both, and mistaking one for the other scrambles the content.
-  if (lines.some((l) => l.isBullet)) return null;
+  if (lines.some((line) => line.isBullet)) return null;
 
   const anchors = detectColumnAnchors(lines);
   // Two anchors is far more often a two-column layout than a real table, so a
@@ -329,7 +333,7 @@ function tryExtractTable(lines: Line[]): TableCandidate | null {
   const rows = groupIntoRows(lines, anchors);
   // Rows that actually populate multiple columns.
   const gridRows = rows.filter((rowLines) => {
-    const cols = new Set(rowLines.map((l) => assignColumn(l.x, anchors)));
+    const cols = new Set(rowLines.map((line) => assignColumn(line.x, anchors)));
     return cols.size >= Math.min(anchors.length, 2);
   });
 
@@ -346,7 +350,7 @@ function tryExtractTable(lines: Line[]): TableCandidate | null {
       cells[assignColumn(line.x, anchors)].push(stripBullet(line.text));
       consumed.add(line);
     }
-    materialized.push(cells.map((c) => c.join(' ').replace(/\s+/g, ' ').trim()));
+    materialized.push(cells.map((cell) => cell.join(' ').replace(/\s+/g, ' ').trim()));
   }
 
   const [headers, ...body] = materialized;
@@ -547,31 +551,42 @@ const PRINT_ARTIFACT_RE = [
 ];
 
 function isPrintArtifact(text: string): boolean {
-  const t = text.trim();
-  return PRINT_ARTIFACT_RE.some((re) => re.test(t));
+  const trimmed = text.trim();
+  return PRINT_ARTIFACT_RE.some((re) => re.test(trimmed));
 }
 
+/**
+ * Turns one page's positioned text into typed blocks — the entry point of the
+ * PDF pipeline, and the only export of this module.
+ *
+ * Runs the four steps in order: assemble fragments into lines that respect
+ * column boundaries, find the page title by font size, lift out any real table,
+ * and segment what remains into headings, lists and paragraphs.
+ *
+ * `label` is the caller's name for the page ("Page 3"), carried through onto
+ * every card made from it so a reader can find the source.
+ */
 export function analyzePage(items: PositionedItem[], label: string): DocumentSection {
   const allLines = assembleLines(items);
-  const lines = allLines.filter((l) => !isPrintArtifact(l.text));
+  const lines = allLines.filter((line) => !isPrintArtifact(line.text));
   if (lines.length === 0) return { label, blocks: [] };
 
-  const sizes = lines.map((l) => l.fontSize);
+  const sizes = lines.map((line) => line.fontSize);
   const titleSize = Math.max(...sizes);
   // Modal font size ≈ body text.
   const freq = new Map<number, number>();
-  for (const s of sizes) {
-    const k = Math.round(s * 2) / 2;
-    freq.set(k, (freq.get(k) ?? 0) + 1);
+  for (const size of sizes) {
+    const bucket = Math.round(size * 2) / 2;
+    freq.set(bucket, (freq.get(bucket) ?? 0) + 1);
   }
   const bodySize = [...freq.entries()].sort((a, b) => b[1] - a[1])[0][0];
 
   // The largest line, if clearly larger than body text, is the page title.
-  const titleLine = lines.find((l) => l.fontSize === titleSize && l.text.length > 2);
+  const titleLine = lines.find((line) => line.fontSize === titleSize && line.text.length > 2);
   const hasTitle = !!titleLine && titleSize > bodySize + 2;
   const title = hasTitle ? titleLine!.text : undefined;
 
-  const rest = lines.filter((l) => l !== titleLine);
+  const rest = lines.filter((line) => line !== titleLine);
 
   const blocks: Block[] = [];
   if (title) blocks.push({ kind: 'heading', text: title, level: 1 });
@@ -579,7 +594,7 @@ export function analyzePage(items: PositionedItem[], label: string): DocumentSec
   const table = tryExtractTable(rest);
   if (table) {
     blocks.push({ kind: 'table', headers: table.headers, rows: table.rows, context: title });
-    const leftovers = rest.filter((l) => !table.consumed.has(l));
+    const leftovers = rest.filter((line) => !table.consumed.has(line));
     blocks.push(...segmentBlocks(leftovers, titleSize, bodySize));
   } else {
     blocks.push(...segmentBlocks(rest, titleSize, bodySize));

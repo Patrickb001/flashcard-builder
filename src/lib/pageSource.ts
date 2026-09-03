@@ -284,7 +284,7 @@ export async function fetchPagesSections(
 
 /** One line summarising what was skipped, short enough to read at a glance. */
 export function describeFailures(failures: PageFailure[], read: number): string {
-  const shown = failures.slice(0, 3).map((f) => `${deckNameForUrl(f.url)} — ${f.error}`);
+  const shown = failures.slice(0, 3).map((failure) => `${deckNameForUrl(failure.url)} — ${failure.error}`);
   const rest = failures.length - shown.length;
   const tail = rest > 0 ? `; and ${rest} more` : '';
   return `Read ${read} of ${read + failures.length} pages. Skipped: ${shown.join('; ')}${tail}`;

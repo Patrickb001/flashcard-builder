@@ -114,18 +114,18 @@ export function parseCardsResponse(text: string): LlmCard[] {
 
   return parsed
     .filter(
-      (c): c is LlmCard =>
-        !!c && typeof c === 'object' &&
-        typeof (c as LlmCard).front === 'string' &&
-        typeof (c as LlmCard).back === 'string'
+      (item): item is LlmCard =>
+        !!item && typeof item === 'object' &&
+        typeof (item as LlmCard).front === 'string' &&
+        typeof (item as LlmCard).back === 'string'
     )
-    .map((c) => ({
-      front: c.front.trim(),
-      back: c.back.trim(),
-      context: typeof c.context === 'string' ? c.context.trim() : undefined,
-      source: typeof c.source === 'string' ? c.source.trim() : undefined,
-      frontCode: assetRef(c.frontCode),
-      backCode: assetRef(c.backCode),
-      image: assetRef(c.image),
+    .map((card) => ({
+      front: card.front.trim(),
+      back: card.back.trim(),
+      context: typeof card.context === 'string' ? card.context.trim() : undefined,
+      source: typeof card.source === 'string' ? card.source.trim() : undefined,
+      frontCode: assetRef(card.frontCode),
+      backCode: assetRef(card.backCode),
+      image: assetRef(card.image),
     }));
 }

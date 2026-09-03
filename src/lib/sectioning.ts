@@ -81,27 +81,30 @@ const MAX_SPLIT_LEVEL = 4;
  */
 function buildRuns(blocks: Block[], titles: string[], minLevel: number): Run[] {
   let level: number | null = null;
-  for (const b of blocks) {
-    if (b.kind !== 'heading') continue;
-    if (b.level < minLevel || b.level > MAX_SPLIT_LEVEL) continue;
-    if (level === null || b.level < level) level = b.level;
+  for (const block of blocks) {
+    if (block.kind !== 'heading') continue;
+    if (block.level < minLevel || block.level > MAX_SPLIT_LEVEL) continue;
+    if (level === null || block.level < level) level = block.level;
   }
   if (level === null) return [{ titles, blocks }];
 
   const groups: { title?: string; blocks: Block[] }[] = [{ blocks: [] }];
-  for (const b of blocks) {
-    if (b.kind === 'heading' && b.level === level) groups.push({ title: b.text, blocks: [] });
-    else groups[groups.length - 1].blocks.push(b);
+  for (const block of blocks) {
+    if (block.kind === 'heading' && block.level === level) {
+      groups.push({ title: block.text, blocks: [] });
+    } else {
+      groups[groups.length - 1].blocks.push(block);
+    }
   }
 
-  const filled = groups.filter((g) => g.title || g.blocks.length > 0);
+  const filled = groups.filter((group) => group.title || group.blocks.length > 0);
   // One group means this level is the document title, not a divider.
   const lone = filled.length === 1;
 
   const runs: Run[] = [];
   for (const group of filled) {
     const chain = group.title ? [...titles, group.title] : titles;
-    const size = group.blocks.reduce((n, b) => n + blockLength(b) + 1, 0);
+    const size = group.blocks.reduce((total, block) => total + blockLength(block) + 1, 0);
     if (size > SECTION_CHAR_BUDGET || (lone && group.title)) {
       runs.push(...buildRuns(group.blocks, chain, level + 1));
     } else {
@@ -139,10 +142,10 @@ export function sectionsFromBlocks(blocks: Block[], options: SectionOptions = {}
     // writes `heading` onto lists, snippets and images, and with the originals
     // passed through by reference that wrote straight into the caller's array -
     // so calling this twice on the same blocks gave two different answers.
-    const body = run.blocks.map((b) =>
+    const body = run.blocks.map((block) =>
       // Headings that survive inside a section are subheadings, whatever their
       // original depth: level 1 means "page title" to the card generator.
-      b.kind === 'heading' ? { ...b, level: 2 } : { ...b }
+      block.kind === 'heading' ? { ...block, level: 2 } : { ...block }
     );
 
     // A list, a snippet and a diagram all arrive unlabelled: nothing in the
@@ -155,31 +158,31 @@ export function sectionsFromBlocks(blocks: Block[], options: SectionOptions = {}
     // the snippet was offered to the reader as a flowchart.
     let nearest = title;
     for (let i = 0; i < body.length; i++) {
-      const b = body[i];
+      const block = body[i];
 
-      if (b.kind === 'heading') {
+      if (block.kind === 'heading') {
         const next = body[i + 1];
         // A bold line sitting directly above a figure is its caption, not a
         // heading over everything that follows. Read as a heading it went on to
         // title the code sample after the picture, and the snippet was offered
         // to the reader as a flowchart.
         if (next && next.kind === 'image') {
-          if (!next.heading) next.heading = b.text;
+          if (!next.heading) next.heading = block.text;
           i += 1;
           continue;
         }
-        nearest = b.text;
+        nearest = block.text;
         continue;
       }
 
       // A labelled paragraph names its subtopic as surely as a heading does.
-      if (b.kind === 'paragraph') {
-        if (b.heading) nearest = b.heading;
+      if (block.kind === 'paragraph') {
+        if (block.heading) nearest = block.heading;
         continue;
       }
 
-      if (b.kind === 'list' || b.kind === 'code' || b.kind === 'image') {
-        if (!b.heading) b.heading = nearest;
+      if (block.kind === 'list' || block.kind === 'code' || block.kind === 'image') {
+        if (!block.heading) block.heading = nearest;
       }
     }
 
@@ -221,23 +224,23 @@ export function stripRepeatedFurniture(sections: DocumentSection[]): DocumentSec
 
   const threshold = Math.max(3, Math.ceil(sections.length * 0.3));
   const furniture = new Set(
-    [...counts.entries()].filter(([, n]) => n >= threshold).map(([t]) => t)
+    [...counts.entries()].filter(([, count]) => count >= threshold).map(([text]) => text)
   );
 
   // Printed web pages repeat the document's own section list in a sidebar or
   // page footer. Those entries are titles of OTHER sections, so any short block
   // whose text matches a different section's title is navigation, not content.
   const titles = new Map<string, string>();
-  for (const s of sections) {
-    if (s.title) titles.set(normalizeSlug(s.title), s.label);
+  for (const section of sections) {
+    if (section.title) titles.set(normalizeSlug(section.title), section.label);
   }
 
   return sections.map((section) => ({
     ...section,
-    blocks: section.blocks.filter((b) => {
-      if (furniture.has(blockSignature(b))) return false;
-      if (b.kind !== 'paragraph' && b.kind !== 'heading') return true;
-      const text = b.text;
+    blocks: section.blocks.filter((block) => {
+      if (furniture.has(blockSignature(block))) return false;
+      if (block.kind !== 'paragraph' && block.kind !== 'heading') return true;
+      const text = block.text;
       if (text.length > 60) return true;
       const owner = titles.get(normalizeSlug(text));
       return !owner || owner === section.label;

@@ -23,9 +23,9 @@ function Tally({ count }: { count: number }) {
   if (count === 0) return <span className="tally-zero">—</span>;
   return (
     <span className="tally">
-      {tallyGroups(count).map((g, gi) => (
-        <span className="tally-group" key={gi}>
-          {Array.from({ length: g }).map((_, i) => (
+      {tallyGroups(count).map((groupSize, groupIndex) => (
+        <span className="tally-group" key={groupIndex}>
+          {Array.from({ length: groupSize }).map((_, i) => (
             <i key={i} className={`tally-stroke stroke-${i}`} />
           ))}
         </span>
@@ -48,13 +48,13 @@ export default function StudyMode({ deckId, onExit }: Props) {
   useEffect(() => {
     (async () => {
       try {
-        const [d, c] = await Promise.all([
+        const [loadedDeck, loadedCards] = await Promise.all([
           getDeck(deckId),
           getCardsForDeck(deckId),
         ]);
-        setDeck(d ?? null);
-        setCards(c);
-        setOrder(c);
+        setDeck(loadedDeck ?? null);
+        setCards(loadedCards);
+        setOrder(loadedCards);
       } catch (err) {
         console.error("[study] Could not read the deck:", err);
         setError("This deck could not be read from the browser database.");
@@ -81,7 +81,7 @@ export default function StudyMode({ deckId, onExit }: Props) {
    * for the extra room to hold, and nothing to be consistent with.
    */
   const deckHasMedia = useMemo(
-    () => cards.some((c) => c.frontCode || c.backCode || c.image),
+    () => cards.some((card) => card.frontCode || card.backCode || card.image),
     [cards],
   );
 
@@ -103,7 +103,7 @@ export default function StudyMode({ deckId, onExit }: Props) {
       console.error("[study] Could not save the card status:", err);
       setError("Your progress on that card could not be saved.");
     }
-    setCards((prev) => prev.map((c) => (c.id === updated.id ? updated : c)));
+    setCards((prev) => prev.map((card) => (card.id === updated.id ? updated : card)));
     setFlipped(false);
     setPosition((p) => p + 1);
   };

@@ -49,7 +49,7 @@ function splitSentences(text: string): string[] {
   return text
     .replace(/\s+/g, ' ')
     .split(/(?<=[.!?])\s+(?=[A-Z“"'(])/)
-    .map((s) => s.trim())
+    .map((part) => part.trim())
     .filter(Boolean);
 }
 
@@ -300,7 +300,11 @@ function cardsFromSection(section: DocumentSection): CandidateCard[] {
   const ctx = section.title;
 
   const hasStructure = blocks.some(
-    (b) => b.kind === 'table' || b.kind === 'list' || b.kind === 'code' || b.kind === 'image'
+    (block) =>
+      block.kind === 'table' ||
+      block.kind === 'list' ||
+      block.kind === 'code' ||
+      block.kind === 'image'
   );
   if (!section.title && !hasStructure) return [];
 

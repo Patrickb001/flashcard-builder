@@ -61,7 +61,7 @@ export default function CandidateReview({
       try {
         const { cards, failedSections, truncatedBatches, firstError, aborted } =
           await generateCandidatesWithAi(sections, ai, {
-            onProgress: (p) => !cancelled && setProgress(p),
+            onProgress: (batch) => !cancelled && setProgress(batch),
             signal: controller.signal,
           });
         if (cancelled || aborted) return;
@@ -122,16 +122,21 @@ export default function CandidateReview({
   const [deckName, setDeckName] = useState(defaultDeckName(fileName));
   const [saving, setSaving] = useState(false);
 
-  const includedCount = candidates.filter((c) => c.include).length;
+  const includedCount = candidates.filter((candidate) => candidate.include).length;
 
+  /** Applies an edit to one candidate, leaving the rest untouched. */
   const updateCandidate = (index: number, patch: Partial<CandidateCard>) => {
-    setCandidates((prev) => prev.map((c, i) => (i === index ? { ...c, ...patch } : c)));
+    setCandidates((prev) =>
+      prev.map((candidate, i) => (i === index ? { ...candidate, ...patch } : candidate))
+    );
   };
 
+  /** Drops a candidate entirely, as opposed to unchecking it. */
   const removeCandidate = (index: number) => {
     setCandidates((prev) => prev.filter((_, i) => i !== index));
   };
 
+  /** Opens an empty card at the top of the list, for writing one by hand. */
   const addBlankCard = () => {
     setCandidates((prev) => [
       { front: '', back: '', sourceLabel: 'Manual', include: true },
@@ -139,8 +144,17 @@ export default function CandidateReview({
     ]);
   };
 
+  /**
+   * Turns the checked candidates into a saved deck and hands back its id.
+   *
+   * Blank fronts or backs are dropped here rather than blocking the save: an
+   * empty row is someone who started a card and changed their mind, not an error
+   * worth stopping on.
+   */
   const handleSave = async () => {
-    const toSave = candidates.filter((c) => c.include && c.front.trim() && c.back.trim());
+    const toSave = candidates.filter(
+      (candidate) => candidate.include && candidate.front.trim() && candidate.back.trim()
+    );
     if (toSave.length === 0) return;
     setSaving(true);
 
@@ -157,18 +171,18 @@ export default function CandidateReview({
     // `order` is what preserves the review screen's order into the deck. Every
     // card here shares one `createdAt`, so nothing else in the record can say
     // which came first.
-    const cards: Flashcard[] = toSave.map((c, index) => ({
+    const cards: Flashcard[] = toSave.map((candidate, index) => ({
       id: crypto.randomUUID(),
       deckId,
-      front: c.front.trim(),
-      back: c.back.trim(),
-      sourceLabel: c.sourceLabel,
-      context: c.context,
+      front: candidate.front.trim(),
+      back: candidate.back.trim(),
+      sourceLabel: candidate.sourceLabel,
+      context: candidate.context,
       // Snippets and diagrams travel with the card into the deck; the review
       // screen is where an unwanted one is taken off.
-      frontCode: c.frontCode,
-      backCode: c.backCode,
-      image: c.image,
+      frontCode: candidate.frontCode,
+      backCode: candidate.backCode,
+      image: candidate.image,
       status: 'new',
       createdAt: now,
       order: index,
@@ -251,35 +265,35 @@ export default function CandidateReview({
       )}
 
       <ul className="candidate-list">
-        {candidates.map((c, i) => (
-          <li key={i} className={`candidate-row ${c.include ? '' : 'excluded'}`}>
+        {candidates.map((candidate, i) => (
+          <li key={i} className={`candidate-row ${candidate.include ? '' : 'excluded'}`}>
             <input
               type="checkbox"
-              checked={c.include}
+              checked={candidate.include}
               onChange={(e) => updateCandidate(i, { include: e.target.checked })}
               title="Include in deck"
             />
             <div className="candidate-fields">
               <textarea
                 className="candidate-front"
-                value={c.front}
+                value={candidate.front}
                 onChange={(e) => updateCandidate(i, { front: e.target.value })}
                 placeholder="Front (question / term)"
                 rows={2}
               />
               <textarea
                 className="candidate-back"
-                value={c.back}
+                value={candidate.back}
                 onChange={(e) => updateCandidate(i, { back: e.target.value })}
                 placeholder="Back (answer / definition)"
                 rows={2}
               />
-              {(c.frontCode || c.backCode || c.image) && (
+              {(candidate.frontCode || candidate.backCode || candidate.image) && (
                 <div className="candidate-media">
-                  {c.frontCode && (
+                  {candidate.frontCode && (
                     <div className="candidate-attachment">
                       <span className="attachment-tag">Shown with the question</span>
-                      <Snippet code={c.frontCode} />
+                      <Snippet code={candidate.frontCode} />
                       <button
                         className="ghost-btn small"
                         onClick={() => updateCandidate(i, { frontCode: undefined })}
@@ -288,10 +302,10 @@ export default function CandidateReview({
                       </button>
                     </div>
                   )}
-                  {c.backCode && (
+                  {candidate.backCode && (
                     <div className="candidate-attachment">
                       <span className="attachment-tag">Shown with the answer</span>
-                      <Snippet code={c.backCode} />
+                      <Snippet code={candidate.backCode} />
                       <button
                         className="ghost-btn small"
                         onClick={() => updateCandidate(i, { backCode: undefined })}
@@ -300,10 +314,10 @@ export default function CandidateReview({
                       </button>
                     </div>
                   )}
-                  {c.image && (
+                  {candidate.image && (
                     <div className="candidate-attachment">
                       <span className="attachment-tag">Shown with the answer</span>
-                      <Diagram image={c.image} />
+                      <Diagram image={candidate.image} />
                       <button
                         className="ghost-btn small"
                         onClick={() => updateCandidate(i, { image: undefined })}
@@ -315,8 +329,8 @@ export default function CandidateReview({
                 </div>
               )}
               <span className="candidate-meta">
-                {c.context && <span className="topic-chip">{c.context}</span>}
-                <span className="source-label">{c.sourceLabel}</span>
+                {candidate.context && <span className="topic-chip">{candidate.context}</span>}
+                <span className="source-label">{candidate.sourceLabel}</span>
               </span>
             </div>
             <button className="icon-btn danger" title="Remove" onClick={() => removeCandidate(i)}>

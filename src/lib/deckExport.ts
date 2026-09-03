@@ -40,7 +40,7 @@ function sanitizeField(text: string): string {
  */
 export function formatDeckForExport(cards: Flashcard[]): string {
   if (cards.length === 0) return '';
-  return cards.map((c) => `${sanitizeField(c.front)}&${sanitizeField(c.back)}`).join(';') + ';';
+  return cards.map((card) => `${sanitizeField(card.front)}&${sanitizeField(card.back)}`).join(";") + ";";
 }
 
 /** A deck name as a filename: "Biology Ch. 3" becomes "biology-ch-3.txt". */
