@@ -11,7 +11,7 @@ import { generateQuestionsForCards } from '../src/lib/quizGenerator.ts';
  * used to be skip-biased and the batch sat above the token ceiling, so a run
  * covered roughly half a deck and had to be repeated to fill one.
  *
- *   node --experimental-strip-types --experimental-loader ./tools/ts-ext-hooks.mjs \
+ *   node --experimental-strip-types --import ./tools/register.mjs \
  *     tools/test-coverage.mjs
  *
  * It calls the real model over the six golden decks, so it costs money and is

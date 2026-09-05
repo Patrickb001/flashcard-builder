@@ -206,17 +206,6 @@ p {
   margin: 0;
 }
 
-@media (prefers-reduced-motion: reduce) {
-  .stage-screen,
-  .route-fallback {
-    animation: none;
-  }
-
-  .chalk-spinner {
-    animation-duration: 2s;
-  }
-}
-
 /* ---------- Buttons ---------- */
 
 .primary-btn,
@@ -771,9 +760,11 @@ textarea {
   text-align: left;
 }
 
+/* Pinned to the bottom-left of the face, clear of the topic chip that sits
+   centred at the top. */
 .face-tag {
   position: absolute;
-  top: 1rem;
+  bottom: 1rem;
   left: 1.2rem;
   font-family: var(--font-ui);
   font-size: 0.7rem;
@@ -861,27 +852,6 @@ textarea {
   border-top: 1px solid rgba(255, 255, 255, 0.08);
 }
 
-/* ---------- Responsive ---------- */
-
-@media (max-width: 640px) {
-  h1 {
-    font-size: 2.1rem;
-  }
-
-  .flip-card-inner {
-    height: 300px;
-  }
-
-  .study-header {
-    flex-direction: column;
-  }
-
-  .top-bar {
-    flex-wrap: wrap;
-    gap: 0.75rem;
-  }
-}
-
 /* ---------- Topic context ---------- */
 
 .topic-chip {
@@ -909,12 +879,6 @@ textarea {
   white-space: nowrap;
 }
 
-.face-tag {
-  top: auto;
-  bottom: 1rem;
-  left: 1.2rem;
-}
-
 .candidate-meta {
   display: flex;
   gap: 0.5rem;
@@ -922,11 +886,6 @@ textarea {
   flex-wrap: wrap;
 }
 
-@media (prefers-reduced-motion: reduce) {
-  .flip-card-inner {
-    transition: none;
-  }
-}
 
 /* ---------- AI drafting ---------- */
 
@@ -1265,15 +1224,6 @@ textarea {
   color: var(--text-faint);
 }
 
-@media (max-width: 640px) {
-  .flip-card.deck-has-media .flip-card-inner {
-    height: clamp(360px, 58vh, 440px);
-  }
-
-  .card-code code {
-    font-size: 0.74rem;
-  }
-}
 
 /* ---------- Test mode ---------- */
 
@@ -1566,7 +1516,45 @@ textarea {
   text-align: center;
 }
 
+
+/* ---------- Responsive ---------- */
+
+/*
+ * Every narrow-screen override, in one place and last in the file.
+ *
+ * These were spread across three blocks interleaved with the base rules, which
+ * made the effective value at 640px a question you had to answer by scanning
+ * the whole sheet. Collected here, a rule that survives on mobile is the one
+ * written here, and everything above it is the desktop layout.
+ */
 @media (max-width: 640px) {
+  h1 {
+    font-size: 2.1rem;
+  }
+
+  .top-bar {
+    flex-wrap: wrap;
+    gap: 0.75rem;
+  }
+
+  .study-header {
+    flex-direction: column;
+  }
+
+  /* The media card's own height is set by the more specific rule below it,
+     exactly as on a wide screen. */
+  .flip-card-inner {
+    height: 300px;
+  }
+
+  .flip-card.deck-has-media .flip-card-inner {
+    height: clamp(360px, 58vh, 440px);
+  }
+
+  .card-code code {
+    font-size: 0.74rem;
+  }
+
   .quiz-count-row {
     gap: 0.6rem;
   }
@@ -1578,5 +1566,28 @@ textarea {
   .quiz-answer-line {
     flex-direction: column;
     gap: 0.15rem;
+  }
+}
+
+/* ---------- Reduced motion ---------- */
+
+/*
+ * Everything that moves, stilled in one place.
+ *
+ * The spinner is slowed rather than stopped: it is the only thing on screen
+ * saying the app is still working, and a frozen spinner reads as a hang.
+ */
+@media (prefers-reduced-motion: reduce) {
+  .stage-screen,
+  .route-fallback {
+    animation: none;
+  }
+
+  .flip-card-inner {
+    transition: none;
+  }
+
+  .chalk-spinner {
+    animation-duration: 2s;
   }
 }

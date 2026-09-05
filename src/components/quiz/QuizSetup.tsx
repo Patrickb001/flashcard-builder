@@ -1,28 +1,34 @@
 import type { Deck, Flashcard, QuestionStyle, TestQuestion } from '../../types';
 import type { AiSettings } from '../../lib/aiGenerator';
 import AiSettingsPanel from '../AiSettingsPanel';
+import ScreenHeader from '../ui/ScreenHeader';
 import { MIN_SLIDER_POOL } from './useDeckQuiz';
 
-/**
- * Choosing what to be tested on.
- *
- * Also where the two things standing between a deck and a test are reported:
- * the AI helper being off, and cards that have no question yet.
- */
 interface Props {
+  /** The deck being tested; only its name and card count are shown. */
   deck: Deck;
+  /** Every card in the deck, for the "n of m cards" counts. */
   cards: Flashcard[];
   /** Already narrowed to the selected style by the hook. */
   pool: TestQuestion[];
+  /**
+   * Cards with no question in the selected style, or whose question was written
+   * from text that has since changed. Both mean the same thing to the reader —
+   * this card will not come up — so they are offered together.
+   */
   unwritten: Flashcard[];
   style: QuestionStyle;
   onStyleChange: (style: QuestionStyle) => void;
   ai: AiSettings;
   onAiChange: (settings: AiSettings) => void;
+  /** Outcome of the last generation run, shown above the controls. */
   notice: string | null;
+  /** Whether that notice is a failure, which colours it. */
   noticeFailed: boolean;
+  /** How many questions the test will ask. */
   count: number;
   onCountChange: (count: number) => void;
+  /** Starts a generation run for the unwritten cards. Costs a model call. */
   onWriteMissing: () => void;
   onStart: () => void;
   onExit: () => void;
@@ -34,6 +40,14 @@ const STYLES: { id: QuestionStyle; name: string; blurb: string }[] = [
   { id: 'vignette', name: 'PANCE style', blurb: 'Clinical vignettes, five options' },
 ];
 
+/**
+ * Choosing what to be tested on: the question style, how many, and whether to
+ * write questions for the cards that have none.
+ *
+ * Also where the two things standing between a deck and a test are reported —
+ * the AI helper being off, and cards with no question yet. Nothing here spends
+ * money on its own; writing questions is always an explicit button press.
+ */
 export default function QuizSetup({
   deck,
   cards,
@@ -68,12 +82,7 @@ export default function QuizSetup({
 
   return (
     <div className="quiz quiz-setup">
-      <div className="study-header">
-        <div>
-          <p className="eyebrow">Testing</p>
-          <h1>{deck.name}</h1>
-        </div>
-      </div>
+      <ScreenHeader eyebrow="Testing" title={deck.name} />
 
       {notice && (
         <div className={`ai-notice ${noticeFailed ? 'failed' : 'partial'}`} role="alert">

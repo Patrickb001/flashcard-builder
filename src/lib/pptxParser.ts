@@ -23,41 +23,49 @@ interface Shape {
   blocks: Block[];
 }
 
-function textOfParagraph(p: Element): string {
-  const runs = p.getElementsByTagName('a:t');
+function textOfParagraph(paragraph: Element): string {
+  const runs = paragraph.getElementsByTagName('a:t');
   return Array.from(runs)
-    .map((n) => n.textContent ?? '')
+    .map((run) => run.textContent ?? '')
     .join('')
     .replace(/\s+/g, ' ')
     .trim();
 }
 
 /** Indentation level of a paragraph; >0 means it is a bullet. */
-function paragraphLevel(p: Element): number {
-  const pPr = p.getElementsByTagName('a:pPr')[0];
+function paragraphLevel(paragraph: Element): number {
+  const pPr = paragraph.getElementsByTagName('a:pPr')[0];
   if (!pPr) return 0;
   return parseInt(pPr.getAttribute('lvl') ?? '0', 10);
 }
 
 /** True when the paragraph explicitly disables bullets. */
-function hasNoBullet(p: Element): boolean {
-  const pPr = p.getElementsByTagName('a:pPr')[0];
+function hasNoBullet(paragraph: Element): boolean {
+  const pPr = paragraph.getElementsByTagName('a:pPr')[0];
   return !!pPr && pPr.getElementsByTagName('a:buNone').length > 0;
 }
 
-function firstRunSize(p: Element): number | null {
-  const rPr = p.getElementsByTagName('a:rPr')[0];
+function firstRunSize(paragraph: Element): number | null {
+  const rPr = paragraph.getElementsByTagName('a:rPr')[0];
   const sz = rPr?.getAttribute('sz');
   return sz ? parseInt(sz, 10) / 100 : null;
 }
 
+/**
+ * Reads an `<a:tbl>` into a table block, or null when it is not a real table.
+ *
+ * A pptx table is genuine markup rather than an inferred grid, so unlike the
+ * PDF path there is nothing to detect — only to reject: fewer than two rows or
+ * columns, or a header row with a hole in it, means the shape is being used for
+ * layout rather than for data.
+ */
 function parseTable(tbl: Element): Block | null {
   const rows = Array.from(tbl.getElementsByTagName('a:tr'));
   if (rows.length < 2) return null;
 
-  const grid = rows.map((tr) =>
-    Array.from(tr.getElementsByTagName('a:tc')).map((tc) =>
-      Array.from(tc.getElementsByTagName('a:p'))
+  const grid = rows.map((row) =>
+    Array.from(row.getElementsByTagName('a:tc')).map((cell) =>
+      Array.from(cell.getElementsByTagName('a:p'))
         .map(textOfParagraph)
         .filter(Boolean)
         .join(' ')
@@ -67,7 +75,7 @@ function parseTable(tbl: Element): Block | null {
 
   const [headers, ...body] = grid;
   if (!headers || headers.length < 2 || body.length === 0) return null;
-  if (headers.some((h) => !h)) return null;
+  if (headers.some((header) => !header)) return null;
 
   return { kind: 'table', headers, rows: body };
 }
@@ -89,11 +97,11 @@ function parseTextBody(txBody: Element, isTitle: boolean): Block[] {
   };
 
   // The largest run size in the shape marks its own internal headings.
-  const sizes = paragraphs.map(firstRunSize).filter((s): s is number => s !== null);
+  const sizes = paragraphs.map(firstRunSize).filter((size): size is number => size !== null);
   const maxSize = sizes.length > 0 ? Math.max(...sizes) : null;
 
-  for (const p of paragraphs) {
-    const text = textOfParagraph(p);
+  for (const paragraph of paragraphs) {
+    const text = textOfParagraph(paragraph);
     if (!text) continue;
 
     if (isTitle) {
@@ -101,9 +109,9 @@ function parseTextBody(txBody: Element, isTitle: boolean): Block[] {
       continue;
     }
 
-    const level = paragraphLevel(p);
-    const size = firstRunSize(p);
-    const isBullet = level > 0 || !hasNoBullet(p);
+    const level = paragraphLevel(paragraph);
+    const size = firstRunSize(paragraph);
+    const isBullet = level > 0 || !hasNoBullet(paragraph);
 
     // A short, largest-in-shape, non-bulleted line acts as a section heading.
     const looksLikeHeading =
@@ -181,8 +189,8 @@ function parseSlide(xmlDoc: Document, label: string): DocumentSection {
     return a.x - b.x;
   });
 
-  const blocks = shapes.flatMap((s) => s.blocks);
-  const titleBlock = blocks.find((b) => b.kind === 'heading' && b.level === 1);
+  const blocks = shapes.flatMap((shape) => shape.blocks);
+  const titleBlock = blocks.find((block) => block.kind === 'heading' && block.level === 1);
   const title = titleBlock && titleBlock.kind === 'heading' ? titleBlock.text : undefined;
 
   applyContext(blocks, title);
@@ -190,6 +198,15 @@ function parseSlide(xmlDoc: Document, label: string): DocumentSection {
   return { label, title, blocks };
 }
 
+/**
+ * Reads a .pptx into one section per slide — the entry point of the pptx path.
+ *
+ * A .pptx is a zip of OOXML, so unlike a PDF the structure is still intact:
+ * shapes carry positions, tables are real `<a:tbl>` elements and bullet levels
+ * are explicit. Reading shape by shape means columns can never interleave,
+ * which is why a native deck generally yields better cards than the same deck
+ * exported to PDF.
+ */
 export async function extractPptxSections(file: File): Promise<DocumentSection[]> {
   const buffer = await file.arrayBuffer();
   const zip = await JSZip.loadAsync(buffer);

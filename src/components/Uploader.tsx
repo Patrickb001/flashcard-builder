@@ -1,15 +1,22 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useMemo, useRef, useState } from 'react';
 import AiSettingsPanel from './AiSettingsPanel';
 import type { AiSettings } from '../lib/aiGenerator';
 import { loadAiSettings } from '../lib/aiGenerator';
+import type { SourceType } from '../types';
 import type { DocumentSection } from '../lib/documentModel';
 
 import type { PageProgress } from '../lib/pageSource';
 import { MAX_PAGES, deckNameForUrl, describeFailures, fetchPagesSections, parseUrlList } from '../lib/pageSource';
 
-export type SourceType = 'pdf' | 'pptx' | 'md' | 'html';
 
 interface Props {
+  /**
+   * Hands the parsed document on to the review screen.
+   *
+   * The AI settings travel with it rather than being read again downstream, so
+   * the mode a deck was drafted under is the one that was on screen when the
+   * file was dropped, even if it is changed afterwards.
+   */
   onParsed: (
     sections: DocumentSection[],
     fileName: string,
@@ -21,24 +28,33 @@ interface Props {
   onCancel: () => void;
 }
 
+/** What the screen is doing; drives the spinner and disables the controls. */
 type Status = 'idle' | 'parsing' | 'fetching' | 'error';
 
+/**
+ * Step one: take a document, or a list of page addresses, and parse it.
+ *
+ * The four parsers are imported lazily, one per format, so someone who only
+ * ever drops a Markdown file never downloads pdf.js or the pptx reader. Parsing
+ * happens entirely in the browser; for URLs only the address is sent anywhere,
+ * and only so the server can fetch the page the browser is not allowed to.
+ */
 export default function Uploader({ onParsed, onCancel }: Props) {
   const [status, setStatus] = useState<Status>('idle');
   const [error, setError] = useState<string | null>(null);
   const [isDragging, setIsDragging] = useState(false);
-  const [ai, setAi] = useState<AiSettings>({ mode: 'off' });
+  // Read lazily on the first render rather than in an effect: localStorage is
+  // synchronous, and setting it afterwards renders once with "rules only"
+  // selected before correcting itself.
+  const [ai, setAi] = useState<AiSettings>(loadAiSettings);
   const [urlText, setUrlText] = useState('');
   const [progress, setProgress] = useState<PageProgress | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
-  useEffect(() => {
-    setAi(loadAiSettings());
-  }, []);
-
   const busy = status === 'parsing' || status === 'fetching';
   const pendingUrls = useMemo(() => parseUrlList(urlText), [urlText]);
 
+  /** Picks a parser from the file's extension and runs it, lazily imported. */
   const handleFile = useCallback(
     async (file: File) => {
       const lowerName = file.name.toLowerCase();
@@ -93,6 +109,12 @@ export default function Uploader({ onParsed, onCancel }: Props) {
     [onParsed, ai]
   );
 
+  /**
+   * Fetches and parses a list of page addresses as one deck.
+   *
+   * Pages that fail are reported rather than abandoning the run, so one dead
+   * link out of ten still produces a deck from the other nine.
+   */
   const handleUrls = useCallback(async () => {
     const urls = parseUrlList(urlText);
     if (urls.length === 0) return;
@@ -111,7 +133,7 @@ export default function Uploader({ onParsed, onCancel }: Props) {
             ? failures[0].error
             : `None of those ${failures.length} pages could be read. ${failures
                 .slice(0, 3)
-                .map((f) => `${deckNameForUrl(f.url)} — ${f.error}`)
+                .map((failure) => `${deckNameForUrl(failure.url)} — ${failure.error}`)
                 .join('; ')}`
         );
         setStatus('error');
@@ -134,6 +156,7 @@ export default function Uploader({ onParsed, onCancel }: Props) {
     }
   }, [urlText, onParsed, ai]);
 
+  /** Accepts the first dropped file; the rest are ignored, not merged. */
   const onDrop = (e: React.DragEvent) => {
     e.preventDefault();
     setIsDragging(false);

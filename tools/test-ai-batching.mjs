@@ -15,7 +15,7 @@ import { buildBatches, estimateCards } from '../src/lib/aiGenerator.ts';
  * more cards than one reply can carry.
  *
  *   PDF="…/W3_Lecture_Depressive_Bipolar_STUDENT - Tagged.pdf" \
- *     node --experimental-strip-types --loader ./tools/ts-ext-hooks.mjs tools/test-ai-batching.mjs
+ *     node --experimental-strip-types --import ./tools/register.mjs tools/test-ai-batching.mjs
  */
 
 const path = process.env.PDF;

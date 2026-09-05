@@ -148,17 +148,17 @@ npx tsx tools/test-layout.mjs 13     # just page 13
 npx tsx tools/test-cards.mjs         # dump every generated card
 
 # Markdown and HTML, with no extra install — Node runs the real .ts modules
-node --experimental-strip-types --experimental-loader ./tools/ts-ext-hooks.mjs \
+node --experimental-strip-types --import ./tools/register.mjs \
   tools/test-md.mjs notes.md
-node --experimental-strip-types --experimental-loader ./tools/ts-ext-hooks.mjs \
+node --experimental-strip-types --import ./tools/register.mjs \
   tools/test-html.mjs saved-page.html
 URL=https://18.react.dev/learn/state-a-components-memory node \
-  --experimental-strip-types --experimental-loader ./tools/ts-ext-hooks.mjs \
+  --experimental-strip-types --import ./tools/register.mjs \
   tools/test-html.mjs
 
 # Test questions: parser and selection checks always run; add a key to also
 # generate real questions and read the wrong answers for yourself.
-node --experimental-strip-types --experimental-loader ./tools/ts-ext-hooks.mjs \
+node --experimental-strip-types --import ./tools/register.mjs \
   tools/test-quiz.mjs
 ```
 

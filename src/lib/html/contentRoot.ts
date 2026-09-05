@@ -12,7 +12,7 @@ import { tag, textOf } from './domText';
  */
 
 /** Wrappers that never hold article text. */
-export const NOISE_TAGS = [
+const NOISE_TAGS = [
   'script',
   'style',
   'noscript',
@@ -35,7 +35,7 @@ export const NOISE_TAGS = [
 ];
 
 /** Landmarks and states that mark a region as chrome. */
-export const NOISE_SELECTORS = [
+const NOISE_SELECTORS = [
   '[aria-hidden="true"]',
   '[hidden]',
   '[role="navigation"]',
@@ -53,7 +53,7 @@ export const NOISE_SELECTORS = [
 ];
 
 /** Where the article usually lives, most specific first. */
-export const CONTENT_SELECTORS = [
+const CONTENT_SELECTORS = [
   'article',
   '.mw-parser-output',
   '[role="main"]',
@@ -69,17 +69,14 @@ export const CONTENT_SELECTORS = [
 ];
 
 /**
- * The element to search for content.
+ * The element to search for content, or null when there is nothing to descend
+ * into — `doc.body` is null on a document parsed from a fragment.
  *
  * `document.body` is preferred, but a document parsed outside a browser (the
  * test harness, a saved page with markup before `<body>`) can report an empty
  * one while the real content hangs off the root, so an empty body is not
  * trusted.
  */
-// Returns null when the document has no element to descend into. The
-// signature said Element, but the ?? fallback below and every caller
-// already treated the result as possibly absent - doc.body is null on a
-// document parsed from a fragment.
 export function contentBody(doc: Document): Element | null {
   const body = doc.body;
   if (body && body.children.length > 0) return body;
@@ -87,7 +84,7 @@ export function contentBody(doc: Document): Element | null {
 }
 
 /** True when any ancestor of `el` is one of `tags`. */
-export function hasAncestor(el: Element, tags: string[]): boolean {
+function hasAncestor(el: Element, tags: string[]): boolean {
   let parent = el.parentElement;
   while (parent) {
     if (tags.includes(tag(parent))) return true;

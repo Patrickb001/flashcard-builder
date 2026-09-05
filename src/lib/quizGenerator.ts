@@ -2,7 +2,12 @@ import type { Flashcard, QuestionStyle, TestQuestion } from '../types';
 import type { AiSettings } from './aiGenerator';
 import { callModel } from './aiTransport';
 import { runBatches, type BatchProgress } from './batchRunner';
-import { parseQuizResponse, parseVignetteResponse } from './quizPrompt';
+import {
+  parseQuizResponse,
+  parseVignetteResponse,
+  parseAuditResponse,
+  type LlmQuizQuestion,
+} from './quizPrompt';
 
 /**
  * Writes multiple-choice questions from saved flashcards.
@@ -22,17 +27,12 @@ import { parseQuizResponse, parseVignetteResponse } from './quizPrompt';
 /**
  * Cards per request.
  *
- * The binding constraint is the server's response ceiling, not the request
- * size. Measured on real cards, a question costs about 420 output tokens when
- * options run to full sentences, so ten needed ~4200 against a ceiling fixed at
- * 4000: batches came back stopped at exactly max_tokens, truncated mid-JSON,
- * and the salvage pass kept only the objects that had closed. That is why a run
- * covered roughly half a deck.
- *
- * The ceiling is now 8000 for quiz work and options are capped at 15 words
- * (~330 tokens a question), so eight cards costs ~2600 — a wide margin rather
+ * The binding constraint is the response ceiling in aiTransport, not the request
+ * size: eight questions cost roughly a third of it, which is a margin rather
  * than a cliff. Eight also keeps a 100-card deck to 13 requests, comfortably
- * under the 20/min limit; five would need 20 and sit right on it.
+ * under the 20/min rate limit, where five would need 20 and sit right on it.
+ *
+ * See "Batch sizes" in docs/tuning-notes.md.
  */
 const BATCH_SIZE = 8;
 
@@ -48,9 +48,8 @@ const RETRY_BATCH_SIZE = 4;
  * The same two numbers for board-style items, which cost about twice as much.
  *
  * A vignette is a four-sentence scenario, five options and an explanation where
- * a recall question is a stem and four short options. Halving the batch keeps a
- * request the same distance from the ceiling as the recall path sits at, which
- * is the margin that stops replies coming back truncated.
+ * a recall question is a stem and four short options. Halving the batch holds a
+ * request the same distance from the ceiling as the recall path sits at.
  */
 const VIGNETTE_BATCH_SIZE = 4;
 const VIGNETTE_RETRY_BATCH_SIZE = 2;
@@ -59,19 +58,12 @@ const VIGNETTE_RETRY_BATCH_SIZE = 2;
 const NEIGHBOUR_LIMIT = 20;
 
 /**
- * Related cards sent whole with a board-style batch, as grounding.
+ * Related cards sent whole with a board-style batch, as source material.
  *
- * The recall path also sends whole cards now, but for a different reason: there
- * they are candidate distractors plus the question each one answers, so the
- * model can tell whether a neighbour's answer is also correct for the stem it is
- * writing. A vignette needs them as source material instead — it has to describe
- * a presentation, and the only honest source for that is other cards from the
- * same lecture, which is what lets a scenario be clinically coherent without the
- * model inventing findings.
- *
- * Fewer than the recall path's neighbours, and given more room each: a
- * neighbour only has to be recognisable as an option, where a context card is
- * being read for the detail in it.
+ * A vignette has to describe how something presents, and the only honest source
+ * for that is other cards from the same lecture. Fewer than the recall path's
+ * neighbours and given more room each, because a neighbour only has to be
+ * recognisable as an option where a context card is read for the detail in it.
  */
 const CONTEXT_LIMIT = 12;
 const CONTEXT_CHARS = 200;
@@ -80,13 +72,10 @@ const CONTEXT_CHARS = 200;
 const NEIGHBOUR_CHARS = 160;
 
 /** A snippet longer than this is truncated before it goes to the model. */
-const MAX_CODE_CHARS = 4000;
+const MAX_PROMPT_CODE_CHARS = 4000;
 
 /** Batches are split again if their JSON would come near the server's cap. */
 const MAX_PAYLOAD_CHARS = 100_000;
-
-/** The same shape card drafting reports; one definition, two features. */
-export type QuizProgress = BatchProgress;
 
 export interface QuizGenerationResult {
   questions: TestQuestion[];
@@ -108,7 +97,7 @@ export interface QuizGenerationResult {
 }
 
 export interface QuizGenerationOptions {
-  onProgress?: (p: QuizProgress) => void;
+  onProgress?: (progress: BatchProgress) => void;
   /** Fired after each successful batch so the caller can save as it goes. */
   onBatch?: (questions: TestQuestion[]) => Promise<void>;
   signal?: AbortSignal;
@@ -134,6 +123,14 @@ export function hashCard(card: Pick<Flashcard, 'front' | 'back'>): string {
   return (hash >>> 0).toString(16);
 }
 
+/**
+ * Cuts payload text at a character count, marking the cut on its own line.
+ *
+ * Blunt on purpose — this trims prose as often as code, and there is no line
+ * boundary worth finding in a card's back. sectioning's truncateCode is the
+ * snippet-aware one, and pageSource's shorten fits a label inside a width;
+ * three contracts rather than one function with three flags.
+ */
 function truncate(text: string, max: number): string {
   return text.length <= max ? text : `${text.slice(0, max)}\n…`;
 }
@@ -164,77 +161,97 @@ function nearestFirst(batch: Flashcard[], deckCards: Flashcard[]): Flashcard[] {
   return deckCards.filter((card) => !excluded.has(card.id)).sort((a, b) => rank(a) - rank(b));
 }
 
+/** One card as a payload entry: whitespace collapsed and truncated to fit. */
+interface TrimmedCard {
+  front: string;
+  back: string;
+  topic: string | null;
+}
+
+/** Collapses a card's text to one line each, cut to `chars`. */
+function trimCard(card: Flashcard, chars: number): TrimmedCard {
+  return {
+    front: truncate(card.front.replace(/\s+/g, ' ').trim(), chars),
+    back: truncate(card.back.replace(/\s+/g, ' ').trim(), chars),
+    topic: card.context ?? null,
+  };
+}
+
 /**
- * Neighbouring cards whole, for recall questions.
+ * Cards from around the batch, trimmed for the payload, nearest first.
  *
- * The answers alone used to go over, on the reading that a distractor is an
- * answer so an answer is all the model needs. That leaves it unable to do the
- * one check the prompt calls most important: whether a neighbour's answer is
- * ALSO correct for the stem being written. A deck that states the same fact
- * twice — a recap card beside the card it recaps — offers an answer that reads
- * as a perfect near miss and is simply right, and nothing in a bare list of
- * answers reveals that.
- *
- * Sending the question each answer belongs to is what makes the check possible,
- * and it gives the model the surrounding material to write a question that
- * tests the distinction between two neighbouring facts rather than one fact in
- * isolation.
- *
- * Near-identical to contextCards below, which serves the vignette path. They
- * are kept apart so the board-style payload stays exactly as it was measured;
- * fold them together when that path is next changed for its own reasons.
+ * The one gatherer behind all three payload shapes. `dedupeOnBack` drops cards
+ * whose answer repeats one already taken, which matters for a distractor list —
+ * two identical wrong options waste a slot and read as a bug — and is skipped
+ * for vignette context, where a repeated answer still carries different detail.
  */
-function neighbourCards(batch: Flashcard[], deckCards: Flashcard[]) {
+function neighbours(
+  batch: Flashcard[],
+  deckCards: Flashcard[],
+  { limit, chars, dedupeOnBack }: { limit: number; chars: number; dedupeOnBack: boolean }
+): TrimmedCard[] {
   const seen = new Set<string>();
-  const out: { front: string; back: string }[] = [];
+  const out: TrimmedCard[] = [];
 
   for (const card of nearestFirst(batch, deckCards)) {
-    if (out.length >= NEIGHBOUR_LIMIT) break;
-    const back = truncate(card.back.replace(/\s+/g, ' ').trim(), NEIGHBOUR_CHARS);
-    const front = truncate(card.front.replace(/\s+/g, ' ').trim(), NEIGHBOUR_CHARS);
-    const key = back.toLowerCase();
-    if (!back || !front || seen.has(key)) continue;
-    seen.add(key);
-    out.push({ front, back });
+    if (out.length >= limit) break;
+    const trimmed = trimCard(card, chars);
+    if (!trimmed.front || !trimmed.back) continue;
+
+    if (dedupeOnBack) {
+      const key = trimmed.back.toLowerCase();
+      if (seen.has(key)) continue;
+      seen.add(key);
+    }
+
+    out.push(trimmed);
   }
 
   return out;
 }
 
+/**
+ * Neighbouring cards for a recall batch: both halves of each.
+ *
+ * The answers alone are what a distractor is made of, but the prompt's most
+ * important check is whether a neighbour's answer is ALSO correct for the stem
+ * being written — and a bare list of answers cannot show that. A deck that
+ * states one fact twice otherwise offers a perfect near miss that is simply
+ * right.
+ *
+ * See "Neighbour and context payloads" in docs/tuning-notes.md.
+ */
+function neighbourCards(batch: Flashcard[], deckCards: Flashcard[]) {
+  return neighbours(batch, deckCards, {
+    limit: NEIGHBOUR_LIMIT,
+    chars: NEIGHBOUR_CHARS,
+    dedupeOnBack: true,
+  }).map(({ front, back }) => ({ front, back }));
+}
+
+/** The same neighbours as bare answers, which is all the vignette prompt reads. */
 function neighbourAnswers(batch: Flashcard[], deckCards: Flashcard[]): string[] {
-  const seen = new Set<string>();
-  const answers: string[] = [];
-
-  for (const card of nearestFirst(batch, deckCards)) {
-    if (answers.length >= NEIGHBOUR_LIMIT) break;
-    const answer = truncate(card.back.replace(/\s+/g, ' ').trim(), NEIGHBOUR_CHARS);
-    const key = answer.toLowerCase();
-    if (!answer || seen.has(key)) continue;
-    seen.add(key);
-    answers.push(answer);
-  }
-
-  return answers;
+  return neighbours(batch, deckCards, {
+    limit: NEIGHBOUR_LIMIT,
+    chars: NEIGHBOUR_CHARS,
+    dedupeOnBack: true,
+  }).map((card) => card.back);
 }
 
 /**
  * Related cards sent whole, so a clinical scenario has something to stand on.
  *
- * The answers alone are enough to build a wrong option out of, but not to
- * describe a patient. A vignette has to say how the thing presents, and the only
- * source for that which the student has actually been taught is the rest of
- * their own deck. Front and back travel together here for that reason: it is the
- * difference between a model drawing on the lecture and a model drawing on
- * itself.
+ * An answer alone is enough to build a wrong option out of, but not to describe
+ * a patient, and the only source for that which the student has been taught is
+ * the rest of their own deck. This is the difference between a model drawing on
+ * the lecture and a model drawing on itself.
  */
 function contextCards(batch: Flashcard[], deckCards: Flashcard[]) {
-  return nearestFirst(batch, deckCards)
-    .slice(0, CONTEXT_LIMIT)
-    .map((card) => ({
-      front: truncate(card.front.replace(/\s+/g, ' ').trim(), CONTEXT_CHARS),
-      back: truncate(card.back.replace(/\s+/g, ' ').trim(), CONTEXT_CHARS),
-      topic: card.context ?? null,
-    }));
+  return neighbours(batch, deckCards, {
+    limit: CONTEXT_LIMIT,
+    chars: CONTEXT_CHARS,
+    dedupeOnBack: false,
+  });
 }
 
 /**
@@ -262,10 +279,10 @@ function serializeBatch(
       back: card.back,
       topic: card.context ?? null,
       questionCode: card.frontCode
-        ? { language: card.frontCode.language ?? null, text: truncate(card.frontCode.text, MAX_CODE_CHARS) }
+        ? { language: card.frontCode.language ?? null, text: truncate(card.frontCode.text, MAX_PROMPT_CODE_CHARS) }
         : null,
       answerCode: card.backCode
-        ? { language: card.backCode.language ?? null, text: truncate(card.backCode.text, MAX_CODE_CHARS) }
+        ? { language: card.backCode.language ?? null, text: truncate(card.backCode.text, MAX_PROMPT_CODE_CHARS) }
         : null,
       diagramAlt: card.image?.alt ?? null,
     })),
@@ -308,6 +325,52 @@ function buildBatches(
   }
 
   return sized;
+}
+
+/**
+ * Runs the grounding/distractor-safety audit over one batch of vignette
+ * questions, dropping any it flags — or all of them, if the audit call
+ * itself fails.
+ *
+ * Failing closed here is deliberate: an unaudited vignette is exactly the
+ * "confidently wrong" outcome this pass exists to catch, so a broken audit
+ * call must not be treated as a pass. A dropped question is not lost — it is
+ * simply a card without one yet, and is offered again on the retry pass like
+ * any other, per the same philosophy `toQuestion()` already uses for a
+ * malformed reply.
+ */
+async function auditVignettes(
+  parsed: LlmQuizQuestion[],
+  batch: Flashcard[],
+  deckCards: Flashcard[],
+  settings: AiSettings,
+  signal?: AbortSignal
+): Promise<LlmQuizQuestion[]> {
+  const context = contextCards(batch, deckCards).map(({ front, back }) => ({ front, back }));
+  const questions = parsed.map((item) => {
+    const index = Number(item.id.replace(/^q/i, '')) - 1;
+    const card = batch[index];
+    return {
+      id: item.id,
+      card: card ? { front: card.front, back: card.back } : null,
+      vignette: item.vignette ?? '',
+      stem: item.stem,
+      correct: item.correct,
+      distractors: item.distractors,
+    };
+  });
+
+  try {
+    // Wrapped in an array for the same reason the generation call is: the
+    // endpoint's contract is a non-empty list of things for the model, even
+    // when — as here — there is only one thing to send.
+    const { text } = await callModel('vignette-audit', [{ context, questions }], settings, signal);
+    const verdicts = parseAuditResponse(text);
+    return parsed.filter((item) => verdicts.get(item.id) === true);
+  } catch (err) {
+    console.error('Vignette audit failed; dropping the batch rather than trusting it unaudited:', err);
+    return [];
+  }
 }
 
 /**
@@ -355,13 +418,20 @@ export async function generateQuestionsForCards(
     );
     if (stopReason === 'max_tokens') truncatedBatches += 1;
 
-    const parsed = isVignette ? parseVignetteResponse(text) : parseQuizResponse(text);
+    let parsed = isVignette ? parseVignetteResponse(text) : parseQuizResponse(text);
     if (parsed.length === 0) {
       throw new Error(
         stopReason === 'max_tokens'
           ? 'The reply was cut off by the length limit before any question was complete.'
           : 'No questions returned'
       );
+    }
+
+    // Audited before anything is marked answered, so a question the audit
+    // drops flows through exactly like one the model never wrote: its card
+    // stays unanswered and is retried, rather than needing separate handling.
+    if (isVignette) {
+      parsed = await auditVignettes(parsed, batch, deckCards, settings, options.signal);
     }
 
     const now = Date.now();

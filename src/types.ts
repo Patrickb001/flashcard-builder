@@ -1,12 +1,27 @@
+/**
+ * One saved deck, as the library lists it.
+ *
+ * Holds no cards itself — those live in their own store keyed by `deckId`, so
+ * opening the library does not read every card in every deck.
+ */
 export interface Deck {
   id: string;
   name: string;
+  /** The document this came from, shown on the manage screen. */
   sourceFileName: string;
-  sourceType: 'pdf' | 'pptx' | 'md' | 'html';
+  sourceType: SourceType;
   createdAt: number;
+  /**
+   * Cards in this deck, kept in step by addCard and deleteCard so the library
+   * can show a count without reading the cards themselves.
+   */
   cardCount: number;
 }
 
+/** Which kind of document a deck was built from. */
+export type SourceType = 'pdf' | 'pptx' | 'md' | 'html';
+
+/** How the reader last answered a card in study mode. */
 export type CardStatus = 'new' | 'known' | 'unknown';
 
 /**
@@ -37,12 +52,14 @@ interface CardMedia {
   image?: CardImage;
 }
 
+/** One saved card. The unit everything else in the app is built from. */
 export interface Flashcard extends CardMedia {
   id: string;
   deckId: string;
   front: string;
   back: string;
-  sourceLabel: string; // e.g. "Page 3" or "Slide 5"
+  /** Where in the document this came from, e.g. "Page 3" or "Slide 5". */
+  sourceLabel: string;
   /** The section/slide title the card came from, shown as a topic on the card. */
   context?: string;
   status: CardStatus;
@@ -61,12 +78,20 @@ export interface Flashcard extends CardMedia {
   order?: number;
 }
 
+/**
+ * A drafted card on the review screen, before it is saved.
+ *
+ * Deliberately not a Flashcard: it has no id and no deck, because it may never
+ * become one. `include` is the checkbox, so unchecking a card keeps it on screen
+ * to be reconsidered rather than deleting it.
+ */
 export interface CandidateCard extends CardMedia {
   front: string;
   back: string;
   sourceLabel: string;
   /** The section/slide title the card came from, shown as a topic on the card. */
   context?: string;
+  /** Whether this card is currently checked for saving. */
   include: boolean;
 }
 
@@ -146,17 +171,13 @@ export interface TestQuestion {
   cardHash: string;
 
   createdAt: number;
-  /** How many times this has been put in front of the user; drives selection. */
-  /** Read by the question picker, which tiers by how often each was asked. */
-  timesAsked: number;
   /**
-   * Written on every answer and read nowhere, as is timesCorrect.
-   *
-   * Kept deliberately. Removing them means an IndexedDB migration for no
-   * user-visible gain, and they cost two numbers inside a write that happens
-   * anyway. Left here so the next reader does not rediscover them as dead
-   * weight and pay that price to remove them.
+   * How many times this has been put in front of the user. Read by the question
+   * picker, which tiers by it so nothing repeats until everything has been asked.
    */
+  timesAsked: number;
+  /** Written on every answer and read nowhere, as is timesCorrect. Kept
+   * deliberately: removing them costs an IndexedDB migration for no gain. */
   lastAskedAt: number | null;
   timesCorrect: number;
 }

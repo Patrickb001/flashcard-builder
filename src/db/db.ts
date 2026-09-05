@@ -31,8 +31,33 @@ let dbPromise: Promise<IDBPDatabase<FlashcardForgeDB>> | null = null;
  */
 let upgradeBlocked = false;
 
+/** Listeners waiting to hear that an upgrade is blocked. */
+const upgradeBlockedListeners = new Set<() => void>();
+
+/** True once an upgrade has been refused; read by the UI, set by blocked(). */
 export function isUpgradeBlocked(): boolean {
   return upgradeBlocked;
+}
+
+/**
+ * Calls `listener` when an upgrade turns out to be blocked, and returns an
+ * unsubscribe function.
+ *
+ * A blocked open never settles — the promise neither resolves nor rejects while
+ * another tab holds the old version — so nothing downstream can await its way to
+ * finding out. This is the push half of that: the UI would otherwise have to
+ * poll `isUpgradeBlocked` on a timer to notice.
+ *
+ * Fires immediately when it is already blocked, so a listener that subscribes
+ * late does not miss the only notification it was ever going to get.
+ */
+export function onUpgradeBlocked(listener: () => void): () => void {
+  if (upgradeBlocked) {
+    listener();
+    return () => {};
+  }
+  upgradeBlockedListeners.add(listener);
+  return () => upgradeBlockedListeners.delete(listener);
 }
 
 /**
@@ -52,10 +77,9 @@ function getDB() {
        * store, and `oldVersion` is 0 for a browser that has never opened this
        * app — so a first run falls through every block and gets all three.
        *
-       * The version check is not decoration. This callback used to create both
-       * stores unconditionally, which is harmless while the version never
-       * moves and throws `ConstraintError` on the first bump, leaving every
-       * existing user unable to open their decks at all.
+       * The version guards are load-bearing, not decoration: creating a store
+       * that already exists throws ConstraintError, which on a version bump
+       * would leave every existing user unable to open their decks at all.
        */
       upgrade(db, oldVersion) {
         if (oldVersion < 1) {
@@ -84,6 +108,7 @@ function getDB() {
         console.error(
           '[db] Database upgrade is blocked by another tab with this app open. Close the other tabs and reload.'
         );
+        for (const listener of upgradeBlockedListeners) listener();
       },
 
       /** The browser dropped the connection; let the next call reopen it. */
@@ -117,12 +142,14 @@ export async function saveDeckWithCards(deck: Deck, cards: Flashcard[]): Promise
   await Promise.all([...writes, tx.done]);
 }
 
+/** Every deck, newest first — the order the library grid shows them in. */
 export async function getAllDecks(): Promise<Deck[]> {
   const db = await getDB();
   const decks = await db.getAllFromIndex('decks', 'by-createdAt');
   return decks.reverse();
 }
 
+/** One deck by id, or undefined once it has been deleted. */
 export async function getDeck(deckId: string): Promise<Deck | undefined> {
   const db = await getDB();
   return db.get('decks', deckId);
@@ -148,6 +175,13 @@ export async function getCardsForDeck(deckId: string): Promise<Flashcard[]> {
   return cards.sort((a, b) => a.createdAt - b.createdAt);
 }
 
+/**
+ * Overwrites one card in place.
+ *
+ * The deck's cardCount is untouched, because this never adds or removes a card
+ * — use addCard or deleteCard for that. Called on every textarea blur in the
+ * deck manager, including blurs that changed nothing.
+ */
 export async function updateCard(card: Flashcard): Promise<void> {
   const db = await getDB();
   await db.put('flashcards', card);
@@ -156,11 +190,9 @@ export async function updateCard(card: Flashcard): Promise<void> {
 /**
  * Adds one card and keeps its deck's running count in step.
  *
- * One transaction across both stores, where this was three separate
- * auto-commit transactions: put the card, read the deck, write the count.
- * Two cards added at once would both read the same count and both write the
- * same increment, so the deck would report one fewer card than it holds.
- * deleteCard already had this shape - see the comment there.
+ * One transaction across both stores rather than three auto-commit ones. Split
+ * apart, two cards added at once both read the same count and both write the
+ * same increment, so the deck reports one fewer card than it holds.
  */
 export async function addCard(card: Flashcard): Promise<void> {
   const db = await getDB();
@@ -181,10 +213,9 @@ export async function addCard(card: Flashcard): Promise<void> {
  * Deletes a card, its deck's running count, and any test question written from
  * it.
  *
- * One transaction across all three, where this used to be three separate
- * awaits: apart, a card could be gone while the deck still claimed to hold it.
- * A question left behind would be worse than untidy — it would go on being
- * asked about a card that no longer exists.
+ * All three in one transaction, so they cannot come apart: a card gone while
+ * its deck still claims to hold it is untidy, but a question left behind is
+ * worse — it goes on being asked about a card that no longer exists.
  */
 export async function deleteCard(cardId: string, deckId: string): Promise<void> {
   const db = await getDB();
@@ -209,6 +240,14 @@ export async function deleteCard(cardId: string, deckId: string): Promise<void> 
   await tx.done;
 }
 
+/**
+ * Deletes a deck and everything written from it — its cards and their test
+ * questions — as one transaction across all three stores.
+ *
+ * Cursors rather than a bulk delete, because IndexedDB has no "delete by index"
+ * operation; the two child stores are swept by their by-deckId index. Nothing
+ * here is recoverable, so the caller is expected to have confirmed first.
+ */
 export async function deleteDeck(deckId: string): Promise<void> {
   const db = await getDB();
   const tx = db.transaction(['decks', 'flashcards', 'testQuestions'], 'readwrite');
@@ -299,7 +338,6 @@ export async function recordQuestionsAsked(
 
   await Promise.all([...writes, tx.done]);
 }
-
 
 /**
  * Drops questions whose source card is gone, and reports how many.

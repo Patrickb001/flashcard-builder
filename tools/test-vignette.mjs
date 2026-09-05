@@ -6,7 +6,7 @@ import { styleOf } from '../src/types.ts';
 /**
  * The PANCE-style question path.
  *
- *   node --experimental-strip-types --loader ./tools/ts-ext-hooks.mjs tools/test-vignette.mjs
+ *   node --experimental-strip-types --import ./tools/register.mjs tools/test-vignette.mjs
  *
  * Part 1 is pure and always runs. Part 2 calls the real model and runs only
  * when a key is present, because the thing that actually matters here — whether

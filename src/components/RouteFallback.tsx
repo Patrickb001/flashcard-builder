@@ -12,7 +12,13 @@ import { useEffect, useState } from 'react';
  */
 const QUIET_MS = 160;
 
-export default function RouteFallback({ label = 'Loading…' }: { label?: string }) {
+interface Props {
+  /** What the spinner announces to a screen reader once it appears. */
+  label?: string;
+}
+
+/** Holds the fold with nothing, then a spinner once the wait is worth naming. */
+export default function RouteFallback({ label = 'Loading…' }: Props) {
   const [visible, setVisible] = useState(false);
 
   useEffect(() => {

@@ -36,7 +36,6 @@ import { sectionsFromBlocks, truncateCode } from './sectioning';
  * is no HTML tokenizer here and no dependency to ship.
  */
 
-
 /**
  * Callout labels that documentation sites mark up as headings.
  *
@@ -46,7 +45,6 @@ import { sectionsFromBlocks, truncateCode } from './sectioning';
  */
 const CALLOUT_HEADINGS =
   /^(note|notes|pitfall|caution|warning|tip|hint|deep dive|illustrated by|under the hood|remember|example|examples|try it out)$/i;
-
 
 // ---------------------------------------------------------------------------
 // Walk
@@ -82,7 +80,6 @@ function isTextContainer(el: Element): boolean {
   }
   return true;
 }
-
 
 /**
  * A paragraph, split into its bolded label and its prose when it has both.
@@ -345,10 +342,10 @@ function attachOutputs(blocks: Block[]): Block[] {
  * Left in, it becomes a section of its own with nothing in it worth learning.
  */
 function dropLeadingCrumbs(blocks: Block[]): Block[] {
-  const firstHeading = blocks.findIndex((b) => b.kind === 'heading');
+  const firstHeading = blocks.findIndex((block) => block.kind === 'heading');
   if (firstHeading <= 0) return blocks;
   const lead = blocks.slice(0, firstHeading);
-  const allCrumbs = lead.every((b) => b.kind === 'paragraph' && b.text.length <= 60);
+  const allCrumbs = lead.every((block) => block.kind === 'paragraph' && block.text.length <= 60);
   return allCrumbs ? blocks.slice(firstHeading) : blocks;
 }
 

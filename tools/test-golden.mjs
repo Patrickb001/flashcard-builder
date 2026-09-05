@@ -14,7 +14,7 @@ import { generateCandidates } from '../src/lib/flashcardGenerator.ts';
  * trimmed to the element `findContentRoot` already selects so the trim itself
  * cannot alter the parse.
  *
- *   node --experimental-strip-types --experimental-loader ./tools/ts-ext-hooks.mjs \
+ *   node --experimental-strip-types --import ./tools/register.mjs \
  *     tools/test-golden.mjs [--update]
  *
  * `--update` rewrites the recorded output. Only run it when a change to what

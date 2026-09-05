@@ -12,10 +12,12 @@ import { Component, type ErrorInfo, type ReactNode } from 'react';
  */
 
 interface Props {
+  /** The tree to guard. Everything below it is replaced on a throw. */
   children: ReactNode;
 }
 
 interface State {
+  /** The error caught, or null while the tree is rendering normally. */
   error: Error | null;
 }
 

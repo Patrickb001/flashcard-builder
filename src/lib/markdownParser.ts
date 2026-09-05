@@ -14,7 +14,6 @@ import { sectionsFromBlocks, truncateCode } from './sectioning';
  * block structure only, and every extra dependency ships to the browser.
  */
 
-
 // ---------------------------------------------------------------------------
 // Inline syntax
 // ---------------------------------------------------------------------------
@@ -174,11 +173,10 @@ function dedent(body: string[]): string[] {
 /**
  * Reads a fenced code block starting at `i`; returns it and the next index.
  *
- * Code used to be discarded, on the theory that syntax makes poor flashcard
- * text. In a technical document that threw away most of the content: whole
- * sections were left as a heading with nothing under it, and the model had
- * nothing to write a card from. The snippet is the answer to "how do I do
- * this?", so it is kept and handed to the drafter like any other block.
+ * Snippets are content, not decoration: in a technical document the code is the
+ * answer to "how do I do this?". Discarding it leaves whole sections as a
+ * heading with nothing under them, so a fence is kept and handed to the drafter
+ * like any other block.
  */
 function readCode(lines: string[], i: number): { block: CodeBlock | null; next: number } {
   const m = lines[i].match(FENCE_RE)!;
@@ -440,12 +438,19 @@ function titleFromFileName(fileName: string): string {
     .trim();
 }
 
+/**
+ * Reads Markdown source into sections — normalize, parse to blocks, then split.
+ *
+ * `fileName` is the fallback title for a document whose content never states
+ * one; without it a file with no headings has no topic label and yields nothing.
+ */
 export function parseMarkdownSections(markdown: string, fileName = ''): DocumentSection[] {
   return sectionsFromBlocks(parseBlocks(normalize(markdown)), {
     fallbackTitle: titleFromFileName(fileName),
   });
 }
 
+/** The File-taking form, and the entry point the uploader imports lazily. */
 export async function extractMarkdownSections(file: File): Promise<DocumentSection[]> {
   return parseMarkdownSections(await file.text(), file.name);
 }

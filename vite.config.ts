@@ -12,11 +12,8 @@ import { handleFetchPage } from './src/server/fetchPageHandler';
  * development needs no extra CLI, while keeping the API key where it belongs:
  * in the Node process, never in the browser.
  *
- * This file used to hold 121 lines reimplementing what the functions do, and
- * the two had drifted: no rate limiting here, a different body shape for 405,
- * the model default written out a third time, and a UTF-8 bug that production
- * did not have. All that logic now lives in src/server and both deployments are
- * adapters over it.
+ * The logic itself lives in src/server; this file and the Netlify functions are
+ * both thin adapters over it, so neither deployment can drift from the other.
  */
 
 /** Collects a Connect request body; decodeBody does the UTF-8 work. */

@@ -1,24 +1,34 @@
 import type { Flashcard, TestQuestion } from '../../types';
 import type { PreparedQuestion } from '../../lib/quizSelection';
-import { Diagram, Snippet } from '../CardMedia';
+import ProgressBar from '../ui/ProgressBar';
+import QuestionStem from './QuestionStem';
 
-/**
- * One question at a time.
- *
- * Nothing here reaches the network or the database: the pool was written once
- * and kept, and grading is a comparison against the stored answer. That is the
- * whole reason a test works offline.
- */
 interface Props {
+  /** Every question in this test, in the order it will be asked. */
   asked: PreparedQuestion[];
+  /** Index into `asked` of the question on screen. */
   position: number;
+  /** The option the user has picked but not yet committed, or null. */
   selected: number | null;
   onSelect: (index: number) => void;
+  /** Locks the current answer in and advances. The caller records it. */
   onCommit: () => void;
+  /**
+   * The card a question was written from, for the snippet a stem may need.
+   * Passed in rather than looked up here, because the deck's cards belong to
+   * the hook that loaded them.
+   */
   cardFor: (question: TestQuestion) => Flashcard | undefined;
   onExit: () => void;
 }
 
+/**
+ * One question at a time, with its options.
+ *
+ * Reaches nothing itself: the pool was written once and kept, and grading is a
+ * comparison against the stored answer, which is why a test runs offline. The
+ * one write a test makes is `onCommit`'s, recorded by the caller.
+ */
 export default function QuizRunner({
   asked,
   position,
@@ -30,14 +40,11 @@ export default function QuizRunner({
 }: Props) {
   const current = asked[position];
   const card = cardFor(current.question);
-  const pct = Math.round((position / asked.length) * 100);
   const last = position + 1 >= asked.length;
 
   return (
     <div className="quiz">
-      <div className="progress-track">
-        <div className="progress-fill" style={{ width: `${pct}%` }} />
-      </div>
+      <ProgressBar fraction={position / asked.length} />
 
       <p className="muted small centered">
         Question {position + 1} of {asked.length} · {current.question.sourceLabel}
@@ -45,15 +52,7 @@ export default function QuizRunner({
 
       <div className="quiz-question">
         {current.question.context && <span className="topic-chip">{current.question.context}</span>}
-        {/* Board-style items open with a scenario; recall questions have none,
-            and so does a board item whose card could not carry one. */}
-        {current.question.vignette && (
-          <p className="quiz-vignette">{current.question.vignette}</p>
-        )}
-        <p className="quiz-stem">{current.question.stem}</p>
-        {current.question.stemCode && <Snippet code={current.question.stemCode} />}
-        {current.question.stemImage && <Diagram image={current.question.stemImage} />}
-        {!current.question.stemCode && card?.frontCode && <Snippet code={card.frontCode} />}
+        <QuestionStem question={current.question} fallbackCode={card?.frontCode} />
       </div>
 
       <ul className="quiz-options" role="radiogroup" aria-label="Answer options">

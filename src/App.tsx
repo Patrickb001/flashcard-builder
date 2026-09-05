@@ -3,11 +3,10 @@ import { Outlet, useLocation, useNavigate } from 'react-router-dom';
 import RouteFallback from './components/RouteFallback';
 
 /**
- * The frame every screen sits in: the masthead, and the slot below it.
+ * The frame every screen sits in: the masthead, and the routed slot below it.
  *
- * This used to hold the current screen in a `view` union and swap it with
- * setState, which is why the address bar read "/" whatever you were looking at.
- * The screens are routes now; all that is left here is the chrome around them.
+ * Holds no screen state of its own. Each screen is a route rendered into the
+ * `<Outlet>`, so the address bar always names what is on the glass.
  */
 export default function App() {
   const navigate = useNavigate();
@@ -40,15 +39,12 @@ export default function App() {
 
       <main className="stage">
         {/*
-          Keyed on the address, and that key is the whole point.
-
-          React Router runs navigations inside a transition, so React would
-          rather keep the screen you are leaving on the glass than fall back to
-          a spinner — which is why fetching a screen's chunk used to look like
-          the app had stopped responding to the click. A boundary with a new key
-          is new content, not a stale update, so the fallback is allowed to
-          show. The key also restarts the fade below, so every screen arrives
-          the same way.
+          Keyed on the address, and that key is the whole point. React Router
+          runs navigations inside a transition, so without it React holds the
+          screen you are leaving on the glass while the next chunk downloads,
+          and the app looks like it ignored the click. A boundary with a new key
+          is new content rather than a stale update, so the fallback is allowed
+          to show. The key also restarts the fade, so every screen arrives alike.
         */}
         <Suspense key={pathname} fallback={<RouteFallback />}>
           <div className="stage-screen">

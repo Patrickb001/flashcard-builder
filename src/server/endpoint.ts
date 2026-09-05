@@ -1,14 +1,10 @@
 /**
  * The parts of an HTTP endpoint that both deployments share.
  *
- * There are two runtimes: Netlify functions in production, and Connect
- * middleware inside the Vite dev server locally. They used to hold a hand-kept
- * copy of the same endpoint each, and had drifted apart in six ways — the dev
- * copy had no rate limiting, answered 405 with a different body shape, and
- * corrupted UTF-8 on the way in.
- *
- * So the runtime-specific part is now only: get the method, the caller's
- * address, and the raw body text. Everything after that happens here, once.
+ * There are two runtimes — Netlify functions in production, Connect middleware
+ * inside the Vite dev server locally — and the only thing either supplies is the
+ * method, the caller's address and the raw body text. Rate limiting, validation
+ * and the response shape all happen here, once, so the two cannot drift.
  *
  * Nothing in this directory may touch `process`, the DOM, or any Node built-in:
  * these files are type-checked under both the app and the Node configs, and the

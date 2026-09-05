@@ -34,11 +34,11 @@ function lower(label: string): string {
 }
 
 function singular(noun: string): string {
-  const n = noun.trim().toLowerCase();
-  if (n.endsWith('ies')) return `${n.slice(0, -3)}y`;
-  if (n.endsWith('ses')) return n.slice(0, -2);
-  if (n.endsWith('s') && !n.endsWith('ss')) return n.slice(0, -1);
-  return n;
+  const lowered = noun.trim().toLowerCase();
+  if (lowered.endsWith('ies')) return `${lowered.slice(0, -3)}y`;
+  if (lowered.endsWith('ses')) return lowered.slice(0, -2);
+  if (lowered.endsWith('s') && !lowered.endsWith('ss')) return lowered.slice(0, -1);
+  return lowered;
 }
 
 const AGE_VALUE_RE = /^\s*\d+\s*(?:[–—-]\s*\d+\s*)?(?:mo|yr|months?|years?|weeks?|days?)\b|^\s*\d+\s*\+/i;
@@ -71,13 +71,29 @@ function domainNoun(context: string | undefined): string | null {
   return known ? (known.endsWith('s') ? known : `${known}s`) : null;
 }
 
+/** One cell of a table, named by its row and column, for phrasing a question. */
 export interface TableQuestionInput {
+  /** The row column's own header, e.g. "Age" — decides some phrasings. */
   rowHeader?: string;
+  /** The row's label, which identifies the thing being asked about. */
   rowKey: string;
+  /** The column's header, which names the property being asked for. */
   colHeader: string;
+  /** The table's section title, for a domain noun like "milestones". */
   context?: string;
 }
 
+/**
+ * Phrases a question for one table cell, from its row and column labels.
+ *
+ * Five branches, chosen by what the row looks like: an age reads as "At 2 mo,
+ * what are…", a compared dimension as "In normal aging, what is expected for…",
+ * and so on down to a plain "What is the X of Y?".
+ *
+ * The branching exists for subject-verb agreement. A generic template produces
+ * "What are the onset?" often enough to be noticed, and a card that reads as
+ * broken English is one a student stops trusting.
+ */
 export function tableQuestion({ rowHeader, rowKey, colHeader, context }: TableQuestionInput): string {
   const row = stripParenthetical(rowKey);
   const col = lower(colHeader.trim());
@@ -116,6 +132,13 @@ export function tableQuestion({ rowHeader, rowKey, colHeader, context }: TableQu
     : `What ${verb} the ${col} of ${row}?`;
 }
 
+/**
+ * The same cell asked backwards: given the value, name the row.
+ *
+ * A table is worth two cards per cell, and recognising a finding is a different
+ * skill from recalling one. The row header supplies the noun, so a table with
+ * no usable header falls back to the vaguer "What is characterized by…".
+ */
 export function reverseTableQuestion(
   rowHeader: string | undefined,
   cellValue: string
@@ -128,19 +151,19 @@ export function reverseTableQuestion(
 
 /** Question for a section heading that introduces explanatory prose. */
 export function headingQuestion(heading: string): string {
-  const h = stripOrdinal(heading).replace(/[:?]+$/, '');
-  if (/^(what|which|who|when|where|why|how)\b/i.test(h)) return `${h}?`;
-  if (PREPOSITION_ENDINGS.test(h)) return `${h}...?`;
-  return `What characterizes ${h}?`;
+  const stem = stripOrdinal(heading).replace(/[:?]+$/, '');
+  if (/^(what|which|who|when|where|why|how)\b/i.test(stem)) return `${stem}?`;
+  if (PREPOSITION_ENDINGS.test(stem)) return `${stem}...?`;
+  return `What characterizes ${stem}?`;
 }
 
 /** Question for an inline label such as "Substance use vulnerability:". */
 export function labelQuestion(label: string): string {
-  const l = stripOrdinal(label).replace(/[:?]+$/, '');
-  if (/^(what|which|who|when|where|why|how)\b/i.test(l)) return `${l}?`;
-  if (PREPOSITION_ENDINGS.test(l)) return `${l}...?`;
+  const stem = stripOrdinal(label).replace(/[:?]+$/, '');
+  if (/^(what|which|who|when|where|why|how)\b/i.test(stem)) return `${stem}?`;
+  if (PREPOSITION_ENDINGS.test(stem)) return `${stem}...?`;
   // Casing is preserved: acronyms and proper nouns must not be flattened.
-  return `What is important about ${l}?`;
+  return `What is important about ${stem}?`;
 }
 
 /**
@@ -164,27 +187,27 @@ export function softenAllCaps(text: string): string {
   if (!/[a-z]/.test(text) && /[A-Z]{3,}/.test(text)) {
     return text
       .toLowerCase()
-      .replace(/(^|[\s(/-])([a-z])/g, (_, p, c) => p + c.toUpperCase());
+      .replace(/(^|[\s(/-])([a-z])/g, (_, lead, letter) => lead + letter.toUpperCase());
   }
   return text;
 }
 
 /** Question for a bulleted set introduced by a heading. */
 export function listQuestion(heading: string): string {
-  const h = stripOrdinal(heading).replace(/[:?]+$/, '');
-  if (/^(what|which|who|when|where|why|how)\b/i.test(h)) return `${h}?`;
-  if (PREPOSITION_ENDINGS.test(h)) return `${h}...?`;
-  return `What ${be(h)} the ${lower(h)}?`;
+  const stem = stripOrdinal(heading).replace(/[:?]+$/, '');
+  if (/^(what|which|who|when|where|why|how)\b/i.test(stem)) return `${stem}?`;
+  if (PREPOSITION_ENDINGS.test(stem)) return `${stem}...?`;
+  return `What ${be(stem)} the ${lower(stem)}?`;
 }
 
 /** Question for a term found in a "Term: definition" construction. */
 export function termQuestion(term: string): string {
-  const t = term.trim();
-  if (/^(what|which|who|when|where|why|how)\b/i.test(t)) return `${t}?`;
+  const stem = term.trim();
+  if (/^(what|which|who|when|where|why|how)\b/i.test(stem)) return `${stem}?`;
   // "On exam" / "In summary" are adverbial, not nouns, so "What is On exam?"
   // would be ungrammatical.
-  if (/^(on|in|at|by|for|with|during|after|before)\b/i.test(t)) return `${t} — what was found?`;
-  return `What ${be(t)} ${t}?`;
+  if (/^(on|in|at|by|for|with|during|after|before)\b/i.test(stem)) return `${stem} — what was found?`;
+  return `What ${be(stem)} ${stem}?`;
 }
 
 // ---------------------------------------------------------------------------
@@ -250,11 +273,11 @@ function stripOrdinal(label: string): string {
  * like "How do you write basic for loop in C++?".
  */
 export function codeQuestion(label: string, language?: string): string {
-  const l = stripOrdinal(label).replace(/[:?]+$/, '');
+  const topic = stripOrdinal(label).replace(/[:?]+$/, '');
   const name = languageName(language);
   const suffix = name ? ` in ${name}` : '';
-  if (/^(what|which|who|when|where|why|how)\b/i.test(l)) return `${l}?`;
-  return `${l} — how is this written${suffix}?`;
+  if (/^(what|which|who|when|where|why|how)\b/i.test(topic)) return `${topic}?`;
+  return `${topic} — how is this written${suffix}?`;
 }
 
 /**
@@ -274,7 +297,7 @@ export function outputQuestion(label?: string, language?: string): string {
 
 /** Question for a diagram, where the picture itself is the answer. */
 export function diagramQuestion(label: string): string {
-  const l = stripOrdinal(label).replace(/[:?]+$/, '');
-  if (/^(what|which|who|when|where|why|how)\b/i.test(l)) return `${l}?`;
-  return `${l} — what does it look like?`;
+  const topic = stripOrdinal(label).replace(/[:?]+$/, '');
+  if (/^(what|which|who|when|where|why|how)\b/i.test(topic)) return `${topic}?`;
+  return `${topic} — what does it look like?`;
 }

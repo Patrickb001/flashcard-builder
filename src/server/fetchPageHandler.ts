@@ -9,15 +9,22 @@ import type { HandlerResult } from './endpoint';
  * in the browser, so a page's text never leaves the reader's machine — only its
  * address is sent.
  *
- * The URL guards live in src/lib/fetchPage.ts, which both deployments already
- * shared. This handler is the rest of the endpoint finally following them.
+ * The URL guards live in src/lib/fetchPage.ts, shared by both deployments; this
+ * handler is only the HTTP shell around them.
  */
 
+/** Options for handleFetchPage. */
 export interface FetchPageOptions {
   /** Where to report a failure; the terminal locally, the log in production. */
   onError?: (message: string) => void;
 }
 
+/**
+ * Validates the request and hands back the page's markup.
+ *
+ * Every rejection carries the fetcher's own message, which is written to be
+ * read by a person and deliberately reveals nothing about the server's network.
+ */
 export async function handleFetchPage(
   body: unknown,
   options: FetchPageOptions = {}

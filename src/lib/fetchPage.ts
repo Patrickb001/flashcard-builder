@@ -122,6 +122,7 @@ function assertFetchableUrl(raw: string): URL {
   return url;
 }
 
+/** One page as the fetcher read it. */
 export interface FetchedPage {
   html: string;
   /** The address the content actually came from, after any redirects. */
@@ -172,6 +173,17 @@ async function readCapped(res: Response, charset: string): Promise<string> {
   }
 }
 
+/**
+ * Fetches one page's HTML server-side, with the SSRF guards this module exists
+ * for — the entry point the /api/fetch-page handler calls.
+ *
+ * The browser cannot fetch an arbitrary page itself (CORS), so the server does
+ * it, which makes the server a request forwarder and therefore a target. Every
+ * check above runs here: scheme, host, redirect chain, response type and size.
+ *
+ * Throws PageFetchError with a message written for the user, because whatever
+ * goes wrong here ends up on the upload screen next to the URL they typed.
+ */
 export async function fetchPageHtml(rawUrl: string): Promise<FetchedPage> {
   let target = assertFetchableUrl(rawUrl);
   const controller = new AbortController();
