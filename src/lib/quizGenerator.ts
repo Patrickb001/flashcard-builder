@@ -366,7 +366,15 @@ async function auditVignettes(
     // when — as here — there is only one thing to send.
     const { text } = await callModel('vignette-audit', [{ context, questions }], settings, signal);
     const verdicts = parseAuditResponse(text);
-    return parsed.filter((item) => verdicts.get(item.id) === true);
+    const kept = parsed.filter((item) => verdicts.get(item.id) === true);
+    const flagged = parsed.length - kept.length;
+    // The reject rate itself is what docs/tuning-notes.md's vignette-audit
+    // entry needs measured: too high means the audit prompt is too strict,
+    // never rejecting even a planted bad distractor means it is too lax.
+    if (flagged > 0) {
+      console.warn(`Vignette audit flagged ${flagged} of ${parsed.length} question(s); dropped for retry.`);
+    }
+    return kept;
   } catch (err) {
     console.error('Vignette audit failed; dropping the batch rather than trusting it unaudited:', err);
     return [];
