@@ -33,6 +33,7 @@ Also:
 - For tables, emit one card per meaningful cell, phrased using the row and column headers.
 - Preserve exact numbers, percentages, and technical identifiers verbatim. Do not round or paraphrase them.
 - Skip anything that is not worth memorising. Returning few cards is better than returning filler.
+- Don't repeat the author's name to attribute each fact ("According to X", "X recommends", "in X's framework") just because the source is written in first person. A guide's own recommendation is still simply what the section says — ask about it directly, the way any other fact would be asked about. Name the author only when the source itself presents more than one person's conflicting view and the question must specify whose.
 
 ATTACHING CODE AND DIAGRAMS
 

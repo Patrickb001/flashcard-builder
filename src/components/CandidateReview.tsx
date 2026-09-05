@@ -8,6 +8,7 @@ import { generateCandidatesWithAi } from '../lib/aiGenerator';
 import { saveDeckWithCards } from '../db/db';
 import CardAttachments from './ui/CardAttachments';
 import DraftingBanner from './ui/DraftingBanner';
+import ProgressBar from './ui/ProgressBar';
 
 interface Props {
   /**
@@ -59,10 +60,16 @@ function defaultDeckName(fileName: string): string {
 /**
  * Step two: check the drafted cards, then save them as a deck.
  *
- * Rule-based cards are computed synchronously so the list is never empty, and
- * the model's cards replace them when drafting finishes. That is deliberate —
- * a screen with something on it degrades to worse cards if the model fails,
- * where an empty one waiting on a network call degrades to nothing.
+ * When AI drafting is on, the list starts empty and fills in with the
+ * model's cards when drafting finishes — rule-based cards are never shown
+ * automatically. A section the model couldn't cover gets its deterministic
+ * fallback computed eagerly but held back in `fallbackCards`, offered only
+ * through the "add rule-based cards" button, and visibly badged once added.
+ * That is deliberate: a silently weaker card mixed into an AI-drafted deck is
+ * harder to notice than one the user chose to add.
+ *
+ * With AI off there is no run to wait for, so the rule-based draft is shown
+ * immediately, exactly as before.
  *
  * Everything here is local until Save. Navigating away costs the session.
  */
@@ -75,16 +82,23 @@ export default function CandidateReview({
   onSaved,
   onCancel,
 }: Props) {
-  // Rule-based cards are computed immediately so there is always something on
-  // screen; AI drafting then replaces them when it finishes. Computed in a lazy
-  // initialiser rather than a memo: useState ignores its argument after mount,
-  // so a memo here would be recomputed on every `sections` change and thrown
-  // away, which reads as though the list tracks the prop when it does not.
-  const [candidates, setCandidates] = useState<Draft[]>(() => withKeys(generateCandidates(sections)));
+  // With AI on, the list starts empty and fills in once drafting resolves —
+  // rule-based cards are opt-in (see `fallbackCards`), not a placeholder.
+  // With AI off there is nothing to wait for, so the rule-based draft is
+  // computed immediately, as it always was. Computed in a lazy initialiser
+  // rather than a memo: useState ignores its argument after mount, so a memo
+  // here would be recomputed on every `sections` change and thrown away,
+  // which reads as though the list tracks the prop when it does not.
+  const [candidates, setCandidates] = useState<Draft[]>(() =>
+    ai.mode === 'off' ? withKeys(generateCandidates(sections)) : []
+  );
   const [drafting, setDrafting] = useState(ai.mode !== 'off');
   const [progress, setProgress] = useState<BatchProgress | null>(null);
   const [aiNotice, setAiNotice] = useState<string | null>(null);
   const [aiFailed, setAiFailed] = useState(false);
+  // Held back rather than merged into `candidates` until the user asks for
+  // them via the button below the banner.
+  const [fallbackCards, setFallbackCards] = useState<CandidateCard[]>([]);
 
   useEffect(() => {
     if (ai.mode === 'off') return;
@@ -96,13 +110,17 @@ export default function CandidateReview({
 
     (async () => {
       try {
-        const { cards, failedSections, truncatedBatches, firstError, aborted } =
+        const { cards, fallbackCards: fallback, failedSections, truncatedBatches, firstError, aborted } =
           await generateCandidatesWithAi(sections, ai, {
             onProgress: (batch) => !cancelled && setProgress(batch),
             signal: controller.signal,
           });
         if (cancelled || aborted) return;
-        if (cards.length > 0) setCandidates(withKeys(cards));
+        // Always applied, including when empty: an empty AI result must
+        // clear the (already-empty) list, not silently keep whatever was
+        // there before, now that nothing is pre-seeded to fall back on.
+        setCandidates(withKeys(cards));
+        setFallbackCards(fallback);
 
         const unit = UNIT_NOUN[sourceType];
         // Reported in the document's own units. This counted batches before,
@@ -129,7 +147,7 @@ export default function CandidateReview({
           // selected feature never ran.
           setAiFailed(true);
           setAiNotice(
-            `AI drafting did not run — these are rule-based cards. ${why} ${firstError ?? ''}`.trim()
+            `AI drafting did not run. ${why} ${firstError ?? ''}`.trim()
           );
         } else {
           setAiFailed(false);
@@ -140,10 +158,15 @@ export default function CandidateReview({
       } catch (err) {
         if (!cancelled) {
           setAiFailed(true);
+          // A hard failure means generateCandidatesWithAi never returned at
+          // all, so there is no fallbackCards to read from it — computed
+          // fresh here for every section, or the button below would have
+          // nothing to offer and the user would be left with an empty list.
+          setFallbackCards(
+            generateCandidates(sections).map((card) => ({ ...card, origin: 'rule-based' as const }))
+          );
           setAiNotice(
-            `AI drafting failed, so these are rule-based cards. ${
-              err instanceof Error ? err.message : ''
-            }`.trim()
+            `AI drafting failed. ${err instanceof Error ? err.message : ''}`.trim()
           );
         }
       } finally {
@@ -171,6 +194,12 @@ export default function CandidateReview({
   /** Drops a candidate entirely, as opposed to unchecking it. */
   const removeCandidate = (index: number) => {
     setCandidates((prev) => prev.filter((_, i) => i !== index));
+  };
+
+  /** Appends the held-back rule-based cards to the bottom of the list, and clears them. */
+  const addFallbackCards = () => {
+    setCandidates((prev) => [...prev, ...withKeys(fallbackCards)]);
+    setFallbackCards([]);
   };
 
   /** Opens an empty card at the top of the list, for writing one by hand. */
@@ -253,7 +282,12 @@ export default function CandidateReview({
         your own before saving.
       </p>
 
-      {drafting && <DraftingBanner activity="drafting cards" progress={progress} />}
+      {drafting && (
+        <>
+          <DraftingBanner activity="drafting cards" progress={progress} />
+          <ProgressBar fraction={progress ? progress.done / progress.total : 0} />
+        </>
+      )}
 
       {notice && (
         <div className="ai-notice partial" role="status">
@@ -266,7 +300,16 @@ export default function CandidateReview({
         <div className={`ai-notice ${aiFailed ? 'failed' : 'partial'}`} role="alert">
           <strong>{aiFailed ? 'AI drafting did not run' : 'Partial AI drafting'}</strong>
           <span>{aiNotice}</span>
+          {fallbackCards.length > 0 && (
+            <button className="ghost-btn small" onClick={addFallbackCards}>
+              Add {fallbackCards.length} rule-based card{fallbackCards.length === 1 ? '' : 's'}
+            </button>
+          )}
         </div>
+      )}
+
+      {drafting && candidates.length === 0 && fallbackCards.length === 0 && (
+        <p className="muted">Waiting for the first cards…</p>
       )}
 
       <div className="deck-name-row">
@@ -326,6 +369,9 @@ export default function CandidateReview({
               />
               <span className="candidate-meta">
                 {candidate.context && <span className="topic-chip">{candidate.context}</span>}
+                {candidate.origin === 'rule-based' && (
+                  <span className="topic-chip rule-based">Rule-based</span>
+                )}
                 <span className="source-label">{candidate.sourceLabel}</span>
               </span>
             </div>

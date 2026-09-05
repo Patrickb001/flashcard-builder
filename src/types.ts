@@ -93,6 +93,8 @@ export interface CandidateCard extends CardMedia {
   context?: string;
   /** Whether this card is currently checked for saving. */
   include: boolean;
+  /** Set on a card from the deterministic fallback; absent (not `false`) for an AI-drafted one. */
+  origin?: 'rule-based';
 }
 
 /**

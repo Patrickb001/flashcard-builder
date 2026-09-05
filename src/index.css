@@ -868,6 +868,13 @@ textarea {
   margin-bottom: 0.35rem;
 }
 
+/* Marks a candidate drafted by the deterministic fallback, not the model. */
+.topic-chip.rule-based {
+  color: var(--warm);
+  background: rgba(208, 139, 125, 0.1);
+  border-color: rgba(208, 139, 125, 0.25);
+}
+
 .flip-card-face .topic-chip {
   position: absolute;
   top: 1.1rem;

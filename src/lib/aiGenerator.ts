@@ -264,12 +264,20 @@ export interface AiGenerationOptions {
 
 /** What a drafting run produced, including what it could not do. */
 export interface AiGenerationResult {
-  /** Every card drafted, model-written and rule-based fallbacks alike. */
+  /** Every model-written card. Never includes a rule-based fallback — see `fallbackCards`. */
   cards: CandidateCard[];
+  /**
+   * The deterministic fallback for every section the model never covered,
+   * each tagged `origin: 'rule-based'`. Computed eagerly — the work is cheap,
+   * unlike the model call — but kept separate from `cards` rather than
+   * merged, so the caller can offer these as an opt-in addition instead of
+   * silently mixing weaker cards into the model's output.
+   */
+  fallbackCards: CandidateCard[];
   failedBatches: number;
   totalBatches: number;
   firstError: string | null;
-  /** Labels of the sections that ended up with rule-based cards. */
+  /** Labels of the sections behind `fallbackCards`. */
   failedSections: string[];
   /**
    * Batches the model stopped writing because it hit the token ceiling.
@@ -409,13 +417,19 @@ export async function generateCandidatesWithAi(
 
   // Only now does anything fall back to rules, and only the pages that are
   // still empty. Cancelling is not a failure, so a stopped run keeps what it
-  // drafted and leaves the rest alone rather than filling it with weaker cards.
+  // drafted and leaves the rest alone rather than computing fallback cards
+  // for it. Kept out of `bySection` deliberately — a fallback section must
+  // never end up folded into the model's own `cards`, since the caller
+  // offers these as an opt-in addition, not a silent substitute.
   const failedSections: string[] = [];
+  const fallbackCards: CandidateCard[] = [];
   if (!aborted) {
     for (const section of missing) {
       if (bySection.has(section)) continue;
       failedSections.push(section.label);
-      bySection.set(section, generateCandidates([section]));
+      fallbackCards.push(
+        ...generateCandidates([section]).map((card) => ({ ...card, origin: 'rule-based' as const }))
+      );
     }
   }
 
@@ -428,6 +442,11 @@ export async function generateCandidatesWithAi(
 
   return {
     cards: dedupeCards(all.filter(isUsableCard)),
+    // Deduped only against itself, not against `cards`: the two are drafted
+    // from disjoint sections by construction, so a cross-check would add
+    // real complexity (comparing against a list the caller may have already
+    // edited by the time this is used) for a case that shouldn't arise.
+    fallbackCards: dedupeCards(fallbackCards.filter(isUsableCard)),
     failedBatches,
     totalBatches,
     // Cancelling is not a failure, and reporting the abort as one would tell

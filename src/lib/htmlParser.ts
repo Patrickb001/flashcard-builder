@@ -261,9 +261,18 @@ function walk(el: Element, blocks: Block[], ctx: WalkContext): void {
  * An encyclopedia article ends in several screens of citations, link lists and
  * navigation boxes. They read as prose and would otherwise become sections —
  * and cards asking what reference 47 is.
+ *
+ * A blog or magazine site names the same kind of noise differently than an
+ * encyclopedia does — "More in Stress", "You might also like" — which is why
+ * this list carries both conventions rather than just the wiki-style one.
+ * "more on X" and bare "more information" are deliberately absent: both are
+ * plausible genuine section titles (a subtopic continuation, a page's own
+ * real content) in a way "more in [category]" and "you might also like" are
+ * not, so they are left as a known, accepted gap rather than risk dropping
+ * real content to close it.
  */
 const APPENDIX_HEADINGS =
-  /^(references?|citations?|notes( and references)?|footnotes?|bibliography|sources|further reading|external links?|see also|related (articles?|topics?|pages?|links?)|navigation menu|contents|comments?|share this|about the author|licen[cs]e|acknowledgements?)$/i;
+  /^(references?|citations?|notes( and references)?|footnotes?|bibliography|sources|further reading|external links?|see also|related( (articles?|topics?|pages?|links?|content|posts?|stories))?|more in .+|learn more|links and books|you (might|may) also like|you may be interested in|recommended( (for you|articles?|reading|posts?))?|popular( (articles?|posts?|resources?))?|trending( now)?|navigation menu|contents|comments?|share this|about the author|licen[cs]e|acknowledgements?)$/i;
 
 /**
  * Drops each appendix heading and everything under it, up to the next heading
