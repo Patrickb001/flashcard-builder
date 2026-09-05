@@ -1,5 +1,5 @@
 import { CARD_SYSTEM_PROMPT } from '../lib/cardPrompt';
-import { QUIZ_SYSTEM_PROMPT, VIGNETTE_SYSTEM_PROMPT } from '../lib/quizPrompt';
+import { QUIZ_SYSTEM_PROMPT, VIGNETTE_SYSTEM_PROMPT, VIGNETTE_AUDIT_SYSTEM_PROMPT } from '../lib/quizPrompt';
 import type { HandlerResult } from './endpoint';
 
 /**
@@ -26,7 +26,12 @@ const DEFAULT_MODEL = 'claude-sonnet-5';
  * bring-your-own-key mode draft differently from the same input. See "Model
  * response ceilings" in docs/tuning-notes.md for why each value is what it is.
  */
-const MAX_TOKENS: Record<string, number> = { cards: 16000, quiz: 8000, vignette: 16000 };
+const MAX_TOKENS: Record<string, number> = {
+  cards: 16000,
+  quiz: 8000,
+  vignette: 16000,
+  'vignette-audit': 1000,
+};
 
 /**
  * The prompt each task is answered with.
@@ -40,6 +45,7 @@ const PROMPTS = new Map<string, string>([
   ['cards', CARD_SYSTEM_PROMPT],
   ['quiz', QUIZ_SYSTEM_PROMPT],
   ['vignette', VIGNETTE_SYSTEM_PROMPT],
+  ['vignette-audit', VIGNETTE_AUDIT_SYSTEM_PROMPT],
 ]);
 
 /** Anything larger than this is refused before it reaches the model. */

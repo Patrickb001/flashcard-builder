@@ -11,7 +11,27 @@ import { normalizeSlug as normalizeOption, parseJsonArray } from './textUtils';
  * The whole point of writing questions once and storing them is that taking a
  * test then costs nothing: grading is a string comparison, so a test works
  * offline, instantly, and without an API key.
+ *
+ * A third prompt, VIGNETTE_AUDIT_SYSTEM_PROMPT below, is not a third way to
+ * write questions — it reviews vignette output after the fact, for the one
+ * class of error a single generation pass cannot reliably catch in itself: a
+ * fact invented under the same breath that judged it acceptable.
  */
+
+/**
+ * The rule that an invented wrong answer still has to be safe, shared between
+ * both question-writing prompts so an edit to it cannot land in one and be
+ * forgotten in the other. Each caller supplies its own source material and
+ * its own way of saying "also correct somewhere neither of us said" — the one
+ * part that genuinely reads differently for a general deck than for a
+ * clinical one.
+ */
+function distractorSafetyRules(source: string, elseCorrect: string): string {
+  return `Two checks apply to every wrong answer, however it was sourced:
+
+- Compare answers, not just questions: a candidate is unsafe if it names the same thing as the correct answer under a different label — a synonym, an abbreviation, a more specific instance — even when the two questions read quite differently.
+- When you must invent one instead of drawing it from ${source}, it has to be false outright, not merely a fact ${source} doesn't mention. ${elseCorrect} is still a second correct answer.`;
+}
 
 export const QUIZ_SYSTEM_PROMPT = `You write multiple-choice questions for a student revising from a deck of flashcards they have already studied. Each question is graded automatically, so it has to be exactly right.
 
@@ -24,7 +44,7 @@ Every question must satisfy ALL of these:
 3. EXACTLY THREE WRONG ANSWERS. Not two, not four.
 4. EVERY WRONG ANSWER MUST BE UNAMBIGUOUSLY WRONG for this stem. This is the rule that matters most. A distractor that is arguably also correct makes the question unanswerable and marks a student wrong for knowing the material. Where the deck itself offers nothing plausible, write the wrong answers from the subject matter instead — but they must still be clearly and defensibly wrong. This is the one rule you may never trade away for coverage.
 5. NO LENGTH TELL — do not make the correct answer the longest, the most detailed, or the most carefully qualified option. A student must not be able to pick it out by shape alone. Keep all four options about the same length and the same kind of thing: if the answer is a number, the wrong ones are numbers; if it is a definition, they are definitions. Keep EVERY option under 15 words — a long option is itself a tell, and a shorter one is a cleaner test.
-6. PLAUSIBLE, NOT ABSURD — a wrong answer should be something a student who half-learned the material might believe. Joke options and obvious nonsense teach nothing.
+6. PLAUSIBLE, NOT ABSURD — a wrong answer should be something a student who half-learned the material might believe. Joke options and obvious nonsense teach nothing, and so do "all of the above" or "none of the above" — they let a student skip the material instead of recalling it.
 
 Using the neighbouring cards:
 
@@ -33,6 +53,8 @@ You are given a "neighbours" list: other cards from the same deck, each as {"fro
 1. WRONG ANSWERS. PREFER a neighbour's answer. The best distractor is a near miss the deck itself contains — the adjacent stage in a sequence, a sibling term, the next row of the same table — because it tests whether the student can tell two real things apart. Write your own only when the neighbours offer nothing plausible, and when you do, stay inside the deck's subject matter and keep to rule 4: clearly wrong, not merely unmentioned. Never reuse the correct answer, in any wording, as a wrong answer.
 
 2. CHECKING THAT A WRONG ANSWER IS WRONG. This is why each neighbour comes with the question it answers. Before using a neighbour's answer as a wrong answer, read its front. If that question is asking the same thing as the question you are writing, then its answer is ALSO CORRECT for your question — using it would mark a student wrong for knowing the material. Skip it and choose another. Decks often state the same fact twice in different words, and a bare answer gives you no way to notice.
+
+${distractorSafetyRules('the deck', 'A wrong answer that is true elsewhere in the subject')}
 
 Use the neighbours to sharpen the question itself, not only its options. Where a neighbour covers a fact that is easily confused with this card's, write the stem so it turns on the distinction between them — name the specific case, condition or step being asked about, so a student who knows only the general idea cannot guess it. Never write a question that needs a neighbour the student cannot see: the stem must still stand on its own.
 
@@ -104,12 +126,29 @@ THE OPTIONS:
 4. HOMOGENEOUS — all five options must be the same kind of thing. If the answer is a diagnosis, all five are diagnoses; if it is a drug, all five are drugs; if it is a next step, all five are next steps. Mixing kinds gives the answer away.
 5. NO LENGTH TELL — do not make the correct answer the longest, the most detailed, or the most carefully qualified. Keep all five about the same length, and keep EVERY option under 15 words.
 6. PLAUSIBLE, NOT ABSURD — a wrong answer should be something a student who half-learned the material might believe. Prefer near misses the deck itself contains: the sibling diagnosis, the other drug in the table, the adjacent stage. Never reuse the correct answer, in any wording, as a wrong answer.
+7. NO TEST-TAKING SHORTCUTS — never phrase the lead-in as a negative ("which of the following is LEAST likely," "all of the following EXCEPT"). The explanation is written as why the correct answer is right; a negative lead-in makes that read backwards.
+
+${distractorSafetyRules('the deck or context cards', 'An option a real patient with this presentation could also plausibly have')}
+
+Two related diagnoses often share enough of a presentation that a sparse vignette fits both. When a context or neighbour card's condition is also consistent with the vignette you wrote, don't use it as a wrong answer as written — either sharpen the vignette with another card-supported finding that tells the two apart, or choose a different wrong answer.
 
 OTHER RULES:
 
 - "explanation" is EXACTLY ONE SENTENCE saying why the correct answer is right. It is shown only to a student who got the question wrong, so make it teach the distinction. Do not refer to "the card".
 - Preserve exact numbers, percentages and identifiers verbatim.
 - Some cards carry a code snippet as "questionCode". Ignore it for vignette purposes; it is not clinical material.
+
+EXAMPLES
+
+A card whose fact cannot become a scenario without inventing findings, so it takes the escape hatch:
+Card: "What is the mechanism of action of metformin?" / "Decreases hepatic gluconeogenesis and increases peripheral insulin sensitivity."
+{"id":"q1","vignette":"","stem":"Which of the following best describes the mechanism of action of metformin?","correct":"Decreased hepatic gluconeogenesis","distractors":["Increased pancreatic insulin secretion","Inhibition of intestinal alpha-glucosidase","Increased renal glucose excretion","Activation of PPAR-gamma receptors"],"explanation":"Metformin's primary action is reducing glucose output from the liver, not increasing insulin release or altering absorption or excretion."}
+
+A card whose fact supports a scenario, including the card-supported finding that keeps the sibling diagnosis a safe wrong answer:
+Card: "What endoscopic pattern distinguishes ulcerative colitis from Crohn's disease?" / "Continuous inflammation starting in the rectum with no skip lesions, versus Crohn's patchy skip lesions."
+{"id":"q2","vignette":"A 34-year-old man undergoes colonoscopy for three weeks of bloody diarrhea, which shows continuous inflammation beginning in the rectum with no skip lesions.","stem":"Which of the following is the most likely diagnosis?","correct":"Ulcerative colitis","distractors":["Crohn's disease","Irritable bowel syndrome","Ischemic colitis","Diverticulitis"],"explanation":"Continuous, rectum-based inflammation without skip lesions is the defining colonoscopic pattern of ulcerative colitis; Crohn's characteristically shows patchy skip lesions instead."}
+
+These two are deliberately different ages, sexes, and lead-ins so they read as two answers to the same underlying question, not a template — vary all three to fit what each card actually needs.
 
 Return ONLY a JSON array, with no markdown fence and no commentary. Each element:
 {"id": string, "vignette": string, "stem": string, "correct": string, "distractors": [string, string, string, string], "explanation": string}
@@ -137,6 +176,16 @@ export interface LlmQuizQuestion {
 const DISTRACTOR_COUNT = 3;
 const VIGNETTE_DISTRACTOR_COUNT = 4;
 
+/**
+ * "All/none of the above" is a fixed idiom, not a judgement call, so it is
+ * caught here rather than left to the prompt alone: a plain string match
+ * cannot be overlooked the way an instruction can. A banned CORRECT answer
+ * breaks the question outright (there is no single fact being tested) and is
+ * rejected below; a banned DISTRACTOR is simply filtered out like a
+ * duplicate, which still keeps the question if enough good ones remain.
+ */
+const BANNED_OPTIONS = new Set(['all of the above', 'none of the above'].map(normalizeOption));
+
 function trimmedString(value: unknown): string {
   return typeof value === 'string' ? value.trim() : '';
 }
@@ -159,6 +208,7 @@ function toQuestion(raw: unknown, distractorCount: number): LlmQuizQuestion | nu
   const correct = trimmedString(item.correct);
   const explanation = trimmedString(item.explanation);
   if (!id || !stem || !correct || !explanation) return null;
+  if (BANNED_OPTIONS.has(normalizeOption(correct))) return null;
 
   // Absent or empty is legitimate: a recall question never has one, and a
   // board-style item whose card could not carry a scenario deliberately
@@ -175,7 +225,9 @@ function toQuestion(raw: unknown, distractorCount: number): LlmQuizQuestion | nu
     const key = normalizeOption(text);
     // A distractor that restates the correct answer, or another distractor,
     // leaves the question with two right answers or two identical options.
-    if (!key || seen.has(key)) continue;
+    // "All/none of the above" is dropped the same way, not treated as fatal
+    // on its own — see BANNED_OPTIONS above.
+    if (!key || seen.has(key) || BANNED_OPTIONS.has(key)) continue;
     seen.add(key);
     distractors.push(text);
   }
@@ -228,4 +280,42 @@ export function parseQuizResponse(text: string): LlmQuizQuestion[] {
  */
 export function parseVignetteResponse(text: string): LlmQuizQuestion[] {
   return parseResponse(text, VIGNETTE_DISTRACTOR_COUNT);
+}
+
+/**
+ * Reviews vignette questions already written, for the one thing a single
+ * generation pass cannot reliably judge about its own output: whether a fact
+ * it just invented is actually true, or whether a wrong answer it just wrote
+ * is actually also right. Dropping a flagged question costs nothing a
+ * malformed one wouldn't already cost — the card is simply offered again on
+ * the retry pass, per the same philosophy as toQuestion() above.
+ */
+export const VIGNETTE_AUDIT_SYSTEM_PROMPT = `You are given clinical vignette questions and the flashcard(s) each was written from, plus the deck's context cards. For each question, check:
+
+1. GROUNDING — does every finding stated in the vignette trace to the given card or the context cards? No invented vital signs, lab values, imaging findings, physical exam findings, history, medications, or numeric thresholds.
+2. DISTRACTOR SAFETY — is any wrong option a diagnosis, finding, or next step that a real patient with this vignette's presentation could also plausibly have, even though it isn't what the card teaches?
+
+A direct question with no vignette (the escape hatch) only needs check 2.
+
+Return ONLY a JSON array, with no markdown fence and no commentary. Each element:
+{"id": string, "ok": boolean}
+
+"ok" is false if either check fails, true otherwise. Every id you were given must appear exactly once.`;
+
+/**
+ * The audit's verdict per question id, or nothing when the id never appears
+ * in the reply. Missing is treated as failing by the caller, not passing —
+ * the audit exists to catch a confidently wrong question, so a reply that
+ * failed to cover an id is not evidence the id is fine.
+ */
+export function parseAuditResponse(text: string): Map<string, boolean> {
+  const verdicts = new Map<string, boolean>();
+  for (const raw of parseJsonArray(text)) {
+    if (!raw || typeof raw !== 'object') continue;
+    const item = raw as Record<string, unknown>;
+    const id = trimmedString(item.id);
+    if (!id) continue;
+    verdicts.set(id, item.ok === true);
+  }
+  return verdicts;
 }

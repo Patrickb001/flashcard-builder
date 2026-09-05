@@ -239,3 +239,104 @@ drawing on the lecture and a model drawing on itself.
 **Why context gets fewer cards with more room each** (12 × 200 chars vs 20 × 160): a
 neighbour only has to be recognisable as an option, where a context card is being read
 for the detail in it.
+
+---
+
+## 2026-09-05 — prompt-text hardening and the vignette audit pass
+
+Three real gaps, found by reading the prompts against their own stated rules rather
+than against general prompt-writing advice, and one new mechanism. All prompt text is
+in `src/lib/cardPrompt.ts` and `src/lib/quizPrompt.ts`; not yet run against real
+output — that is the open item at the end of this entry, not something already
+confirmed.
+
+**Cards — rule 1 (ATOMIC) contradicted rule 5.** Rule 1 said "split compound
+statements," unconditionally, while rule 5 allowed a list-shaped back — and the quiz
+prompt already had a dedicated rule for "when a card's back is... a long list," which
+only makes sense if list-backed cards are expected to exist. Rule 1 now carves out a
+small, bounded set of parallel items (two to six) that only mean anything together.
+That bound is a default, not a measured one — worth checking against a source with an
+8+ item list, where it should still force a split.
+
+**Cards — rule 3 (REAL QUESTIONS) didn't rule out a front leaking its own answer.**
+Naturalness and non-leakage are different failures; a grammatically natural question
+can still hand back the fact it's testing. Added a second "prefer X over Y" pair in the
+prompt's own established style.
+
+**Cards — new rule 7, no cross-section repeats.** A batch sends up to four sections at
+once, and this file's own "Card de-duplication" section above states the reworded-
+duplicate safety net exists only for quiz questions at selection time, not for cards.
+A recap section restating an earlier definition could produce two differently-worded
+cards for one fact, invisible to the 0.9/0.9 word-overlap check. Scoped to "the same
+fact," not "the same topic," to avoid merging genuinely distinct content that merely
+shares vocabulary — not yet tested against a document with that exact pattern.
+
+**Quiz + vignette — the neighbour/context double-correctness check compared questions,
+not answers.** The existing check ("if that question is asking the same thing... its
+answer is ALSO CORRECT") is a proxy that misses a synonym pair reached by differently-
+worded questions — "tachycardia" as a distractor is unsafe against a correct answer of
+"increased heart rate" regardless of how different the two fronts read. Added directly
+to a new shared `distractorSafetyRules()` in `quizPrompt.ts`, used by both prompts, so
+an edit to this rule can't land in one and be missed in the other.
+
+**Vignette — invented distractors weren't held to the scenario's own grounding
+standard.** The GROUNDING RULE stops fabricated vitals/labs/history; nothing stopped an
+invented wrong diagnosis from being a real, board-relevant differential for the same
+presentation (e.g. "unstable angina" against an MI vignette) — which this file's own
+header comment calls out as the worst failure a board-exam tool can produce. Folded
+into the same shared `distractorSafetyRules()` call, worded for the clinical domain.
+
+**Vignette — no equivalent of the recall prompt's double-correctness check at all.**
+Recall has one; vignette, sourcing distractors the same way from context/neighbour
+cards, had nothing. Added as its own paragraph, since it also needed a vignette-only
+remedy (recall can't "sharpen a stem" the way a vignette can be given another
+distinguishing finding).
+
+**Vignette — added a NO TEST-TAKING SHORTCUTS rule (negative lead-ins only).** Real
+PANCE-style banks use "all of the following EXCEPT" — a risk the plain recall prompt
+doesn't share, since recall's LEAD-IN section pulls toward real board conventions and
+recall's doesn't. The "all/none of the above" half of this is *not* prose here — see
+below, it's a deterministic code check on both styles instead, since it's a fixed
+idiom and prose can be skipped where a string match can't.
+
+**`toQuestion()` — "all/none of the above" is now rejected in code, not just asked for
+in the prompt.** A banned *correct* answer voids the question (no single fact being
+tested); a banned *distractor* is filtered like a duplicate, which can still leave
+enough good ones to keep the question. Deliberately **not** done for negative-stem
+phrasing — a naive string check (e.g. flagging "not") would wrongly reject a real card
+about, say, a NOT gate. That guard stays prose-only for this reason.
+
+**New: the `vignette-audit` task.** Vignette generation is the one place this app asks
+a model to invent framing around real facts in the same breath it judges the framing
+acceptable — and there was no backstop for that judgment being wrong, unlike the
+distractor-count rule, which `toQuestion()` already enforces regardless of what the
+prompt says. Added a second, small call (`VIGNETTE_AUDIT_SYSTEM_PROMPT` in
+`quizPrompt.ts`, wired into `generateQuestionsForCards`'s `runBatch` in
+`quizGenerator.ts`) that reviews an already-written vignette batch for the same two
+things — invented findings, and a distractor that's plausibly also correct for the
+vignette as written — and drops anything it flags. A flagged card is not lost; it's
+retried next pass, same as a malformed reply always has been.
+
+Considered and rejected before landing on this: migrating to Anthropic tool-use for
+schema-enforced option counts. The count problem it would fix is already handled by
+`toQuestion()`'s slice/reject logic; the problem tool-use *can't* fix — truncation —
+would still need the exact same salvage-parsing this file already relies on. Three
+files of changes for an already-mitigated, unevidenced problem didn't clear this
+project's own bar.
+
+Also considered: running the audit on a cheaper model tier, and batching several
+generation batches into one audit call to cut request count. Rejected the first —
+spotting a clinically-plausible-but-wrong differential is a real reasoning task, not a
+cheap classification one. Rejected the second on the numbers: a vignette generation
+call runs against a 16000-token ceiling and, per "Model response ceilings" above,
+typically still takes many seconds to generate a couple of thousand tokens — that
+latency, not request count, is already what keeps a run under the hosted 20/min limit,
+so one small audit call per batch doesn't need the extra complexity.
+
+**Open, not yet done:** none of this has been run against real output. Before trusting
+it: run cards against `tools/fixtures/pages/*.html` and a list-heavy source; run both
+quiz styles on a real clinical deck and watch the audit pass's actual reject rate (too
+high means its own prompt is too strict; never rejecting even an obviously bad planted
+distractor means it's too lax to trust); and — since none of this had a temperature set
+before, and still doesn't — if a lower temperature is tried, score it by the audit
+pass's flag count rather than by eye alone, and record the result here either way.

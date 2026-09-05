@@ -2,7 +2,12 @@ import type { Flashcard, QuestionStyle, TestQuestion } from '../types';
 import type { AiSettings } from './aiGenerator';
 import { callModel } from './aiTransport';
 import { runBatches, type BatchProgress } from './batchRunner';
-import { parseQuizResponse, parseVignetteResponse } from './quizPrompt';
+import {
+  parseQuizResponse,
+  parseVignetteResponse,
+  parseAuditResponse,
+  type LlmQuizQuestion,
+} from './quizPrompt';
 
 /**
  * Writes multiple-choice questions from saved flashcards.
@@ -323,6 +328,52 @@ function buildBatches(
 }
 
 /**
+ * Runs the grounding/distractor-safety audit over one batch of vignette
+ * questions, dropping any it flags — or all of them, if the audit call
+ * itself fails.
+ *
+ * Failing closed here is deliberate: an unaudited vignette is exactly the
+ * "confidently wrong" outcome this pass exists to catch, so a broken audit
+ * call must not be treated as a pass. A dropped question is not lost — it is
+ * simply a card without one yet, and is offered again on the retry pass like
+ * any other, per the same philosophy `toQuestion()` already uses for a
+ * malformed reply.
+ */
+async function auditVignettes(
+  parsed: LlmQuizQuestion[],
+  batch: Flashcard[],
+  deckCards: Flashcard[],
+  settings: AiSettings,
+  signal?: AbortSignal
+): Promise<LlmQuizQuestion[]> {
+  const context = contextCards(batch, deckCards).map(({ front, back }) => ({ front, back }));
+  const questions = parsed.map((item) => {
+    const index = Number(item.id.replace(/^q/i, '')) - 1;
+    const card = batch[index];
+    return {
+      id: item.id,
+      card: card ? { front: card.front, back: card.back } : null,
+      vignette: item.vignette ?? '',
+      stem: item.stem,
+      correct: item.correct,
+      distractors: item.distractors,
+    };
+  });
+
+  try {
+    // Wrapped in an array for the same reason the generation call is: the
+    // endpoint's contract is a non-empty list of things for the model, even
+    // when — as here — there is only one thing to send.
+    const { text } = await callModel('vignette-audit', [{ context, questions }], settings, signal);
+    const verdicts = parseAuditResponse(text);
+    return parsed.filter((item) => verdicts.get(item.id) === true);
+  } catch (err) {
+    console.error('Vignette audit failed; dropping the batch rather than trusting it unaudited:', err);
+    return [];
+  }
+}
+
+/**
  * Writes one question per card, as far as the model can.
  *
  * `targets` are the cards needing a question; `deckCards` is the whole deck,
@@ -367,13 +418,20 @@ export async function generateQuestionsForCards(
     );
     if (stopReason === 'max_tokens') truncatedBatches += 1;
 
-    const parsed = isVignette ? parseVignetteResponse(text) : parseQuizResponse(text);
+    let parsed = isVignette ? parseVignetteResponse(text) : parseQuizResponse(text);
     if (parsed.length === 0) {
       throw new Error(
         stopReason === 'max_tokens'
           ? 'The reply was cut off by the length limit before any question was complete.'
           : 'No questions returned'
       );
+    }
+
+    // Audited before anything is marked answered, so a question the audit
+    // drops flows through exactly like one the model never wrote: its card
+    // stays unanswered and is retried, rather than needing separate handling.
+    if (isVignette) {
+      parsed = await auditVignettes(parsed, batch, deckCards, settings, options.signal);
     }
 
     const now = Date.now();
