@@ -169,6 +169,7 @@ thread immediately after drafting, while someone waits to see their cards.
 | `cards` | 16000 |
 | `quiz` | 8000 |
 | `vignette` | 16000 |
+| `vignette-audit` | 1000 |
 
 **Quiz — why not 4000.** A quiz question costs about five strings where a card costs
 two, so a quiz batch sits far closer to the ceiling. At 4000 a full batch came back
@@ -188,6 +189,11 @@ tokens a recall question costs.
 
 **Why the headroom is close to free.** The ceiling is a limit, not a reservation. An
 ordinary batch still generates and bills only a couple of thousand tokens.
+
+**Vignette-audit — why 1000.** The audit call returns one verdict object per question in
+the batch — an id and a boolean — never prose, so it costs a small fraction of what
+generating the batch did. This was a starting estimate, not a measured one, when it
+shipped; see the 2026-09-05 entry below for whether a real run needed more.
 
 ---
 
@@ -333,10 +339,92 @@ typically still takes many seconds to generate a couple of thousand tokens — t
 latency, not request count, is already what keeps a run under the hosted 20/min limit,
 so one small audit call per batch doesn't need the extra complexity.
 
-**Open, not yet done:** none of this has been run against real output. Before trusting
-it: run cards against `tools/fixtures/pages/*.html` and a list-heavy source; run both
-quiz styles on a real clinical deck and watch the audit pass's actual reject rate (too
-high means its own prompt is too strict; never rejecting even an obviously bad planted
-distractor means it's too lax to trust); and — since none of this had a temperature set
-before, and still doesn't — if a lower temperature is tried, score it by the audit
-pass's flag count rather than by eye alone, and record the result here either way.
+**Resolved 2026-09-05:** run for real as part of the prompt-quality-refinements plan.
+Offline parsing, selection, and compilation checks (Task 4 of that plan) passed —
+`tsc -b` is clean, and the quiz, vignette, coverage, and neighbour-context test tools
+all passed against the golden decks (94/94 cards got a question across six decks, 0
+batches truncated). The payload test tool could not be run — it requires a `PDF`
+fixture this repo deliberately doesn't check in — but that gap doesn't weigh against
+confidence here, since the only change to that file's path was the
+`CARD_SYSTEM_PROMPT` string, not any parsing function. The audit pass's reject rate
+over the vignette fixture run (Task 6) was high on first pass: 8 of the first 16
+questions generated (2 of 4 first-pass batches, entirely) were flagged and dropped for
+retry, landing at 16/16 once the smaller retry batches ran clean. Per the calibration
+note above, that is a rate worth recording plainly rather than waving past — though
+this pass does not attempt to tune the audit prompt itself, only to make the rate
+visible for the first time. Temperature was still not touched in this pass; that
+remains open below.
+
+---
+
+## 2026-09-05 — splitting-rule rewrite and distractor plausibility
+
+**Cards — rule 1 (ATOMIC) restructured as an ordered test.** The prior wording packed
+two conditionals into one sentence ("split X, unless Y — but split anyway if Z"),
+which is a shape models apply inconsistently: reports of both over-splitting (a plain
+descriptive clause treated as a "distinct detail") and under-splitting (a number
+embedded in a shared sentence not triggering a split) were coming from the same rule.
+Rewritten as three ordered branches with a worked example pair, and a new explicit
+bound: a parallel set of more than six items with no per-item detail must now be split
+into smaller groupings rather than staying on one long list-back card — closing the
+exact gap the previous entry flagged as untested ("worth checking against an 8+ item
+list, where it should still force a split"). Verified with a new synthetic-fixture
+tool, `tools/test-card-splitting.mjs`, rather than a real document — see that file's
+own comment for why a directed fixture was chosen over an incidental one. Run against
+three synthetic sections: a sentence naming two attachment styles each with its own
+prevalence percentage split into 2 cards, one per percentage — the intended outcome
+for the "carries its own distinct detail" branch. A sentence naming all four
+attachment styles with no per-item detail stayed on 1 card naming all four — the
+intended outcome for the "small bounded set" branch. A 9-item list of insomnia causes
+with no per-item detail split into 3 cards, grouped by natural category (lifestyle
+factors, psychological factors, medical conditions) rather than one 9-item card or
+nine single-item ones — the rule only requires "smaller groupings," not semantic
+coherence, so the model grouping meaningfully on its own is a stronger result than the
+rule strictly asked for. All three of the tool's own structural assertions passed.
+
+**Quiz — rules 4 and 6 no longer pull against each other for invented distractors.**
+Rule 4's "unambiguously wrong" framing (already the strongest rule in the file) gave
+no guidance on invented distractors beyond "clearly and defensibly wrong," which a
+model can satisfy with a safely irrelevant fact — plausible-sounding to no one, and
+arguably the source of "not close enough" reports. Rule 6 now carries a concrete
+technique (mutate the correct answer along one axis: adjacent value, sibling term,
+adjacent step, same-family mechanism) with a worked good/bad pair, and rule 4 now
+points forward to it instead of duplicating "write your own" guidance in two places. A
+real recall-quiz run read as same-family confusions throughout: a while-loop timing
+question's distractors were other loop-timing misconceptions, a for-loop syntax
+question's distractors were other syntactically-plausible loop variants, a
+switch-case question's distractors were other kinds of values one might mistakenly
+think are valid case labels. No "obviously unrelated true fact" distractor — the
+exact failure mode rule 6 now targets — was observed in this run.
+
+**Quiz — the model was never told the neighbours list is ordered.**
+`quizGenerator.ts`'s `nearestFirst` (topic, then source page, then the rest) has
+ranked neighbours since before this entry, but `QUIZ_SYSTEM_PROMPT` never said so —
+the model had no reason to prefer an early entry over a later one. Added one sentence
+to point 1 of "Using the neighbouring cards."
+
+**Quiz — the vignette audit's reject rate is now visible.** `auditVignettes` in
+`quizGenerator.ts` dropped flagged questions silently; it now logs how many of a batch
+were flagged, which is what the previous entry's open item asked someone to go
+measure. Running the real vignette generator against `tools/fixtures/pance-cards.json`
+(16 cards), first-pass generation split into 4 batches of 4 questions; the audit
+flagged 2 of those 4 batches entirely (8 of the first 16 questions written), logging
+"Vignette audit flagged 4 of 4 question(s); dropped for retry." twice. All 8 succeeded
+on the smaller-batch retry (2 cards per batch) with nothing flagged, landing the run
+at 16/16 cards answered, 8/8 batches total, 0 truncated. A 50% first-pass batch reject
+rate is high enough to record plainly rather than wave past — per the calibration note
+above, a high rate points at the audit prompt itself being too strict — but this plan
+does not attempt to tune that prompt; it only makes the rate visible for the first
+time. Separately, `tools/test-neighbour-context.mjs` — which measures
+double-correctness (a neighbour's answer also being correct for a
+differently-worded stem), not distractor plausibility — showed no regression from
+this plan's changes: a real before/after comparison (before: the pre-change commit in
+a temporary worktree; after: this plan's changes) flagged 3 of 24 questions both
+times, same rate with different specific pairs. Expected, since rules 4/6 target
+distractor plausibility, not the double-correctness check, which is governed by
+separate, untouched prompt text (`distractorSafetyRules()` and point 2 of "Using the
+neighbouring cards").
+
+**Still open:** temperature has still never been set on any of these calls; if it is
+tried, score it by the vignette audit's flag count (now logged) rather than by eye
+alone.
