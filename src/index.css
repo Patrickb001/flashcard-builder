@@ -1,31 +1,56 @@
 :root {
-  /* A warm, desaturated dark palette. Pure black on pure white causes halation
-     and eye strain over long sessions, so the background is a soft ink and the
-     text a warm off-white a few steps below full brightness. */
-  --ink-deepest: #14161a;
-  --ink: #191c21;
-  --panel: #212530;
-  --panel-raised: #2a2f3b;
-  --border-soft: rgba(255, 255, 255, 0.08);
+  /* Neutral zinc scale plus one warm-indigo accent. Light is the base theme;
+     dark overrides live under [data-theme="dark"] below, using the same
+     variable names so every rule in this file is theme-agnostic. */
+  --bg: #fafafa;
+  --surface: #ffffff;
+  --surface-raised: #f4f4f5;
+  --border-soft: #e4e4e7;
+  --border-strong: #d4d4d8;
 
-  --text-primary: #e6e1d8;
-  --text-secondary: #a8a49c;
-  --text-faint: #7c7973;
+  --text-primary: #18181b;
+  --text-secondary: #71717a;
+  --text-faint: #a1a1aa;
 
-  --accent: #d9a441;
-  --accent-soft: rgba(217, 164, 65, 0.14);
-  --calm: #7fb3a4;
-  --warm: #d08b7d;
+  --accent: #5b52d6;
+  --accent-soft: rgba(91, 82, 214, 0.08);
+  --accent-contrast: #ffffff;
+  --success: #1a8f5e;
+  --success-soft: rgba(26, 143, 94, 0.08);
+  --warning: #b6650a;
+  --warning-soft: rgba(182, 101, 10, 0.08);
 
-  --shadow-deep: rgba(0, 0, 0, 0.4);
+  --shadow-deep: 0 1px 2px rgba(0, 0, 0, 0.04);
 
-  /* Fraunces for display, Source Serif for card faces (serifs are easier to
-     track across long study sessions), IBM Plex Sans for UI chrome. */
-  --font-display: "Fraunces", Georgia, serif;
-  --font-read: "Source Serif 4", Georgia, serif;
-  --font-ui: "IBM Plex Sans", system-ui, -apple-system, sans-serif;
+  /* One sans family throughout — UI chrome, headings, and card text alike.
+     The monospace stack for code snippets is separate and unaffected. */
+  --font-ui: "Inter", system-ui, -apple-system, sans-serif;
 
   --line-comfortable: 1.65;
+
+  color-scheme: light;
+}
+
+:root[data-theme="dark"] {
+  --bg: #0a0a0c;
+  --surface: #18181b;
+  --surface-raised: #212126;
+  --border-soft: #2a2a30;
+  --border-strong: #3f3f46;
+
+  --text-primary: #f4f4f5;
+  --text-secondary: #a1a1aa;
+  --text-faint: #71717a;
+
+  --accent: #8b87f0;
+  --accent-soft: rgba(139, 135, 240, 0.16);
+  --accent-contrast: #0a0a0c;
+  --success: #6bc79b;
+  --success-soft: rgba(107, 199, 155, 0.14);
+  --warning: #e0a458;
+  --warning-soft: rgba(224, 164, 88, 0.14);
+
+  --shadow-deep: 0 8px 24px rgba(0, 0, 0, 0.45);
 
   color-scheme: dark;
 }
@@ -41,20 +66,9 @@ body {
 }
 
 body {
-  background: var(--ink-deepest);
+  background: var(--bg);
   font-size: 16.5px;
   line-height: var(--line-comfortable);
-  background-image:
-    radial-gradient(
-      ellipse at 20% -10%,
-      rgba(255, 255, 255, 0.05),
-      transparent 45%
-    ),
-    radial-gradient(
-      ellipse at 80% 110%,
-      rgba(255, 255, 255, 0.035),
-      transparent 45%
-    );
   color: var(--text-primary);
   font-family: var(--font-ui);
   -webkit-font-smoothing: antialiased;
@@ -75,12 +89,12 @@ input {
 
 ::selection {
   background: var(--accent);
-  color: var(--ink-deepest);
+  color: var(--accent-contrast);
 }
 
 h1,
 h2 {
-  font-family: var(--font-display);
+  font-family: var(--font-ui);
   font-weight: 600;
   color: var(--text-primary);
   margin: 0 0 0.25rem;
@@ -92,8 +106,7 @@ h1 {
   letter-spacing: -0.015em;
 }
 
-h1 em,
-.brand-text em {
+h1 em {
   color: var(--accent);
   font-style: normal;
 }
@@ -124,7 +137,7 @@ p {
   text-transform: uppercase;
   letter-spacing: 0.14em;
   font-size: 0.72rem;
-  color: var(--calm);
+  color: var(--accent);
   margin: 0 0 0.4rem;
 }
 
@@ -146,7 +159,7 @@ p {
   margin-bottom: 2.5rem;
   position: sticky;
   top: 0;
-  background: var(--ink-deepest);
+  background: var(--bg);
   z-index: 10;
 }
 
@@ -160,18 +173,57 @@ p {
   padding: 0;
 }
 
-.brand-mark svg {
-  stroke: var(--accent);
-  stroke-width: 3.5;
-  stroke-linecap: round;
-  fill: none;
+.brand-mark {
+  width: 30px;
+  height: 30px;
+  border-radius: 8px;
+  background: var(--accent);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex: none;
 }
 
 .brand-text {
-  font-family: var(--font-display);
+  font-family: var(--font-ui);
   font-weight: 600;
-  font-size: 1.35rem;
+  font-size: 1.1rem;
+  letter-spacing: -0.01em;
   color: var(--text-primary);
+}
+
+.top-bar-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.theme-toggle {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  border: 1px solid var(--border-soft);
+  border-radius: 100px;
+  padding: 3px;
+  background: var(--surface);
+}
+
+.theme-toggle button {
+  border: none;
+  background: transparent;
+  width: 28px;
+  height: 28px;
+  border-radius: 100px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  color: var(--text-faint);
+}
+
+.theme-toggle button.active {
+  background: var(--accent-soft);
+  color: var(--accent);
 }
 
 /* The fade lives on the inner screen, not the stage: the stage is mounted for
@@ -217,17 +269,19 @@ p {
   border-radius: 8px;
   padding: 0.65rem 1.15rem;
   cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
   transition:
     transform 0.12s ease,
     background 0.15s ease,
     border-color 0.15s ease;
-  border: 2px solid transparent;
+  border: 1px solid transparent;
 }
 
 .primary-btn {
   background: var(--accent);
-  color: var(--ink-deepest);
-  box-shadow: 0 2px 0 rgba(0, 0, 0, 0.25);
+  color: var(--accent-contrast);
 }
 
 .primary-btn:hover:not(:disabled) {
@@ -241,26 +295,30 @@ p {
 
 .secondary-btn {
   background: transparent;
-  border-color: var(--calm);
-  color: var(--calm);
+  border-color: var(--border-strong);
+  color: var(--text-primary);
 }
 
 .secondary-btn:hover:not(:disabled) {
-  background: rgba(127, 169, 160, 0.12);
+  background: var(--surface-raised);
 }
 
 .secondary-btn.learning {
-  border-color: var(--warm);
-  color: var(--warm);
+  border-color: var(--warning);
+  color: var(--warning);
 }
 
 .secondary-btn.learning:hover {
-  background: rgba(193, 102, 107, 0.14);
+  background: var(--warning-soft);
 }
 
 .secondary-btn.knew {
-  border-color: var(--calm);
-  color: var(--calm);
+  border-color: var(--success);
+  color: var(--success);
+}
+
+.secondary-btn.knew:hover {
+  background: var(--success-soft);
 }
 
 .secondary-btn:disabled {
@@ -285,30 +343,34 @@ p {
 }
 
 .ghost-btn.danger-text {
-  color: var(--warm);
+  color: var(--warning);
 }
 
 .ghost-btn.danger-text:hover {
-  border-color: var(--warm);
+  border-color: var(--warning);
 }
 
 .icon-btn {
   background: transparent;
   border: none;
-  color: var(--text-secondary);
+  color: var(--text-faint);
   cursor: pointer;
-  font-size: 0.95rem;
-  padding: 0.3rem 0.5rem;
-  border-radius: 6px;
-  line-height: 1;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  border-radius: 7px;
 }
 
 .icon-btn:hover {
-  background: rgba(255, 255, 255, 0.06);
+  background: var(--surface-raised);
+  color: var(--text-primary);
 }
 
 .icon-btn.danger {
-  color: var(--warm);
+  color: var(--warning);
 }
 
 .form-actions {
@@ -321,7 +383,7 @@ p {
 .form-actions.sticky {
   position: sticky;
   bottom: 0;
-  background: linear-gradient(to top, var(--ink-deepest) 60%, transparent);
+  background: linear-gradient(to top, var(--bg) 60%, transparent);
   padding: 1rem 0 0.5rem;
 }
 
@@ -337,14 +399,15 @@ p {
 }
 
 .empty-state {
-  border: 2px dashed var(--border-soft);
-  border-radius: 14px;
+  border: 1px dashed var(--border-strong);
+  border-radius: 10px;
   padding: 3.5rem 2rem;
   text-align: center;
 }
 
 .chalk-doodle {
-  font-size: 2.4rem;
+  display: flex;
+  justify-content: center;
   color: var(--accent);
   margin-bottom: 0.5rem;
 }
@@ -356,9 +419,9 @@ p {
 }
 
 .deck-card {
-  background: var(--panel);
-  border: 1px solid rgba(255, 255, 255, 0.06);
-  border-radius: 12px;
+  background: var(--surface);
+  border: 1px solid var(--border-soft);
+  border-radius: 10px;
   padding: 1.1rem 1.2rem 1.3rem;
   cursor: pointer;
   transition:
@@ -371,7 +434,8 @@ p {
 
 .deck-card:hover {
   transform: translateY(-2px);
-  box-shadow: 0 8px 20px var(--shadow-deep);
+  border-color: var(--border-strong);
+  box-shadow: var(--shadow-deep);
 }
 
 .deck-card h3 {
@@ -397,19 +461,19 @@ p {
 }
 
 .source-tag.source-pdf {
-  color: var(--calm);
-}
-
-.source-tag.source-pptx {
   color: var(--accent);
 }
 
+.source-tag.source-pptx {
+  color: var(--success);
+}
+
 .source-tag.source-md {
-  color: var(--warm);
+  color: var(--warning);
 }
 
 .source-tag.source-html {
-  color: var(--calm);
+  color: var(--text-secondary);
 }
 
 .deck-meta {
@@ -428,8 +492,8 @@ p {
 
 .dropzone {
   margin-top: 1.75rem;
-  border: 2px dashed var(--border-soft);
-  border-radius: 16px;
+  border: 1.5px dashed var(--border-strong);
+  border-radius: 10px;
   padding: 3.5rem 1.5rem;
   text-align: center;
   cursor: pointer;
@@ -441,7 +505,7 @@ p {
 .dropzone:hover,
 .dropzone.dragging {
   border-color: var(--accent);
-  background: rgba(232, 196, 104, 0.05);
+  background: var(--accent-soft);
 }
 
 .dropzone.busy {
@@ -449,8 +513,10 @@ p {
 }
 
 .dropzone-icon {
-  font-size: 2.2rem;
+  display: flex;
+  justify-content: center;
   color: var(--accent);
+  margin-bottom: 0.25rem;
 }
 
 .dropzone-label {
@@ -459,7 +525,7 @@ p {
 }
 
 .error-text {
-  color: var(--warm);
+  color: var(--warning);
   margin-top: 1rem;
   font-size: 0.9rem;
 }
@@ -468,7 +534,7 @@ p {
   width: 34px;
   height: 34px;
   border-radius: 50%;
-  border: 3px solid rgba(232, 196, 104, 0.25);
+  border: 3px solid var(--accent-soft);
   border-top-color: var(--accent);
   margin: 0 auto 0.75rem;
   animation: spin 0.9s linear infinite;
@@ -501,12 +567,19 @@ p {
 
 input[type="text"],
 .deck-name-row input {
-  background: var(--panel);
-  border: 1px solid rgba(255, 255, 255, 0.1);
+  background: var(--surface);
+  border: 1px solid var(--border-soft);
   border-radius: 8px;
   padding: 0.55rem 0.75rem;
   color: var(--text-primary);
   font-size: 1rem;
+  font-family: var(--font-ui);
+}
+
+input[type="text"]:focus-visible,
+.deck-name-row input:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
 }
 
 .review-toolbar {
@@ -529,8 +602,8 @@ input[type="text"],
   display: flex;
   align-items: flex-start;
   gap: 0.75rem;
-  background: var(--panel);
-  border: 1px solid rgba(255, 255, 255, 0.06);
+  background: var(--surface);
+  border: 1px solid var(--border-soft);
   border-radius: 10px;
   padding: 0.85rem;
 }
@@ -567,9 +640,9 @@ input[type="text"],
 }
 
 textarea {
-  background: var(--panel-raised);
-  border: 1px solid rgba(255, 255, 255, 0.08);
-  border-radius: 7px;
+  background: var(--surface-raised);
+  border: 1px solid var(--border-soft);
+  border-radius: 8px;
   color: var(--text-primary);
   padding: 0.55rem 0.7rem;
   font-size: 0.92rem;
@@ -577,31 +650,36 @@ textarea {
   width: 100%;
 }
 
+textarea:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+}
+
 .candidate-front {
   font-weight: 600;
-  font-family: var(--font-read);
+  font-family: var(--font-ui);
   font-size: 1rem;
 }
 
 .candidate-back {
-  font-family: var(--font-read);
+  font-family: var(--font-ui);
   color: var(--text-secondary);
 }
 
 .source-label {
   font-family: var(--font-ui);
   font-size: 0.7rem;
-  color: var(--calm);
+  color: var(--success);
   text-transform: uppercase;
   letter-spacing: 0.06em;
 }
 
 .source-label.status-known {
-  color: var(--calm);
+  color: var(--success);
 }
 
 .source-label.status-unknown {
-  color: var(--warm);
+  color: var(--warning);
 }
 
 .source-label.status-new {
@@ -619,7 +697,7 @@ textarea {
 }
 
 .tally-board {
-  background: var(--panel);
+  background: var(--surface);
   border-radius: 10px;
   padding: 0.75rem 1.1rem;
   display: flex;
@@ -638,11 +716,11 @@ textarea {
 }
 
 .tally-label.knew {
-  color: var(--calm);
+  color: var(--success);
 }
 
 .tally-label.learning {
-  color: var(--warm);
+  color: var(--warning);
 }
 
 .tally {
@@ -682,7 +760,7 @@ textarea {
 .progress-track {
   height: 6px;
   border-radius: 100px;
-  background: var(--panel);
+  background: var(--surface);
   margin: 1.25rem 0 0.5rem;
   overflow: hidden;
 }
@@ -728,7 +806,7 @@ textarea {
   grid-area: 1 / 1;
   position: relative;
   backface-visibility: hidden;
-  border-radius: 18px;
+  border-radius: 10px;
   border: 1px solid var(--border-soft);
   display: flex;
   flex-direction: column;
@@ -738,11 +816,12 @@ textarea {
      tag are pinned inside those edges, and a full-height body would otherwise
      run under them. */
   padding: 2.75rem 2rem 2.5rem;
-  background: var(--panel);
+  background: var(--surface);
+  box-shadow: var(--shadow-deep);
 }
 
 .flip-card-front p {
-  font-family: var(--font-read);
+  font-family: var(--font-ui);
   font-size: 1.5rem;
   font-weight: 600;
   line-height: 1.4;
@@ -751,11 +830,11 @@ textarea {
 
 .flip-card-back {
   transform: rotateY(180deg);
-  background: var(--panel-raised);
+  background: var(--surface-raised);
 }
 
 .flip-card-back p {
-  font-family: var(--font-read);
+  font-family: var(--font-ui);
   font-size: 1.2rem;
   line-height: 1.55;
   color: var(--text-primary);
@@ -811,7 +890,7 @@ textarea {
 }
 
 .deck-title-input {
-  font-family: var(--font-display);
+  font-family: var(--font-ui);
   font-weight: 600;
   font-size: 1.75rem;
   background: transparent;
@@ -853,7 +932,7 @@ textarea {
 .danger-zone {
   margin-top: 2rem;
   padding-top: 1.25rem;
-  border-top: 1px solid rgba(255, 255, 255, 0.08);
+  border-top: 1px solid var(--border-soft);
 }
 
 /* ---------- Topic context ---------- */
@@ -864,9 +943,8 @@ textarea {
   font-size: 0.72rem;
   letter-spacing: 0.06em;
   text-transform: uppercase;
-  color: var(--calm);
-  background: rgba(127, 179, 164, 0.1);
-  border: 1px solid rgba(127, 179, 164, 0.25);
+  color: var(--accent);
+  background: var(--accent-soft);
   border-radius: 100px;
   padding: 0.2rem 0.65rem;
   margin-bottom: 0.35rem;
@@ -874,9 +952,8 @@ textarea {
 
 /* Marks a candidate drafted by the deterministic fallback, not the model. */
 .topic-chip.rule-based {
-  color: var(--warm);
-  background: rgba(208, 139, 125, 0.1);
-  border-color: rgba(208, 139, 125, 0.25);
+  color: var(--warning);
+  background: var(--warning-soft);
 }
 
 .flip-card-face .topic-chip {
@@ -950,7 +1027,7 @@ textarea {
   align-items: center;
   gap: 0.75rem;
   background: var(--accent-soft);
-  border: 1px solid rgba(217, 164, 65, 0.3);
+  border: 1px solid var(--accent);
   border-radius: 10px;
   padding: 0.75rem 1rem;
   margin: 1.25rem 0;
@@ -976,14 +1053,14 @@ textarea {
 }
 
 .ai-notice.failed {
-  background: rgba(208, 139, 125, 0.12);
-  border: 1px solid var(--warm);
+  background: var(--warning-soft);
+  border: 1px solid var(--warning);
   color: var(--text-primary);
 }
 
 .ai-notice.partial {
   background: var(--accent-soft);
-  border: 1px solid rgba(217, 164, 65, 0.35);
+  border: 1px solid var(--accent);
 }
 
 .ai-notice strong {
@@ -1006,7 +1083,7 @@ textarea {
   padding: 0.6rem 0.75rem;
   margin: 0.5rem 0 0.5rem;
   color: var(--text-primary);
-  background: var(--panel);
+  background: var(--surface);
   border: 1px solid var(--border-soft);
   border-radius: 8px;
 }
@@ -1129,7 +1206,7 @@ textarea {
   position: relative;
   border: 1px solid var(--border-soft);
   border-radius: 10px;
-  background: var(--ink-deepest);
+  background: var(--bg);
   overflow: hidden;
 }
 
@@ -1165,7 +1242,7 @@ textarea {
   letter-spacing: 0.08em;
   text-transform: uppercase;
   color: var(--text-faint);
-  background: var(--panel);
+  background: var(--surface);
   border-bottom-left-radius: 8px;
 }
 
@@ -1211,7 +1288,7 @@ textarea {
   padding: 0.6rem;
   border: 1px solid var(--border-soft);
   border-radius: 10px;
-  background: var(--ink);
+  background: var(--surface-raised);
   min-width: 0;
   max-width: 100%;
 }
@@ -1244,8 +1321,8 @@ textarea {
 .quiz-ai-gate {
   padding: 1.25rem;
   border: 1px solid var(--border-soft);
-  border-radius: 14px;
-  background: var(--panel);
+  border-radius: 10px;
+  background: var(--surface);
   margin-bottom: 1.5rem;
 }
 
@@ -1274,7 +1351,7 @@ textarea {
 }
 
 .quiz-count-value {
-  font-family: var(--font-display);
+  font-family: var(--font-ui);
   font-size: 1.6rem;
   font-weight: 600;
   color: var(--accent);
@@ -1290,7 +1367,7 @@ textarea {
  * badly on a deck that is simply new. Neutral panel, a little more room.
  */
 .quiz-write-cta {
-  background: var(--panel);
+  background: var(--surface);
   border: 1px solid var(--border-soft);
   padding: 1.1rem 1.2rem;
 }
@@ -1316,9 +1393,9 @@ textarea {
   padding: 0.75rem 0.9rem;
   text-align: left;
   cursor: pointer;
-  background: var(--panel);
+  background: var(--surface);
   border: 1px solid var(--border-soft);
-  border-radius: 12px;
+  border-radius: 10px;
   color: inherit;
   font: inherit;
   transition:
@@ -1359,7 +1436,7 @@ textarea {
  * generous line-height reads the way a printed exam does.
  */
 .quiz-vignette {
-  font-family: var(--font-read);
+  font-family: var(--font-ui);
   font-size: 1rem;
   line-height: 1.65;
   color: var(--text-secondary);
@@ -1369,7 +1446,7 @@ textarea {
 }
 
 .quiz-stem {
-  font-family: var(--font-read);
+  font-family: var(--font-ui);
   font-size: 1.35rem;
   line-height: 1.45;
   color: var(--text-primary);
@@ -1391,13 +1468,13 @@ textarea {
   width: 100%;
   padding: 0.9rem 1rem;
   text-align: left;
-  font-family: var(--font-read);
+  font-family: var(--font-ui);
   font-size: 1rem;
   line-height: 1.5;
   color: var(--text-primary);
-  background: var(--panel);
+  background: var(--surface);
   border: 1px solid var(--border-soft);
-  border-radius: 12px;
+  border-radius: 10px;
   cursor: pointer;
   transition:
     border-color 0.15s ease,
@@ -1405,8 +1482,8 @@ textarea {
 }
 
 .quiz-option:hover {
-  border-color: rgba(255, 255, 255, 0.2);
-  background: var(--panel-raised);
+  border-color: var(--border-strong);
+  background: var(--surface-raised);
 }
 
 .quiz-option.selected {
@@ -1424,16 +1501,17 @@ textarea {
   text-align: center;
   border-radius: 6px;
   color: var(--text-secondary);
-  background: var(--ink);
+  background: var(--surface-raised);
 }
 
 .quiz-option.selected .quiz-option-key {
-  color: var(--ink-deepest);
+  color: var(--accent-contrast);
   background: var(--accent);
 }
 
 .quiz-score {
-  font-family: var(--font-display);
+  font-family: var(--font-ui);
+  font-weight: 700;
   font-size: 2.6rem;
   margin: 0;
 }
@@ -1451,13 +1529,13 @@ textarea {
 .quiz-review-row {
   padding: 1.1rem 1.25rem;
   border: 1px solid var(--border-soft);
-  border-left: 3px solid var(--warm);
-  border-radius: 12px;
-  background: var(--panel);
+  border-left: 3px solid var(--warning);
+  border-radius: 10px;
+  background: var(--surface);
 }
 
 .quiz-review-row.correct {
-  border-left-color: var(--calm);
+  border-left-color: var(--success);
 }
 
 .quiz-verdict {
@@ -1473,11 +1551,11 @@ textarea {
 }
 
 .quiz-verdict.missed {
-  color: var(--warm);
+  color: var(--warning);
 }
 
 .quiz-verdict.correct {
-  color: var(--calm);
+  color: var(--success);
 }
 
 .quiz-review-row .quiz-stem {
@@ -1490,7 +1568,7 @@ textarea {
   align-items: baseline;
   gap: 0.6rem;
   margin: 0.35rem 0;
-  font-family: var(--font-read);
+  font-family: var(--font-ui);
   line-height: 1.5;
 }
 
@@ -1505,18 +1583,18 @@ textarea {
 }
 
 .quiz-answer-line.picked {
-  color: var(--warm);
+  color: var(--warning);
 }
 
 .quiz-answer-line.correct {
-  color: var(--calm);
+  color: var(--success);
 }
 
 .quiz-explanation {
   margin: 0.75rem 0 0;
   padding-top: 0.75rem;
   border-top: 1px solid var(--border-soft);
-  font-family: var(--font-read);
+  font-family: var(--font-ui);
   line-height: var(--line-comfortable);
   color: var(--text-secondary);
 }

@@ -34,7 +34,7 @@ export default function DeckLibrary({
   const [deleteError, setDeleteError] = useState<string | null>(null);
 
   /**
-   * Deletes a deck from its card's ✕ button.
+   * Deletes a deck from its card's delete button.
    *
    * The click is stopped from propagating because the whole card is itself a
    * button that opens the deck — without it, deleting would also navigate.
@@ -71,7 +71,10 @@ export default function DeckLibrary({
       {!loading && !error && decks.length === 0 && (
         <div className="empty-state">
           <div className="chalk-doodle" aria-hidden="true">
-            ✎
+            <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round">
+              <rect x="4" y="7" width="14" height="10" rx="2" />
+              <path d="M8 7V5.5A1.5 1.5 0 0 1 9.5 4h9A1.5 1.5 0 0 1 20 5.5v9a1.5 1.5 0 0 1-1.5 1.5H17" />
+            </svg>
           </div>
           <h2>The shelf is empty</h2>
           <p>Upload a PDF or PowerPoint and Flashcard Forge will draft a deck for you to review.</p>
@@ -92,7 +95,9 @@ export default function DeckLibrary({
                   title="Delete deck"
                   onClick={(e) => handleDelete(e, deck.id, deck.name)}
                 >
-                  ✕
+                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
+                    <path d="M18 6 6 18M6 6l12 12" />
+                  </svg>
                 </button>
               </div>
               <h3>{deck.name}</h3>

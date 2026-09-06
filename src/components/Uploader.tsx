@@ -206,7 +206,9 @@ export default function Uploader({ onParsed, onCancel }: Props) {
         ) : (
           <>
             <div className="dropzone-icon" aria-hidden="true">
-              ⤒
+              <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M12 3v12M7 8l5-5 5 5M5 21h14" />
+              </svg>
             </div>
             <p className="dropzone-label">Drop a .pdf, .pptx, .md or .html here, or click to browse</p>
             <p className="muted small">Everything is parsed locally in your browser — nothing is uploaded anywhere.</p>
