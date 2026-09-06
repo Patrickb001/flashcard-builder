@@ -1,4 +1,4 @@
-import { salvageObjects, stripJsonFence } from './textUtils';
+import { parseJsonArray } from './textUtils';
 
 /**
  * The prompt is shared between the browser (bring-your-own-key mode) and the
@@ -20,18 +20,25 @@ export const CARD_SYSTEM_PROMPT = `You write flashcards for a student who will s
 
 Write cards that satisfy ALL of these:
 
-1. ATOMIC — one fact per card. Split compound statements into separate cards.
+1. ATOMIC — one fact per card. Test every statement in this order:
+   - It carries its own distinct, checkable detail — a number, a mechanism, a range, a named sub-type — even when the source shares it in one sentence with others: split it out on its own. "Avoidant attachment appears in about 25% of the population; anxious attachment in about 10%" is two cards, one per figure, even though the source names both styles together.
+   - Otherwise, it is one of a small, bounded set (two to six) of parallel items that only mean anything together, with no item carrying a detail of its own: keep them on one card with a list back. "The four attachment styles are secure, avoidant, anxious, and disorganized" is one card naming all four, because none carries a detail here.
+   - Otherwise — more than six such items with nothing distinguishing any one of them — split into smaller groupings of two to six, following any subgrouping the source itself gives, or else in the order given. A back with eight or more items is not something a student can hold in memory as a single answer.
+
+   A descriptive adjective or a longer clause is not, on its own, a "distinct detail" — do not split an item merely because its sentence runs longer than its neighbours'.
 2. SELF-CONTAINED — the question must make sense with no other context. Never write "What is important about this?" or refer to "the above", "the following", "this example".
-3. REAL QUESTIONS — the front must read as a natural question a tutor would ask, not a label with a question mark appended. Prefer "What are the adult implications of avoidant attachment?" over "Avoidant — Adult Implications?".
+3. REAL QUESTIONS — the front must read as a natural question a tutor would ask, not a label with a question mark appended, and it must not hand back its own answer. Prefer "What are the adult implications of avoidant attachment?" over "Avoidant — Adult Implications?", and prefer "What hormone spikes during the body's stress response?" over "Why does cortisol spike during the body's stress response?" — the second names the answer before asking for it.
 4. GROUNDED — use only facts present in the blocks. Never add outside knowledge, never guess, never fill gaps. If a block is navigation, boilerplate, a page header, a code caption, or a table of contents, skip it entirely.
 5. ANSWERABLE FROM RECALL — the back should be 1-2 sentences or a short list, under about 50 words. If a passage is too long, split it into several cards rather than pasting it.
 6. SPECIFIC TERMS — when the section defines a named concept, always produce a card for that definition.
+7. NO CROSS-SECTION REPEATS — you may be given several sections from the same document at once. If the same fact is stated in more than one of them — a summary slide recapping an earlier definition, a recap paragraph — write one card for it, filed under whichever section states it most fully, not one card per section it appears in.
 
 Also:
 - If a fact pairs a name with a range, quantity, or classification (a stage and its age range, a pattern and its prevalence), emit that as its own separate card.
 - For tables, emit one card per meaningful cell, phrased using the row and column headers.
 - Preserve exact numbers, percentages, and technical identifiers verbatim. Do not round or paraphrase them.
 - Skip anything that is not worth memorising. Returning few cards is better than returning filler.
+- Don't repeat the author's name to attribute each fact ("According to X", "X recommends", "in X's framework") just because the source is written in first person. A guide's own recommendation is still simply what the section says — ask about it directly, the way any other fact would be asked about. Name the author only when the source itself presents more than one person's conflicting view and the question must specify whose.
 
 ATTACHING CODE AND DIAGRAMS
 
@@ -90,44 +97,25 @@ function assetRef(value: unknown): string | undefined {
  * Parses a model response into cards, tolerating a fence or a cut-off reply.
  *
  * A dense page can ask for more cards than the token ceiling allows, and the
- * reply then ends mid-array with no closing bracket. This used to return
- * nothing at all in that case, so a page that had produced forty good cards and
- * been cut off during the forty-first contributed none of them and the whole
- * batch fell back to rule-based drafting. The salvage pass keeps every card
- * that closed.
+ * reply then ends mid-array with no closing bracket. Rather than discard the
+ * batch — forty good cards lost because the forty-first was cut off — the
+ * salvage pass keeps every card object that closed.
  */
 export function parseCardsResponse(text: string): LlmCard[] {
-  const cleaned = stripJsonFence(text);
-
-  const start = cleaned.indexOf('[');
-  const end = cleaned.lastIndexOf(']');
-
-  let parsed: unknown[] | null = null;
-  if (start !== -1 && end > start) {
-    try {
-      const asArray = JSON.parse(cleaned.slice(start, end + 1));
-      if (Array.isArray(asArray)) parsed = asArray;
-    } catch {
-      // Falls through to the salvage pass below.
-    }
-  }
-
-  if (!parsed) parsed = salvageObjects(cleaned);
-
-  return parsed
+  return parseJsonArray(text)
     .filter(
-      (c): c is LlmCard =>
-        !!c && typeof c === 'object' &&
-        typeof (c as LlmCard).front === 'string' &&
-        typeof (c as LlmCard).back === 'string'
+      (item): item is LlmCard =>
+        !!item && typeof item === 'object' &&
+        typeof (item as LlmCard).front === 'string' &&
+        typeof (item as LlmCard).back === 'string'
     )
-    .map((c) => ({
-      front: c.front.trim(),
-      back: c.back.trim(),
-      context: typeof c.context === 'string' ? c.context.trim() : undefined,
-      source: typeof c.source === 'string' ? c.source.trim() : undefined,
-      frontCode: assetRef(c.frontCode),
-      backCode: assetRef(c.backCode),
-      image: assetRef(c.image),
+    .map((card) => ({
+      front: card.front.trim(),
+      back: card.back.trim(),
+      context: typeof card.context === 'string' ? card.context.trim() : undefined,
+      source: typeof card.source === 'string' ? card.source.trim() : undefined,
+      frontCode: assetRef(card.frontCode),
+      backCode: assetRef(card.backCode),
+      image: assetRef(card.image),
     }));
 }

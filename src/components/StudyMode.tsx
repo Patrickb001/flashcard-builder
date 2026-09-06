@@ -1,70 +1,51 @@
-import { useEffect, useMemo, useState } from "react";
-import type { Deck, Flashcard } from "../types";
-import { getCardsForDeck, getDeck, updateCard } from "../db/db";
+import { useMemo, useState } from "react";
+import type { Flashcard } from "../types";
+import { updateCard } from "../db/db";
 import { Diagram, Snippet } from "./CardMedia";
 import { shuffle } from "../lib/shuffle";
+import { useDeck } from "./useDeck";
+import DeckGate from "./ui/DeckGate";
+import ProgressBar from "./ui/ProgressBar";
+import ScreenHeader from "./ui/ScreenHeader";
+import Tally from "./ui/Tally";
 
 interface Props {
+  /** The deck to study. Its cards are read once, on mount. */
   deckId: string;
   onExit: () => void;
 }
 
-function tallyGroups(n: number): number[] {
-  const groups: number[] = [];
-  let remaining = n;
-  while (remaining > 0) {
-    groups.push(Math.min(5, remaining));
-    remaining -= 5;
-  }
-  return groups;
-}
-
-function Tally({ count }: { count: number }) {
-  if (count === 0) return <span className="tally-zero">—</span>;
-  return (
-    <span className="tally">
-      {tallyGroups(count).map((g, gi) => (
-        <span className="tally-group" key={gi}>
-          {Array.from({ length: g }).map((_, i) => (
-            <i key={i} className={`tally-stroke stroke-${i}`} />
-          ))}
-        </span>
-      ))}
-    </span>
-  );
-}
-
+/**
+ * A study run: one card at a time, flipped by click or space, marked known or
+ * still-learning.
+ *
+ * Marking a card writes its status straight to the database and advances, so a
+ * run interrupted halfway is not lost. A failed write is reported but does not
+ * stop the run — losing one card's status is not worth interrupting studying.
+ */
 export default function StudyMode({ deckId, onExit }: Props) {
-  const [deck, setDeck] = useState<Deck | null>(null);
-  const [cards, setCards] = useState<Flashcard[]>([]);
-  const [order, setOrder] = useState<Flashcard[]>([]);
+  const { deck, cards, setCards, loading, error, setError } = useDeck(deckId);
   const [position, setPosition] = useState(0);
   const [flipped, setFlipped] = useState(false);
   const [known, setKnown] = useState(0);
   const [unknown, setUnknown] = useState(0);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
 
-  useEffect(() => {
-    (async () => {
-      try {
-        const [d, c] = await Promise.all([
-          getDeck(deckId),
-          getCardsForDeck(deckId),
-        ]);
-        setDeck(d ?? null);
-        setCards(c);
-        setOrder(c);
-      } catch (err) {
-        console.error("[study] Could not read the deck:", err);
-        setError("This deck could not be read from the browser database.");
-      } finally {
-        // Cleared on both paths: clearing it only on success left this screen
-        // on "Loading deck…" forever whenever IndexedDB was unavailable.
-        setLoading(false);
-      }
-    })();
-  }, [deckId]);
+  /**
+   * The run's order, as a permutation of `cards` rather than a second copy.
+   *
+   * Only the shuffle decision is state. Holding the ordered cards themselves
+   * meant every card edit had to be written to two arrays, and marking a card
+   * updated one of them — leaving the other serving the pre-update object.
+   */
+  const [shuffled, setShuffled] = useState(false);
+  const [shuffleSeed, setShuffleSeed] = useState(0);
+  const order = useMemo(() => {
+    // The seed's only job is to re-run this memo, so that shuffling twice over
+    // the same cards gives two different orders. Named here so the dependency
+    // below is not an unused one somebody later removes as a mistake.
+    void shuffleSeed;
+    return shuffled ? shuffle(cards) : cards;
+  }, [cards, shuffled, shuffleSeed]);
 
   const current = order[position];
   const finished = order.length > 0 && position >= order.length;
@@ -81,15 +62,13 @@ export default function StudyMode({ deckId, onExit }: Props) {
    * for the extra room to hold, and nothing to be consistent with.
    */
   const deckHasMedia = useMemo(
-    () => cards.some((c) => c.frontCode || c.backCode || c.image),
+    () => cards.some((card) => card.frontCode || card.backCode || card.image),
     [cards],
   );
 
-  const progressPct = useMemo(() => {
-    if (order.length === 0) return 0;
-    return Math.round((Math.min(position, order.length) / order.length) * 100);
-  }, [position, order.length]);
+  const progressFraction = order.length === 0 ? 0 : Math.min(position, order.length) / order.length;
 
+  /** Records how the current card went, saves it, and moves to the next. */
   const mark = async (status: "known" | "unknown") => {
     if (!current) return;
     if (status === "known") setKnown((k) => k + 1);
@@ -103,28 +82,26 @@ export default function StudyMode({ deckId, onExit }: Props) {
       console.error("[study] Could not save the card status:", err);
       setError("Your progress on that card could not be saved.");
     }
-    setCards((prev) => prev.map((c) => (c.id === updated.id ? updated : c)));
+    setCards((prev) => prev.map((card) => (card.id === updated.id ? updated : card)));
     setFlipped(false);
     setPosition((p) => p + 1);
   };
 
-  const restart = (shuffled: boolean) => {
-    setOrder(shuffled ? shuffle(cards) : cards);
+  /** Starts the deck again, in document order or shuffled. */
+  const restart = (wantShuffled: boolean) => {
+    setShuffled(wantShuffled);
+    // Bumped even when the answer is the same, so shuffling twice in a row
+    // reshuffles rather than replaying the identical order.
+    setShuffleSeed((seed) => seed + 1);
     setPosition(0);
     setFlipped(false);
     setKnown(0);
     setUnknown(0);
   };
 
-  if (loading) return <p className="muted">Loading deck…</p>;
-  if (error && !deck)
-    return (
-      <div className="ai-notice failed">
-        <strong>This deck could not be opened</strong>
-        <p>{error}</p>
-      </div>
-    );
-  if (!deck) return <p className="muted">This deck couldn't be found.</p>;
+  if (loading || !deck) {
+    return <DeckGate loading={loading} error={error} deck={deck} />;
+  }
   if (cards.length === 0) {
     return (
       <div className="study-empty">
@@ -138,11 +115,7 @@ export default function StudyMode({ deckId, onExit }: Props) {
 
   return (
     <div className="study">
-      <div className="study-header">
-        <div>
-          <p className="eyebrow">Studying</p>
-          <h1>{deck.name}</h1>
-        </div>
+      <ScreenHeader eyebrow="Studying" title={deck.name}>
         <div className="tally-board">
           <div className="tally-row">
             <span className="tally-label knew">Knew it</span>
@@ -153,11 +126,9 @@ export default function StudyMode({ deckId, onExit }: Props) {
             <Tally count={unknown} />
           </div>
         </div>
-      </div>
+      </ScreenHeader>
 
-      <div className="progress-track">
-        <div className="progress-fill" style={{ width: `${progressPct}%` }} />
-      </div>
+      <ProgressBar fraction={progressFraction} />
 
       {!finished && current && (
         <>

@@ -187,7 +187,12 @@ async function fetchPageSections(rawUrl: string): Promise<PageResult> {
   return { sections, name: title || deckNameForUrl(finalUrl), url: finalUrl };
 }
 
-/** Keeps a source label short enough to sit on a card. */
+/**
+ * Keeps a source label short enough to sit on a card.
+ *
+ * Unlike the other two truncations, the result is never longer than `max` —
+ * this fits a label into a width, where they mark an excerpt of content.
+ */
 function shorten(name: string, max = 34): string {
   return name.length > max ? `${name.slice(0, max - 1).trimEnd()}…` : name;
 }
@@ -284,7 +289,7 @@ export async function fetchPagesSections(
 
 /** One line summarising what was skipped, short enough to read at a glance. */
 export function describeFailures(failures: PageFailure[], read: number): string {
-  const shown = failures.slice(0, 3).map((f) => `${deckNameForUrl(f.url)} — ${f.error}`);
+  const shown = failures.slice(0, 3).map((failure) => `${deckNameForUrl(failure.url)} — ${failure.error}`);
   const rest = failures.length - shown.length;
   const tail = rest > 0 ? `; and ${rest} more` : '';
   return `Read ${read} of ${read + failures.length} pages. Skipped: ${shown.join('; ')}${tail}`;

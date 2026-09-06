@@ -6,7 +6,7 @@ import { handleFetchPage } from '../src/server/fetchPageHandler.ts';
 /**
  * Exercises the shared endpoint code both deployments now run.
  *
- *   node --experimental-strip-types --experimental-loader ./tools/ts-ext-hooks.mjs \
+ *   node --experimental-strip-types --import ./tools/register.mjs \
  *     tools/test-server.mjs
  *
  * The body test is the one that matters. The dev server used to build its

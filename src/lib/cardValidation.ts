@@ -31,8 +31,6 @@ const MAX_BACK_WORDS = 60;
 const MAX_FRONT_WORDS = 32;
 const MIN_BACK_CHARS = 3;
 
-
-
 /**
  * True when a label names a concept worth building a card around, rather than
  * being a discourse marker, a page control, or a whole sentence.
@@ -76,6 +74,18 @@ export function isMeaningfulLabel(label: string): boolean {
   return true;
 }
 
+/**
+ * True when a drafted card is worth showing on the review screen.
+ *
+ * Fourteen sequential reject rules, in rough order of cost: empty or stunted
+ * text, truncated fragments left by the extractor, cards too long to study,
+ * boilerplate and page chrome, and finally a front that merely restates its
+ * back. Each rule is annotated with the source material that motivated it.
+ *
+ * The bar is deliberately low — this is a last line of defence against obvious
+ * junk, not a quality judgement. Deciding which of two reasonable cards is
+ * better is the reviewer's job, not this function's.
+ */
 export function isUsableCard(card: CandidateCard): boolean {
   const front = card.front.trim();
   const back = card.back.trim();
@@ -120,42 +130,14 @@ export function isUsableCard(card: CandidateCard): boolean {
 /**
  * How alike two cards must be to count as the same card.
  *
- * Both halves have to match. A deck legitimately asks several questions about
- * one idea — "what is the therapeutic range" and "what raises the level" share
- * most of their words and are different cards — so a similar front alone is not
- * duplication. It is only duplication when the same question has the same
- * answer, which is what the pair of thresholds expresses.
- *
- * Very high, and every step down from here was measured against the golden
- * pages rather than guessed. At 0.75/0.6 this dropped seven cards from one
- * page, including "Ternary Expression Conditional Statement" as a duplicate of
- * "If-Else Conditional Statement", and three distinct for-loop variants whose
- * answers are program output — "1 2 3 4 5" and "1 2 3 2 4 6 3 6 9" share four
- * digits in five and score 0.8. Only near-verbatim restatement survives this
- * threshold, which is the only thing word overlap can honestly identify.
- *
- * The cost of the two mistakes is not symmetric. A duplicate that survives is a
- * card seen twice; a distinct card wrongly dropped is material the student never
+ * Both halves have to match: a deck legitimately asks several questions about
+ * one idea, so a similar front alone is not duplication. The thresholds are
+ * deliberately high, because a duplicate that survives is only a card seen
+ * twice, while a distinct card wrongly dropped is material the student never
  * studies and cannot tell is missing.
  *
- * WHAT THIS DOES NOT CATCH, measured rather than assumed. Comparing words only
- * finds duplicates that share vocabulary. Two cards that make the same point in
- * different words survive:
- *
- *   "What general rule applies when keeping two state variables synchronized?"
- *     -> "Try lifting state up instead of synchronizing two separate variables."
- *   "What should you consider when synchronizing state across components?"
- *     -> "Consider lifting state up."
- *
- * Those score 0.5 on their fronts — below any threshold that still keeps
- * genuinely different cards, since a pair like "how do you fix a race
- * condition" and "what else matters when fetching" scores 0.8 on fronts alone
- * and must survive. Requiring both halves is what makes the second pair safe,
- * and it is also what lets the first pair through.
- *
- * Catching restatements needs meaning, not spelling. The second chance is at
- * selection time in quizSelection, where the model has reworded both cards into
- * questions and the wording is more uniform than the cards were.
+ * Lower values were tried and measured — see "Card de-duplication" in
+ * docs/tuning-notes.md, which also records what this cannot catch.
  */
 const DUPLICATE_FRONT = 0.9;
 const DUPLICATE_BACK = 0.9;
@@ -165,13 +147,8 @@ const DUPLICATE_BACK = 0.9;
  *
  * The measure divides by the shorter text, which is what makes a terse card
  * comparable to a wordy one — and what makes a very short one match everything.
- * "What is function?" carries a single content word, so it scored 1.00 against
- * every other card on the page and took six of nine cards with it, including
- * "Built-in functions — what does this C++ program print?" whose answer was
- * "Square Root: 5". One word in common is not evidence of anything.
- *
- * Below this on either the fronts or the backs, no judgement is made and the
- * card is kept. Exact repeats are still caught by the normalized key.
+ * Below this on either the fronts or the backs no judgement is made and the
+ * card is kept; exact repeats are still caught by the normalized key.
  */
 const MIN_WORDS_TO_COMPARE = 4;
 
@@ -220,13 +197,12 @@ function isNearDuplicate(a: Weighed, b: Weighed): boolean {
 }
 
 /**
- * Drops cards that repeat one another.
+ * Drops cards that repeat one another, exactly or near enough.
  *
- * Exact repeats were always dropped. Near-repeats were not, and a deck built
- * from a document that makes the same point in two places — a summary slide
- * restating a body slide, a recap card beside the card it recaps — carried both.
- * The reader then sees the same fact twice in study, and the test writes two
- * questions with the same answer.
+ * A document that makes the same point twice — a summary slide restating a body
+ * slide, a recap card beside the card it recaps — otherwise yields both, so the
+ * reader sees one fact twice in study and the test writes two questions with the
+ * same answer.
  *
  * The first card of a pair wins, so a deck keeps its document order and the
  * earlier, usually fuller statement of a fact.
@@ -239,10 +215,8 @@ export function dedupeCards(cards: CandidateCard[]): CandidateCard[] {
     const key = normalize(card.front);
     if (seen.has(key)) continue;
 
-    // O(n²) against what survived, not against the input, and comparing word
-    // sets rather than re-reading text — see wordOverlap, where tokenizing
-    // inside the comparison instead cost 3.1 seconds on 250 distinct cards.
-    // Set against sets it is 36ms, and this runs once per drafting run.
+    // O(n²) against what survived, not against the input, and comparing
+    // pre-extracted word sets rather than re-reading text — see wordOverlap.
     const candidate = weigh(card);
     if (out.some((kept) => isNearDuplicate(kept, candidate))) continue;
 

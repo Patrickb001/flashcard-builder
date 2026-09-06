@@ -1,6 +1,21 @@
 import type { Flashcard, TestQuestion } from '../../types';
 import type { PreparedQuestion } from '../../lib/quizSelection';
-import { Diagram, Snippet } from '../CardMedia';
+import QuestionStem from './QuestionStem';
+
+interface Props {
+  /** The questions that were asked, in the order they were asked. */
+  asked: PreparedQuestion[];
+  /**
+   * The option chosen for each question, by index into that question's options,
+   * or null where it was left unanswered. Parallel to `asked`.
+   */
+  answers: (number | null)[];
+  /** The card a question came from, for the "from the card" line. */
+  cardFor: (question: TestQuestion) => Flashcard | undefined;
+  /** Starts another test over the same deck. */
+  onAgain: () => void;
+  onExit: () => void;
+}
 
 /**
  * The score, and a review of every question asked.
@@ -11,16 +26,11 @@ import { Diagram, Snippet } from '../CardMedia';
  * failures. The explanation is written to teach the distinction rather than to
  * restate the answer, which is worth reading on a lucky guess too.
  */
-interface Props {
-  asked: PreparedQuestion[];
-  answers: (number | null)[];
-  cardFor: (question: TestQuestion) => Flashcard | undefined;
-  onAgain: () => void;
-  onExit: () => void;
-}
-
 export default function QuizResults({ asked, answers, cardFor, onAgain, onExit }: Props) {
-  const correctCount = asked.reduce((n, q, i) => n + (answers[i] === q.correctIndex ? 1 : 0), 0);
+  const correctCount = asked.reduce(
+    (total, prepared, index) => total + (answers[index] === prepared.correctIndex ? 1 : 0),
+    0
+  );
   const pct = asked.length === 0 ? 0 : Math.round((correctCount / asked.length) * 100);
   const missedCount = asked.length - correctCount;
 
@@ -55,12 +65,7 @@ export default function QuizResults({ asked, answers, cardFor, onAgain, onExit }
                     {wasCorrect ? 'Correct' : 'Missed'}
                   </p>
 
-                  {prepared.question.vignette && (
-                    <p className="quiz-vignette">{prepared.question.vignette}</p>
-                  )}
-                  <p className="quiz-stem">{prepared.question.stem}</p>
-                  {prepared.question.stemCode && <Snippet code={prepared.question.stemCode} />}
-                  {prepared.question.stemImage && <Diagram image={prepared.question.stemImage} />}
+                  <QuestionStem question={prepared.question} />
 
                   <p className={`quiz-answer-line ${wasCorrect ? 'correct' : 'picked'}`}>
                     <span className="quiz-answer-tag">You chose</span>

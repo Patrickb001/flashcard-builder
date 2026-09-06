@@ -18,6 +18,13 @@ import { generateCandidates } from './flashcardGenerator';
  * Either way the model receives the structured blocks, never raw page text.
  */
 
+/**
+ * How drafting reaches the model, if at all.
+ *
+ * "off" is rules only — instant, private, free. "hosted" goes through this
+ * app's own endpoint, which holds the API key so a visitor needs none. "byok"
+ * calls Anthropic straight from the browser with a key the user pasted.
+ */
 export type AiMode = 'off' | 'hosted' | 'byok';
 
 const SETTINGS_KEY = 'flashcard-forge:ai';
@@ -53,11 +60,20 @@ const MAX_BATCH_CARDS = 40;
 /** Batches are split again if their JSON would come near the server's cap. */
 const MAX_PAYLOAD_CHARS = 100_000;
 
+/** The drafting mode, and the user's own key when they supplied one. */
 export interface AiSettings {
   mode: AiMode;
+  /** Set only in "byok" mode. Stored in this browser and sent nowhere else. */
   apiKey?: string;
 }
 
+/**
+ * Reads the saved settings, defaulting to rules-only.
+ *
+ * Every failure path returns `{ mode: 'off' }` rather than throwing: storage is
+ * unavailable in some private windows, and a browser that cannot remember a
+ * preference should still be able to make a deck.
+ */
 export function loadAiSettings(): AiSettings {
   try {
     const raw = localStorage.getItem(SETTINGS_KEY);
@@ -69,6 +85,7 @@ export function loadAiSettings(): AiSettings {
   }
 }
 
+/** Persists the settings, silently doing nothing when storage is unavailable. */
 export function saveAiSettings(settings: AiSettings): void {
   try {
     localStorage.setItem(SETTINGS_KEY, JSON.stringify(settings));
@@ -157,6 +174,8 @@ function serializeBatch(sections: DocumentSection[]): { payload: unknown[]; asse
  *
  * Only ever used to decide where to close a batch, so being wrong by a little
  * costs nothing and being wrong by a lot costs one retry.
+ *
+ * Exported for tools/test-ai-batching.mjs; nothing in the app calls it directly.
  */
 export function estimateCards(section: DocumentSection): number {
   let cost = 0;
@@ -187,6 +206,9 @@ export function estimateCards(section: DocumentSection): number {
  * A single section that is worth more than the yield cap on its own still goes
  * out alone rather than being dropped — there is nothing smaller to split it
  * into, and the retry pass and the salvage parser are what cover it.
+ *
+ * Exported for tools/test-ai-batching.mjs; the app reaches it through
+ * generateCandidatesWithAi.
  */
 export function buildBatches(
   sections: DocumentSection[],
@@ -233,19 +255,29 @@ export function buildBatches(
 }
 
 /** The same shape question writing reports; one definition, two features. */
-export type AiProgress = BatchProgress;
-
+/** Optional hooks for a drafting run. */
 export interface AiGenerationOptions {
-  onProgress?: (p: AiProgress) => void;
+  /** Fired after every batch, for the progress banner. */
+  onProgress?: (progress: BatchProgress) => void;
   signal?: AbortSignal;
 }
 
+/** What a drafting run produced, including what it could not do. */
 export interface AiGenerationResult {
+  /** Every model-written card. Never includes a rule-based fallback — see `fallbackCards`. */
   cards: CandidateCard[];
+  /**
+   * The deterministic fallback for every section the model never covered,
+   * each tagged `origin: 'rule-based'`. Computed eagerly — the work is cheap,
+   * unlike the model call — but kept separate from `cards` rather than
+   * merged, so the caller can offer these as an opt-in addition instead of
+   * silently mixing weaker cards into the model's output.
+   */
+  fallbackCards: CandidateCard[];
   failedBatches: number;
   totalBatches: number;
   firstError: string | null;
-  /** Labels of the sections that ended up with rule-based cards. */
+  /** Labels of the sections behind `fallbackCards`. */
   failedSections: string[];
   /**
    * Batches the model stopped writing because it hit the token ceiling.
@@ -262,11 +294,10 @@ export interface AiGenerationResult {
 /**
  * Drafts cards with the model, batch by batch.
  *
- * Sections the model could not cover are offered again in smaller batches
- * before anything is written off, and only what is still empty after that falls
- * back to the rule-based generator — so a document degrades page by page rather
- * than in blocks of four, and a single overrun no longer costs three pages that
- * were never attempted.
+ * Sections the model could not cover are offered again in smaller batches before
+ * anything is written off, and only what is still empty after that falls back to
+ * the rule-based generator. A document therefore degrades one page at a time
+ * instead of losing a whole batch to a single overrun.
  */
 export async function generateCandidatesWithAi(
   sections: DocumentSection[],
@@ -386,13 +417,19 @@ export async function generateCandidatesWithAi(
 
   // Only now does anything fall back to rules, and only the pages that are
   // still empty. Cancelling is not a failure, so a stopped run keeps what it
-  // drafted and leaves the rest alone rather than filling it with weaker cards.
+  // drafted and leaves the rest alone rather than computing fallback cards
+  // for it. Kept out of `bySection` deliberately — a fallback section must
+  // never end up folded into the model's own `cards`, since the caller
+  // offers these as an opt-in addition, not a silent substitute.
   const failedSections: string[] = [];
+  const fallbackCards: CandidateCard[] = [];
   if (!aborted) {
     for (const section of missing) {
       if (bySection.has(section)) continue;
       failedSections.push(section.label);
-      bySection.set(section, generateCandidates([section]));
+      fallbackCards.push(
+        ...generateCandidates([section]).map((card) => ({ ...card, origin: 'rule-based' as const }))
+      );
     }
   }
 
@@ -405,6 +442,11 @@ export async function generateCandidatesWithAi(
 
   return {
     cards: dedupeCards(all.filter(isUsableCard)),
+    // Deduped only against itself, not against `cards`: the two are drafted
+    // from disjoint sections by construction, so a cross-check would add
+    // real complexity (comparing against a list the caller may have already
+    // edited by the time this is used) for a case that shouldn't arise.
+    fallbackCards: dedupeCards(fallbackCards.filter(isUsableCard)),
     failedBatches,
     totalBatches,
     // Cancelling is not a failure, and reporting the abort as one would tell

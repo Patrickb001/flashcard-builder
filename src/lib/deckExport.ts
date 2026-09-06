@@ -24,7 +24,7 @@ const DELIMITER_SUBSTITUTIONS: Array<[RegExp, string]> = [
  * and line breaks the user typed survive the round trip unchanged, which keeps
  * the export honest about what the card says.
  */
-export function sanitizeField(text: string): string {
+function sanitizeField(text: string): string {
   return DELIMITER_SUBSTITUTIONS.reduce(
     (acc, [pattern, replacement]) => acc.replace(pattern, replacement),
     text,
@@ -40,7 +40,7 @@ export function sanitizeField(text: string): string {
  */
 export function formatDeckForExport(cards: Flashcard[]): string {
   if (cards.length === 0) return '';
-  return cards.map((c) => `${sanitizeField(c.front)}&${sanitizeField(c.back)}`).join(';') + ';';
+  return cards.map((card) => `${sanitizeField(card.front)}&${sanitizeField(card.back)}`).join(";") + ";";
 }
 
 /** A deck name as a filename: "Biology Ch. 3" becomes "biology-ch-3.txt". */

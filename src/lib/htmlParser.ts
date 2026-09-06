@@ -36,7 +36,6 @@ import { sectionsFromBlocks, truncateCode } from './sectioning';
  * is no HTML tokenizer here and no dependency to ship.
  */
 
-
 /**
  * Callout labels that documentation sites mark up as headings.
  *
@@ -46,7 +45,6 @@ import { sectionsFromBlocks, truncateCode } from './sectioning';
  */
 const CALLOUT_HEADINGS =
   /^(note|notes|pitfall|caution|warning|tip|hint|deep dive|illustrated by|under the hood|remember|example|examples|try it out)$/i;
-
 
 // ---------------------------------------------------------------------------
 // Walk
@@ -82,7 +80,6 @@ function isTextContainer(el: Element): boolean {
   }
   return true;
 }
-
 
 /**
  * A paragraph, split into its bolded label and its prose when it has both.
@@ -264,9 +261,18 @@ function walk(el: Element, blocks: Block[], ctx: WalkContext): void {
  * An encyclopedia article ends in several screens of citations, link lists and
  * navigation boxes. They read as prose and would otherwise become sections —
  * and cards asking what reference 47 is.
+ *
+ * A blog or magazine site names the same kind of noise differently than an
+ * encyclopedia does — "More in Stress", "You might also like" — which is why
+ * this list carries both conventions rather than just the wiki-style one.
+ * "more on X" and bare "more information" are deliberately absent: both are
+ * plausible genuine section titles (a subtopic continuation, a page's own
+ * real content) in a way "more in [category]" and "you might also like" are
+ * not, so they are left as a known, accepted gap rather than risk dropping
+ * real content to close it.
  */
 const APPENDIX_HEADINGS =
-  /^(references?|citations?|notes( and references)?|footnotes?|bibliography|sources|further reading|external links?|see also|related (articles?|topics?|pages?|links?)|navigation menu|contents|comments?|share this|about the author|licen[cs]e|acknowledgements?)$/i;
+  /^(references?|citations?|notes( and references)?|footnotes?|bibliography|sources|further reading|external links?|see also|related( (articles?|topics?|pages?|links?|content|posts?|stories))?|more in .+|learn more|links and books|you (might|may) also like|you may be interested in|recommended( (for you|articles?|reading|posts?))?|popular( (articles?|posts?|resources?))?|trending( now)?|navigation menu|contents|comments?|share this|about the author|licen[cs]e|acknowledgements?)$/i;
 
 /**
  * Drops each appendix heading and everything under it, up to the next heading
@@ -345,10 +351,10 @@ function attachOutputs(blocks: Block[]): Block[] {
  * Left in, it becomes a section of its own with nothing in it worth learning.
  */
 function dropLeadingCrumbs(blocks: Block[]): Block[] {
-  const firstHeading = blocks.findIndex((b) => b.kind === 'heading');
+  const firstHeading = blocks.findIndex((block) => block.kind === 'heading');
   if (firstHeading <= 0) return blocks;
   const lead = blocks.slice(0, firstHeading);
-  const allCrumbs = lead.every((b) => b.kind === 'paragraph' && b.text.length <= 60);
+  const allCrumbs = lead.every((block) => block.kind === 'paragraph' && block.text.length <= 60);
   return allCrumbs ? blocks.slice(firstHeading) : blocks;
 }
 

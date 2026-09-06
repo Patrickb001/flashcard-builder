@@ -6,7 +6,7 @@ import { generateQuestionsForCards, hashCard } from '../src/lib/quizGenerator.ts
 /**
  * Exercises the test-question pipeline without a browser.
  *
- *   node --experimental-strip-types --experimental-loader ./tools/ts-ext-hooks.mjs \
+ *   node --experimental-strip-types --import ./tools/register.mjs \
  *     tools/test-quiz.mjs
  *
  * Parts 1 and 2 are pure and always run. Part 3 calls the real model and runs

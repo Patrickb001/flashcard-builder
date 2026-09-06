@@ -5,7 +5,7 @@ import { generateCandidates } from '../src/lib/flashcardGenerator.ts';
 const path = process.env.MD || process.argv[2];
 if (!path) {
   console.error(
-    'Usage: node --experimental-strip-types --experimental-loader ./tools/ts-ext-hooks.mjs tools/test-md.mjs <file.md>'
+    'Usage: node --experimental-strip-types --import ./tools/register.mjs tools/test-md.mjs <file.md>'
   );
   process.exit(1);
 }

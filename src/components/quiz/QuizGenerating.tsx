@@ -1,4 +1,19 @@
-import type { QuizProgress } from '../../lib/quizGenerator';
+import type { BatchProgress } from '../../lib/batchRunner';
+import DraftingBanner from '../ui/DraftingBanner';
+import ProgressBar from '../ui/ProgressBar';
+import ScreenHeader from '../ui/ScreenHeader';
+
+interface Props {
+  deckName: string;
+  /** Batches done out of total, or null before the first one lands. */
+  progress: BatchProgress | null;
+  /**
+   * Questions saved so far, counting this run and every earlier one. Shown
+   * because stopping keeps them — see the component note below.
+   */
+  written: number;
+  onStop: () => void;
+}
 
 /**
  * The screen shown while the model writes questions.
@@ -7,36 +22,14 @@ import type { QuizProgress } from '../../lib/quizGenerator';
  * stopping here keeps everything written so far, and the message has to make
  * that clear or Stop reads as "throw this away".
  */
-interface Props {
-  deckName: string;
-  progress: QuizProgress | null;
-  written: number;
-  onStop: () => void;
-}
-
 export default function QuizGenerating({ deckName, progress, written, onStop }: Props) {
-  const pct = progress ? Math.round((progress.done / progress.total) * 100) : 0;
-
   return (
     <div className="quiz">
-      <div className="study-header">
-        <div>
-          <p className="eyebrow">Preparing a test</p>
-          <h1>{deckName}</h1>
-        </div>
-      </div>
+      <ScreenHeader eyebrow="Preparing a test" title={deckName} />
 
-      <div className="drafting-banner">
-        <span className="chalk-spinner small" aria-hidden="true" />
-        <span>
-          Claude is writing test questions
-          {progress ? ` — batch ${progress.done} of ${progress.total}` : '…'}
-        </span>
-      </div>
+      <DraftingBanner activity="writing test questions" progress={progress} />
 
-      <div className="progress-track">
-        <div className="progress-fill" style={{ width: `${pct}%` }} />
-      </div>
+      <ProgressBar fraction={progress ? progress.done / progress.total : 0} />
 
       <p className="muted small">
         {written} questions written so far. These are saved as they arrive, so nothing is lost if you

@@ -10,7 +10,7 @@ import { textOf } from './domText';
  */
 
 /** Language names worth recording, as they appear in class names. */
-export const CODE_LANGUAGES = new Set([
+const CODE_LANGUAGES = new Set([
   'bash', 'c', 'cpp', 'cs', 'csharp', 'css', 'dart', 'diff', 'go', 'graphql', 'html', 'java',
   'javascript', 'js', 'json', 'jsx', 'kotlin', 'markdown', 'md', 'php', 'python', 'py',
   'ruby', 'rust', 'scala', 'scss', 'sh', 'shell', 'sql', 'swift', 'ts', 'tsx',
@@ -18,10 +18,10 @@ export const CODE_LANGUAGES = new Set([
 ]);
 
 /** Attributes a site may use to declare a snippet's language. */
-export const LANGUAGE_ATTRS = ['data-code-lang', 'data-language', 'data-lang'];
+const LANGUAGE_ATTRS = ['data-code-lang', 'data-language', 'data-lang'];
 
 /** A language declared on one element, by attribute or by class name. */
-export function declaredLanguage(el: Element): string | undefined {
+function declaredLanguage(el: Element): string | undefined {
   for (const attr of LANGUAGE_ATTRS) {
     const value = el.getAttribute(attr);
     const named = value ? normalizeLanguage(value) : '';
@@ -83,7 +83,7 @@ export function codeText(pre: Element): string {
 }
 
 /** Spellings a site may use for a language that has a canonical name here. */
-export const LANGUAGE_ALIASES: Record<string, string> = {
+const LANGUAGE_ALIASES: Record<string, string> = {
   'c++': 'cpp',
   'c#': 'csharp',
   cs: 'csharp',
@@ -93,13 +93,13 @@ export const LANGUAGE_ALIASES: Record<string, string> = {
   ts: 'typescript',
 };
 
-export function normalizeLanguage(raw: string): string {
+function normalizeLanguage(raw: string): string {
   const name = raw.trim().toLowerCase();
   return LANGUAGE_ALIASES[name] ?? name;
 }
 
 /** True when an element is a tab's label rather than one of its panels. */
-export function isTabLabel(el: Element): boolean {
+function isTabLabel(el: Element): boolean {
   for (const selector of ['pre', 'img', 'table', 'ul', 'ol']) {
     if (el.querySelector(selector)) return false;
   }

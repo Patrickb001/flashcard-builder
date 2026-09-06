@@ -6,10 +6,10 @@ import LibraryRoute from './LibraryRoute';
 /**
  * Every screen but the landing one is fetched when first opened.
  *
- * The split moved from App to here unchanged. Each wrapper imports its own
- * screen, so loading a wrapper lazily loads the screen behind it — and behind
- * the uploader, the four document parsers and the page fetcher, which is most
- * of what the entry chunk used to carry.
+ * Each wrapper imports its own screen, so loading a wrapper lazily loads the
+ * screen behind it — and behind the uploader, the four document parsers and the
+ * page fetcher, which are the bulk of the app's weight and are useless to
+ * someone who only came back to study an existing deck.
  */
 const UploadRoute = lazy(() => import('./UploadRoute'));
 const ReviewRoute = lazy(() => import('./ReviewRoute'));
@@ -18,11 +18,12 @@ const StudyRoute = lazy(() => import('./StudyRoute'));
 const TestRoute = lazy(() => import('./TestRoute'));
 
 /**
- * A data router rather than <BrowserRouter>, deliberately.
+ * The route table, as a data router.
  *
- * useBlocker — which is what asks before Back abandons a test in progress — is
- * not available with the declarative router. That one requirement decides the
- * shape of this file.
+ * Nothing here needs the data APIs today — abandoning a test in progress is
+ * guarded by a confirm() in QuizRunner, not by useBlocker — but createBrowserRouter
+ * is the supported entry point and the only one those APIs are reachable from,
+ * so there is no reason to start from the declarative router instead.
  */
 export const router = createBrowserRouter([
   {

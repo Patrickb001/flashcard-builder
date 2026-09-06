@@ -1,29 +1,38 @@
 import { useEffect, useRef, useState } from "react";
-import type { Deck, Flashcard } from "../types";
-import {
-  addCard,
-  deleteCard,
-  deleteDeck,
-  getCardsForDeck,
-  getDeck,
-  renameDeck,
-  updateCard,
-} from "../db/db";
+import type { Flashcard } from "../types";
+import { addCard, deleteCard, renameDeck, updateCard } from "../db/db";
+import { confirmAndDeleteDeck } from "../lib/deckActions";
 import {
   downloadTextFile,
   exportFileName,
   formatDeckForExport,
 } from "../lib/deckExport";
-import { Diagram, Snippet } from "./CardMedia";
+import { useDeck } from "./useDeck";
+import CardAttachments from "./ui/CardAttachments";
+import DeckGate from "./ui/DeckGate";
+import ErrorNotice from "./ui/ErrorNotice";
 
 interface Props {
+  /** The deck to manage. Everything on screen is read from it on mount. */
   deckId: string;
   onExit: () => void;
   onStudy: (deckId: string) => void;
   onTest: (deckId: string) => void;
+  /**
+   * Fired after the deck is deleted, so the caller can navigate away. This
+   * screen cannot show a deck that no longer exists, so it does not try.
+   */
   onDeckDeleted: () => void;
 }
 
+/**
+ * The deck detail screen: rename the deck, edit its cards, export it, delete it.
+ *
+ * Card edits are held in local state and written on blur rather than on every
+ * keystroke, so typing does not queue an IndexedDB write per character. A failed
+ * write leaves the edit on screen and says so, because losing what someone just
+ * typed is worse than a stale row in the database.
+ */
 export default function DeckManager({
   deckId,
   onExit,
@@ -31,13 +40,17 @@ export default function DeckManager({
   onTest,
   onDeckDeleted,
 }: Props) {
-  const [deck, setDeck] = useState<Deck | null>(null);
-  const [cards, setCards] = useState<Flashcard[]>([]);
-  const [loading, setLoading] = useState(true);
+  const { deck, setDeck, cards, setCards, loading, error, setError, reload } =
+    useDeck(deckId);
   const [nameDraft, setNameDraft] = useState("");
-  const [error, setError] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
   const copiedTimer = useRef<number | null>(null);
+
+  // The name is a draft the user edits, so it is seeded from the deck once it
+  // arrives rather than being read straight from it on every render.
+  useEffect(() => {
+    setNameDraft(deck?.name ?? "");
+  }, [deck?.name]);
 
   // The copy confirmation outlives its click by two seconds, so a navigation in
   // between would leave the timer setting state on a component that is gone.
@@ -47,41 +60,18 @@ export default function DeckManager({
     };
   }, []);
 
-  // Every one of these handlers is fired from an onClick and its promise is
-  // dropped, so anything that throws inside would otherwise surface only as an
-  // unhandled rejection in the console. Each one reports instead.
-  const load = async () => {
-    try {
-      const [d, c] = await Promise.all([
-        getDeck(deckId),
-        getCardsForDeck(deckId),
-      ]);
-      setDeck(d ?? null);
-      setCards(c);
-      setNameDraft(d?.name ?? "");
-    } catch (err) {
-      console.error("[manager] Could not read the deck:", err);
-      setError("This deck could not be read from the browser database.");
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  useEffect(() => {
-    load();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [deckId]);
-
+  /** Updates a card in local state only; persistCard writes it on blur. */
   const handleFieldChange = (
     id: string,
     field: "front" | "back",
     value: string,
   ) => {
     setCards((prev) =>
-      prev.map((c) => (c.id === id ? { ...c, [field]: value } : c)),
+      prev.map((existing) => (existing.id === id ? { ...existing, [field]: value } : existing)),
     );
   };
 
+  /** Writes one edited card. A failed write leaves the edit on screen. */
   const persistCard = async (card: Flashcard) => {
     try {
       await updateCard(card);
@@ -91,12 +81,14 @@ export default function DeckManager({
     }
   };
 
+  /** Appends a blank card to the end of the deck, then reloads. */
   const handleAdd = async () => {
     if (!deck) return;
     // Past the last card, so a hand-added one lands at the end of the deck
     // instead of wherever its UUID happened to fall.
     const lastOrder = cards.reduce(
-      (max, c) => (typeof c.order === "number" && c.order > max ? c.order : max),
+      (max, existing) =>
+        typeof existing.order === "number" && existing.order > max ? existing.order : max,
       -1,
     );
     const newCard: Flashcard = {
@@ -111,40 +103,41 @@ export default function DeckManager({
     };
     try {
       await addCard(newCard);
-      await load();
+      await reload();
     } catch (err) {
       console.error("[manager] Adding a card failed:", err);
       setError("The card could not be added.");
     }
   };
 
+  /** Removes one card, along with any test question written from it. */
   const handleDelete = async (cardId: string) => {
     try {
       await deleteCard(cardId, deckId);
-      await load();
+      await reload();
     } catch (err) {
       console.error("[manager] Deleting the card failed:", err);
       setError("The card could not be deleted.");
     }
   };
 
+  /**
+   * Deletes the deck and everything in it, after confirming.
+   *
+   * Irreversible — nothing is kept elsewhere and there is no undo — so the
+   * confirmation names the deck rather than asking a generic "are you sure".
+   */
   const handleDeleteDeck = async () => {
     if (!deck) return;
-    if (
-      !confirm(
-        `Delete "${deck.name}" and all its flashcards? This can't be undone.`,
-      )
-    )
-      return;
     try {
-      await deleteDeck(deckId);
-      onDeckDeleted();
+      if (await confirmAndDeleteDeck(deckId, deck.name)) onDeckDeleted();
     } catch (err) {
       console.error("[manager] Deleting the deck failed:", err);
       setError("The deck could not be deleted.");
     }
   };
 
+  /** Saves the deck as a delimited .txt file, for importing elsewhere. */
   const handleExport = () => {
     if (!deck) return;
     try {
@@ -155,6 +148,7 @@ export default function DeckManager({
     }
   };
 
+  /** The same text to the clipboard, with a two-second confirmation. */
   const handleCopy = async () => {
     try {
       await navigator.clipboard.writeText(formatDeckForExport(cards));
@@ -168,6 +162,7 @@ export default function DeckManager({
     }
   };
 
+  /** Saves a renamed deck on blur, restoring the old name if the write fails. */
   const commitName = async () => {
     if (!deck) return;
     const trimmed = nameDraft.trim() || "Untitled deck";
@@ -183,23 +178,16 @@ export default function DeckManager({
     }
   };
 
-  if (loading) return <p className="muted">Loading deck…</p>;
-  if (error && !deck)
-    return (
-      <div className="ai-notice failed">
-        <strong>This deck could not be opened</strong>
-        <p>{error}</p>
-      </div>
-    );
-  if (!deck) return <p className="muted">This deck couldn't be found.</p>;
+  if (loading || !deck) {
+    return <DeckGate loading={loading} error={error} deck={deck} />;
+  }
 
   return (
     <div className="manager">
-      {error && (
-        <div className="ai-notice failed">
-          <p>{error}</p>
-        </div>
-      )}
+      {/* A failure that happened after the deck loaded — a card that would not
+          save, an export that was refused — reported without taking the screen
+          away, because the edits are still here and still worth keeping. */}
+      {error && <ErrorNotice message={error} />}
       <div className="manager-header">
         <div>
           <p className="eyebrow">Manage cards</p>
@@ -277,7 +265,7 @@ export default function DeckManager({
                     handleFieldChange(card.id, "front", e.target.value)
                   }
                   onBlur={() =>
-                    persistCard(cards.find((c) => c.id === card.id)!)
+                    persistCard(card)
                   }
                   placeholder="Front"
                 />
@@ -289,42 +277,14 @@ export default function DeckManager({
                     handleFieldChange(card.id, "back", e.target.value)
                   }
                   onBlur={() =>
-                    persistCard(cards.find((c) => c.id === card.id)!)
+                    persistCard(card)
                   }
                   placeholder="Back"
                 />
-                {/* Laid out as the review screen lays it out, so a card looks
-                    the same before and after it is saved. Read-only here: the
-                    text is editable, but a snippet is the source's own and
-                    there is nothing on this screen to write one with. */}
-                {(card.frontCode || card.backCode || card.image) && (
-                  <div className="candidate-media">
-                    {card.frontCode && (
-                      <div className="candidate-attachment">
-                        <span className="attachment-tag">
-                          Shown with the question
-                        </span>
-                        <Snippet code={card.frontCode} />
-                      </div>
-                    )}
-                    {card.backCode && (
-                      <div className="candidate-attachment">
-                        <span className="attachment-tag">
-                          Shown with the answer
-                        </span>
-                        <Snippet code={card.backCode} />
-                      </div>
-                    )}
-                    {card.image && (
-                      <div className="candidate-attachment">
-                        <span className="attachment-tag">
-                          Shown with the answer
-                        </span>
-                        <Diagram image={card.image} />
-                      </div>
-                    )}
-                  </div>
-                )}
+                {/* No onRemove: the text is editable here, but a snippet is
+                    the source document's own and there is nothing on this
+                    screen to write a replacement with. */}
+                <CardAttachments media={card} />
                 <span className="candidate-meta">
                   {card.context && (
                     <span className="topic-chip">{card.context}</span>

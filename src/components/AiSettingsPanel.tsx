@@ -3,7 +3,12 @@ import type { AiSettings } from '../lib/aiGenerator';
 import { saveAiSettings } from '../lib/aiGenerator';
 
 interface Props {
+  /** The current mode and key, owned by the screen this panel sits in. */
   settings: AiSettings;
+  /**
+   * Fired after a change has already been written to localStorage — see the
+   * note on `update` below, which persists before it notifies.
+   */
   onChange: (settings: AiSettings) => void;
 }
 
@@ -15,6 +20,13 @@ interface Props {
 export default function AiSettingsPanel({ settings, onChange }: Props) {
   const [showKey, setShowKey] = useState(false);
 
+  /**
+   * Persists the new settings, then tells the parent.
+   *
+   * This panel writes to localStorage itself rather than leaving it to the
+   * caller, so the choice survives a reload from whichever screen it was made
+   * on. Both screens that host the panel read the same stored value back.
+   */
   const update = (next: AiSettings) => {
     saveAiSettings(next);
     onChange(next);

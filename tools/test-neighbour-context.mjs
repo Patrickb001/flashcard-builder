@@ -6,7 +6,7 @@ import { generateQuestionsForCards } from '../src/lib/quizGenerator.ts';
 /**
  * Does a recall question ever use an also-correct answer as a wrong answer?
  *
- *   node --experimental-strip-types --loader ./tools/ts-ext-hooks.mjs \
+ *   node --experimental-strip-types --import ./tools/register.mjs \
  *     tools/test-neighbour-context.mjs [before|after]
  *
  * Neighbours used to reach the model as bare answers, with no indication of the

@@ -1,20 +1,31 @@
-import { useEffect, useMemo, useState } from 'react';
-import type { CandidateCard, Deck, Flashcard } from '../types';
+import { useEffect, useState } from 'react';
+import type { CandidateCard, Deck, Flashcard, SourceType } from '../types';
 import type { DocumentSection } from '../lib/documentModel';
 import { generateCandidates } from '../lib/flashcardGenerator';
-import type { AiSettings, AiProgress } from '../lib/aiGenerator';
+import type { AiSettings } from '../lib/aiGenerator';
+import type { BatchProgress } from '../lib/batchRunner';
 import { generateCandidatesWithAi } from '../lib/aiGenerator';
 import { saveDeckWithCards } from '../db/db';
-import { Diagram, Snippet } from './CardMedia';
-import type { SourceType } from './Uploader';
+import CardAttachments from './ui/CardAttachments';
+import DraftingBanner from './ui/DraftingBanner';
+import ProgressBar from './ui/ProgressBar';
 
 interface Props {
+  /**
+   * The parsed document. Cards are drafted from this on mount, and the identity
+   * of the array is what decides whether drafting runs again — so it must be
+   * stable across renders, or a paid model call repeats.
+   */
   sections: DocumentSection[];
+  /** Seeds the deck name, minus its extension. */
   fileName: string;
+  /** Names the unit a section is, so the notices can say "page" or "slide". */
   sourceType: SourceType;
+  /** Whether to draft with the model, and how to reach it. */
   ai: AiSettings;
   /** Set when some sources were skipped, e.g. a page that could not be read. */
   notice?: string;
+  /** Fired with the new deck's id once it is safely in the database. */
   onSaved: (deckId: string) => void;
   onCancel: () => void;
 }
@@ -27,10 +38,41 @@ const UNIT_NOUN: Record<SourceType, string> = {
   html: 'section',
 };
 
+/**
+ * A candidate plus a key that survives the list being edited.
+ *
+ * The key exists only for React. Rows can be removed, so an index key makes the
+ * row below inherit the removed row's DOM node — and with it the caret of
+ * whoever was typing in it.
+ */
+type Draft = CandidateCard & { key: string };
+
+/** Tags freshly drafted candidates so each row keeps its identity. */
+function withKeys(cards: CandidateCard[]): Draft[] {
+  return cards.map((card) => ({ ...card, key: crypto.randomUUID() }));
+}
+
+/** The file name with its extension removed, as the deck's opening name. */
 function defaultDeckName(fileName: string): string {
   return fileName.replace(/\.(pdf|pptx|md|markdown|mdown|mkd|html?|xhtml)$/i, '');
 }
 
+/**
+ * Step two: check the drafted cards, then save them as a deck.
+ *
+ * When AI drafting is on, the list starts empty and fills in with the
+ * model's cards when drafting finishes — rule-based cards are never shown
+ * automatically. A section the model couldn't cover gets its deterministic
+ * fallback computed eagerly but held back in `fallbackCards`, offered only
+ * through the "add rule-based cards" button, and visibly badged once added.
+ * That is deliberate: a silently weaker card mixed into an AI-drafted deck is
+ * harder to notice than one the user chose to add.
+ *
+ * With AI off there is no run to wait for, so the rule-based draft is shown
+ * immediately, exactly as before.
+ *
+ * Everything here is local until Save. Navigating away costs the session.
+ */
 export default function CandidateReview({
   sections,
   fileName,
@@ -40,14 +82,23 @@ export default function CandidateReview({
   onSaved,
   onCancel,
 }: Props) {
-  // Rule-based cards are computed immediately so there is always something on
-  // screen; AI drafting then replaces them when it finishes.
-  const initialCandidates = useMemo(() => generateCandidates(sections), [sections]);
-  const [candidates, setCandidates] = useState<CandidateCard[]>(initialCandidates);
+  // With AI on, the list starts empty and fills in once drafting resolves —
+  // rule-based cards are opt-in (see `fallbackCards`), not a placeholder.
+  // With AI off there is nothing to wait for, so the rule-based draft is
+  // computed immediately, as it always was. Computed in a lazy initialiser
+  // rather than a memo: useState ignores its argument after mount, so a memo
+  // here would be recomputed on every `sections` change and thrown away,
+  // which reads as though the list tracks the prop when it does not.
+  const [candidates, setCandidates] = useState<Draft[]>(() =>
+    ai.mode === 'off' ? withKeys(generateCandidates(sections)) : []
+  );
   const [drafting, setDrafting] = useState(ai.mode !== 'off');
-  const [progress, setProgress] = useState<AiProgress | null>(null);
+  const [progress, setProgress] = useState<BatchProgress | null>(null);
   const [aiNotice, setAiNotice] = useState<string | null>(null);
   const [aiFailed, setAiFailed] = useState(false);
+  // Held back rather than merged into `candidates` until the user asks for
+  // them via the button below the banner.
+  const [fallbackCards, setFallbackCards] = useState<CandidateCard[]>([]);
 
   useEffect(() => {
     if (ai.mode === 'off') return;
@@ -59,13 +110,17 @@ export default function CandidateReview({
 
     (async () => {
       try {
-        const { cards, failedSections, truncatedBatches, firstError, aborted } =
+        const { cards, fallbackCards: fallback, failedSections, truncatedBatches, firstError, aborted } =
           await generateCandidatesWithAi(sections, ai, {
-            onProgress: (p) => !cancelled && setProgress(p),
+            onProgress: (batch) => !cancelled && setProgress(batch),
             signal: controller.signal,
           });
         if (cancelled || aborted) return;
-        if (cards.length > 0) setCandidates(cards);
+        // Always applied, including when empty: an empty AI result must
+        // clear the (already-empty) list, not silently keep whatever was
+        // there before, now that nothing is pre-seeded to fall back on.
+        setCandidates(withKeys(cards));
+        setFallbackCards(fallback);
 
         const unit = UNIT_NOUN[sourceType];
         // Reported in the document's own units. This counted batches before,
@@ -92,7 +147,7 @@ export default function CandidateReview({
           // selected feature never ran.
           setAiFailed(true);
           setAiNotice(
-            `AI drafting did not run — these are rule-based cards. ${why} ${firstError ?? ''}`.trim()
+            `AI drafting did not run. ${why} ${firstError ?? ''}`.trim()
           );
         } else {
           setAiFailed(false);
@@ -103,10 +158,15 @@ export default function CandidateReview({
       } catch (err) {
         if (!cancelled) {
           setAiFailed(true);
+          // A hard failure means generateCandidatesWithAi never returned at
+          // all, so there is no fallbackCards to read from it — computed
+          // fresh here for every section, or the button below would have
+          // nothing to offer and the user would be left with an empty list.
+          setFallbackCards(
+            generateCandidates(sections).map((card) => ({ ...card, origin: 'rule-based' as const }))
+          );
           setAiNotice(
-            `AI drafting failed, so these are rule-based cards. ${
-              err instanceof Error ? err.message : ''
-            }`.trim()
+            `AI drafting failed. ${err instanceof Error ? err.message : ''}`.trim()
           );
         }
       } finally {
@@ -122,25 +182,45 @@ export default function CandidateReview({
   const [deckName, setDeckName] = useState(defaultDeckName(fileName));
   const [saving, setSaving] = useState(false);
 
-  const includedCount = candidates.filter((c) => c.include).length;
+  const includedCount = candidates.filter((candidate) => candidate.include).length;
 
+  /** Applies an edit to one candidate, leaving the rest untouched. */
   const updateCandidate = (index: number, patch: Partial<CandidateCard>) => {
-    setCandidates((prev) => prev.map((c, i) => (i === index ? { ...c, ...patch } : c)));
+    setCandidates((prev) =>
+      prev.map((candidate, i) => (i === index ? { ...candidate, ...patch } : candidate))
+    );
   };
 
+  /** Drops a candidate entirely, as opposed to unchecking it. */
   const removeCandidate = (index: number) => {
     setCandidates((prev) => prev.filter((_, i) => i !== index));
   };
 
+  /** Appends the held-back rule-based cards to the bottom of the list, and clears them. */
+  const addFallbackCards = () => {
+    setCandidates((prev) => [...prev, ...withKeys(fallbackCards)]);
+    setFallbackCards([]);
+  };
+
+  /** Opens an empty card at the top of the list, for writing one by hand. */
   const addBlankCard = () => {
     setCandidates((prev) => [
-      { front: '', back: '', sourceLabel: 'Manual', include: true },
+      { front: '', back: '', sourceLabel: 'Manual', include: true, key: crypto.randomUUID() },
       ...prev,
     ]);
   };
 
+  /**
+   * Turns the checked candidates into a saved deck and hands back its id.
+   *
+   * Blank fronts or backs are dropped here rather than blocking the save: an
+   * empty row is someone who started a card and changed their mind, not an error
+   * worth stopping on.
+   */
   const handleSave = async () => {
-    const toSave = candidates.filter((c) => c.include && c.front.trim() && c.back.trim());
+    const toSave = candidates.filter(
+      (candidate) => candidate.include && candidate.front.trim() && candidate.back.trim()
+    );
     if (toSave.length === 0) return;
     setSaving(true);
 
@@ -157,18 +237,18 @@ export default function CandidateReview({
     // `order` is what preserves the review screen's order into the deck. Every
     // card here shares one `createdAt`, so nothing else in the record can say
     // which came first.
-    const cards: Flashcard[] = toSave.map((c, index) => ({
+    const cards: Flashcard[] = toSave.map((candidate, index) => ({
       id: crypto.randomUUID(),
       deckId,
-      front: c.front.trim(),
-      back: c.back.trim(),
-      sourceLabel: c.sourceLabel,
-      context: c.context,
+      front: candidate.front.trim(),
+      back: candidate.back.trim(),
+      sourceLabel: candidate.sourceLabel,
+      context: candidate.context,
       // Snippets and diagrams travel with the card into the deck; the review
       // screen is where an unwanted one is taken off.
-      frontCode: c.frontCode,
-      backCode: c.backCode,
-      image: c.image,
+      frontCode: candidate.frontCode,
+      backCode: candidate.backCode,
+      image: candidate.image,
       status: 'new',
       createdAt: now,
       order: index,
@@ -203,13 +283,10 @@ export default function CandidateReview({
       </p>
 
       {drafting && (
-        <div className="drafting-banner">
-          <span className="chalk-spinner small" aria-hidden="true" />
-          <span>
-            Claude is drafting cards
-            {progress ? ` — batch ${progress.done} of ${progress.total}` : '…'}
-          </span>
-        </div>
+        <>
+          <DraftingBanner activity="drafting cards" progress={progress} />
+          <ProgressBar fraction={progress ? progress.done / progress.total : 0} />
+        </>
       )}
 
       {notice && (
@@ -223,7 +300,16 @@ export default function CandidateReview({
         <div className={`ai-notice ${aiFailed ? 'failed' : 'partial'}`} role="alert">
           <strong>{aiFailed ? 'AI drafting did not run' : 'Partial AI drafting'}</strong>
           <span>{aiNotice}</span>
+          {fallbackCards.length > 0 && (
+            <button className="ghost-btn small" onClick={addFallbackCards}>
+              Add {fallbackCards.length} rule-based card{fallbackCards.length === 1 ? '' : 's'}
+            </button>
+          )}
         </div>
+      )}
+
+      {drafting && candidates.length === 0 && fallbackCards.length === 0 && (
+        <p className="muted">Waiting for the first cards…</p>
       )}
 
       <div className="deck-name-row">
@@ -251,72 +337,42 @@ export default function CandidateReview({
       )}
 
       <ul className="candidate-list">
-        {candidates.map((c, i) => (
-          <li key={i} className={`candidate-row ${c.include ? '' : 'excluded'}`}>
+        {candidates.map((candidate, i) => (
+          <li
+            key={candidate.key}
+            className={`candidate-row ${candidate.include ? '' : 'excluded'}`}
+          >
             <input
               type="checkbox"
-              checked={c.include}
+              checked={candidate.include}
               onChange={(e) => updateCandidate(i, { include: e.target.checked })}
               title="Include in deck"
             />
             <div className="candidate-fields">
               <textarea
                 className="candidate-front"
-                value={c.front}
+                value={candidate.front}
                 onChange={(e) => updateCandidate(i, { front: e.target.value })}
                 placeholder="Front (question / term)"
                 rows={2}
               />
               <textarea
                 className="candidate-back"
-                value={c.back}
+                value={candidate.back}
                 onChange={(e) => updateCandidate(i, { back: e.target.value })}
                 placeholder="Back (answer / definition)"
                 rows={2}
               />
-              {(c.frontCode || c.backCode || c.image) && (
-                <div className="candidate-media">
-                  {c.frontCode && (
-                    <div className="candidate-attachment">
-                      <span className="attachment-tag">Shown with the question</span>
-                      <Snippet code={c.frontCode} />
-                      <button
-                        className="ghost-btn small"
-                        onClick={() => updateCandidate(i, { frontCode: undefined })}
-                      >
-                        Remove snippet
-                      </button>
-                    </div>
-                  )}
-                  {c.backCode && (
-                    <div className="candidate-attachment">
-                      <span className="attachment-tag">Shown with the answer</span>
-                      <Snippet code={c.backCode} />
-                      <button
-                        className="ghost-btn small"
-                        onClick={() => updateCandidate(i, { backCode: undefined })}
-                      >
-                        Remove snippet
-                      </button>
-                    </div>
-                  )}
-                  {c.image && (
-                    <div className="candidate-attachment">
-                      <span className="attachment-tag">Shown with the answer</span>
-                      <Diagram image={c.image} />
-                      <button
-                        className="ghost-btn small"
-                        onClick={() => updateCandidate(i, { image: undefined })}
-                      >
-                        Remove diagram
-                      </button>
-                    </div>
-                  )}
-                </div>
-              )}
+              <CardAttachments
+                media={candidate}
+                onRemove={(attachment) => updateCandidate(i, { [attachment]: undefined })}
+              />
               <span className="candidate-meta">
-                {c.context && <span className="topic-chip">{c.context}</span>}
-                <span className="source-label">{c.sourceLabel}</span>
+                {candidate.context && <span className="topic-chip">{candidate.context}</span>}
+                {candidate.origin === 'rule-based' && (
+                  <span className="topic-chip rule-based">Rule-based</span>
+                )}
+                <span className="source-label">{candidate.sourceLabel}</span>
               </span>
             </div>
             <button className="icon-btn danger" title="Remove" onClick={() => removeCandidate(i)}>

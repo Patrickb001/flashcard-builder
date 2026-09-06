@@ -1,16 +1,15 @@
 import { useCallback, useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import type { Deck } from '../types';
-import { getAllDecks, isUpgradeBlocked } from '../db/db';
+import { getAllDecks, onUpgradeBlocked } from '../db/db';
 import DeckLibrary from '../components/DeckLibrary';
 
 /**
  * The deck list, and the state behind it.
  *
- * This used to live in App, which meant every screen that changed the decks had
- * to remember to refresh it — the save and delete paths each awaited a refresh
- * before navigating. Now that the list belongs to the route, arriving here
- * mounts it and loading is simply what mounting does.
+ * The list belongs to this route rather than to App, so arriving here mounts it
+ * and loading is simply what mounting does. No other screen has to remember to
+ * refresh the library after saving or deleting a deck.
  */
 export default function LibraryRoute() {
   const navigate = useNavigate();
@@ -44,21 +43,18 @@ export default function LibraryRoute() {
   /**
    * Reports an upgrade another tab is holding open.
    *
-   * That case never rejects and never resolves - idb's open promise simply
-   * never settles - so the catch above cannot see it. Polling the flag is what
-   * turns a permanent spinner into a sentence telling you to close the tab.
+   * That case never rejects and never resolves — idb's open promise simply
+   * never settles — so the catch above cannot see it, and without this the
+   * screen would spin forever with nothing to explain why.
    */
   useEffect(() => {
-    if (!loading) return;
-    const timer = setInterval(() => {
-      if (!isUpgradeBlocked()) return;
+    return onUpgradeBlocked(() => {
       setError(
         'Another tab has an older version of this app open, which is blocking an upgrade. Close the other tabs and reload.'
       );
       setLoading(false);
-    }, 400);
-    return () => clearInterval(timer);
-  }, [loading]);
+    });
+  }, []);
 
   return (
     <DeckLibrary

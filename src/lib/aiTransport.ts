@@ -1,6 +1,6 @@
 import type { AiSettings } from './aiGenerator';
 import { CARD_SYSTEM_PROMPT } from './cardPrompt';
-import { QUIZ_SYSTEM_PROMPT, VIGNETTE_SYSTEM_PROMPT } from './quizPrompt';
+import { QUIZ_SYSTEM_PROMPT, VIGNETTE_SYSTEM_PROMPT, VIGNETTE_AUDIT_SYSTEM_PROMPT } from './quizPrompt';
 
 /**
  * Getting a payload to the model, by whichever route is available.
@@ -25,13 +25,14 @@ import { QUIZ_SYSTEM_PROMPT, VIGNETTE_SYSTEM_PROMPT } from './quizPrompt';
  * and looks it up — see the lookup in netlify/functions/generate.mts for why
  * that boundary matters.
  */
-export type AiTask = 'cards' | 'quiz' | 'vignette';
+export type AiTask = 'cards' | 'quiz' | 'vignette' | 'vignette-audit';
 
 /** The prompts, for the direct-from-browser route which has no server to ask. */
 const PROMPTS: Record<AiTask, string> = {
   cards: CARD_SYSTEM_PROMPT,
   quiz: QUIZ_SYSTEM_PROMPT,
   vignette: VIGNETTE_SYSTEM_PROMPT,
+  'vignette-audit': VIGNETTE_AUDIT_SYSTEM_PROMPT,
 };
 
 const MODEL = 'claude-sonnet-5';
@@ -39,31 +40,21 @@ const MODEL = 'claude-sonnet-5';
 /**
  * Response ceiling per task.
  *
- * A quiz question costs about five strings where a card costs two, so a quiz
- * batch sits far closer to the ceiling. At 4000 a full batch came back
- * truncated mid-JSON and the salvage pass quietly lost the tail — the cause of
- * test generation only ever covering part of a deck. A batch of eight at the
- * measured cost leaves a wide margin instead of sitting on a cliff.
+ * Every one of these was raised after a reply came back stopped at max_tokens,
+ * truncated mid-JSON, and the salvage pass silently kept only the objects that
+ * had closed. The headroom is close to free because the ceiling is a limit, not
+ * a reservation — an ordinary batch still bills a couple of thousand tokens.
  *
- * Cards were left at 4000 on the assumption that two strings a card could not
- * reach it. A dense reference page defeats that: the prompt asks for one card
- * per table cell and one per defined term, so a lecture slide of four bulleted
- * quadrants alone is worth twenty cards, and a batch of such pages asks for
- * fifty or more. A 16-page clinical deck hit the ceiling on three batches out
- * of four and silently fell back to rule-based cards for three quarters of the
- * document.
- *
- * The ceiling is a limit, not a reservation — an ordinary batch still generates
- * and bills a couple of thousand tokens — so the headroom is close to free.
+ * The server keeps its own copy in generateHandler; they must stay in step. See
+ * "Model response ceilings" in docs/tuning-notes.md for what each value fixed.
  */
 const MAX_TOKENS: Record<AiTask, number> = {
   cards: 16000,
   quiz: 8000,
-  // A board-style item is the most expensive thing here: a four-sentence
-  // scenario, five homogeneous options and an explanation, against the ~420
-  // tokens a recall question costs. Given wide headroom on the same reasoning
-  // as cards — the ceiling is a limit, not a reservation.
   vignette: 16000,
+  // A verdict list, not prose — see "vignette-audit" in docs/tuning-notes.md
+  // once real batches have been measured against this starting estimate.
+  'vignette-audit': 1000,
 };
 
 /**

@@ -11,25 +11,35 @@ import {
 } from '../../db/db';
 import type { AiSettings } from '../../lib/aiGenerator';
 import { loadAiSettings } from '../../lib/aiGenerator';
-import { generateQuestionsForCards, hashCard, type QuizProgress } from '../../lib/quizGenerator';
+import { generateQuestionsForCards, hashCard } from '../../lib/quizGenerator';
+import type { BatchProgress } from '../../lib/batchRunner';
 import { prepareQuestions, selectQuestions, type PreparedQuestion } from '../../lib/quizSelection';
 
 /**
  * Everything a test needs to run, with none of its layout.
  *
- * TestMode's own comment used to note that the question pool has to survive the
- * move from setup to test to results, and that App holds no domain state to
- * lift it into — so all of it lived in one component alongside four full page
- * layouts. This is the layer that was missing: the state and the transitions
- * live here, and each screen renders one phase of it.
+ * A test spans four screens — setup, generating, taking, results — and the
+ * question pool has to survive all of them, so the state and the transitions
+ * between phases live here and each screen renders one phase of it.
  */
 
+/** Which of the four test screens is showing, plus the initial read. */
 export type Phase = 'loading' | 'setup' | 'generating' | 'taking' | 'results';
 
 /** Below this many questions a slider has nothing useful to offer. */
 export const MIN_SLIDER_POOL = 5;
 const DEFAULT_COUNT = 20;
 
+/**
+ * Loads a deck's question pool and drives a test through its four phases.
+ *
+ * Owns everything that has to outlive a single screen: the pool, the style
+ * lens onto it, the drawn questions and the answers given. TestMode reads the
+ * phase and renders one screen per value.
+ *
+ * Nothing here writes questions on its own — generation is always started by an
+ * explicit call, because it costs a model request.
+ */
 export function useDeckQuiz(deckId: string) {
   const [phase, setPhase] = useState<Phase>('loading');
   const [deck, setDeck] = useState<Deck | null>(null);
@@ -37,7 +47,7 @@ export function useDeckQuiz(deckId: string) {
   const [pool, setPool] = useState<TestQuestion[]>([]);
   const [ai, setAi] = useState<AiSettings>({ mode: 'off' });
 
-  const [progress, setProgress] = useState<QuizProgress | null>(null);
+  const [progress, setProgress] = useState<BatchProgress | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const [noticeFailed, setNoticeFailed] = useState(false);
 
@@ -59,6 +69,12 @@ export function useDeckQuiz(deckId: string) {
 
   const abortRef = useRef<AbortController | null>(null);
 
+  /** The questions in the style currently selected. Everything below reads this. */
+  const visiblePool = useMemo(
+    () => pool.filter((question) => styleOf(question) === style),
+    [pool, style]
+  );
+
   /**
    * Cards whose question is missing, or was written from different text.
    *
@@ -68,30 +84,27 @@ export function useDeckQuiz(deckId: string) {
    * Memoised because hashing every card in the deck on every render is real
    * work for a value only the setup screen reads.
    */
-  /** The questions in the style currently selected. Everything below reads this. */
-  const visiblePool = useMemo(
-    () => pool.filter((q) => styleOf(q) === style),
-    [pool, style]
-  );
-
   const unwritten = useMemo(() => {
     // Keyed on card AND style. Keyed on card alone, the two styles of the same
     // card overwrite each other and "cards without a question" goes wrong in
     // both directions — offering cards that are already written, and hiding
     // cards that are not.
-    const byCard = new Map(pool.map((q) => [`${q.cardId}:${styleOf(q)}`, q]));
+    const byCard = new Map(
+      pool.map((question) => [`${question.cardId}:${styleOf(question)}`, question])
+    );
     return cards.filter((card) => {
       const question = byCard.get(`${card.id}:${style}`);
       return !question || question.cardHash !== hashCard(card);
     });
   }, [cards, pool, style]);
 
+  /** Reads the deck, its cards and its question pool in one pass. */
   const load = useCallback(async () => {
     const [loadedDeck, loadedCards] = await Promise.all([getDeck(deckId), getCardsForDeck(deckId)]);
     // A question whose card is gone would still be asked. The delete cascade
     // handles this; the sweep is here for any deck left behind by an earlier
     // build, and costs one index scan.
-    await pruneOrphanQuestions(deckId, new Set(loadedCards.map((c) => c.id)));
+    await pruneOrphanQuestions(deckId, new Set(loadedCards.map((card) => card.id)));
     const loadedPool = await getQuestionsForDeck(deckId);
 
     setDeck(loadedDeck ?? null);
@@ -174,18 +187,12 @@ export function useDeckQuiz(deckId: string) {
   );
 
   /*
-   * First load. Always lands on setup; writing questions is never automatic.
+   * First load. Always lands on setup; writing questions is never automatic,
+   * even for a deck with no questions yet.
    *
-   * An empty deck used to go straight into generation on mount, on the reading
-   * that "Test this deck" had already asked for it. That was wrong once there
-   * was more than one kind of question to write: the run started before the
-   * screen offering the choice had rendered, so picking the board style meant
-   * pressing Stop on a batch of recall questions you did not want and had
-   * already paid for. Nobody should have to interrupt the app to tell it what
-   * they wanted.
-   *
-   * Setup states the position plainly and offers the button, which costs one
-   * click and removes a spend nobody asked for.
+   * Generating on mount would start spending before the screen that offers the
+   * style choice had rendered, leaving someone who wanted board-style items to
+   * press Stop on a batch of recall questions they had already paid for.
    */
   useEffect(() => {
     let cancelled = false;
@@ -213,12 +220,14 @@ export function useDeckQuiz(deckId: string) {
     };
   }, [deckId, load]);
 
-  // Keep the requested count inside what the selected style can actually supply.
-  useEffect(() => {
-    if (visiblePool.length === 0) return;
-    setCount((current) => Math.min(Math.max(current, 1), visiblePool.length));
-  }, [visiblePool.length]);
-
+  /**
+   * Draws a test from the pool and moves to the taking phase.
+   *
+   * `count` is clamped here rather than being held in range by an effect: the
+   * setup slider already renders `Math.min(count, pool.length)`, so clamping at
+   * both points of use means switching style cannot leave a stale number in
+   * state between the change and the effect that would have corrected it.
+   */
   const startTest = useCallback(() => {
     const drawn = selectQuestions(visiblePool, Math.min(count, visiblePool.length));
     setAsked(prepareQuestions(drawn));
@@ -251,11 +260,13 @@ export function useDeckQuiz(deckId: string) {
     else setPosition((p) => p + 1);
   }, [selected, asked, position]);
 
+  /** The card a question was written from, for a stem that carries a snippet. */
   const cardFor = useCallback(
-    (question: TestQuestion) => cards.find((c) => c.id === question.cardId),
+    (question: TestQuestion) => cards.find((card) => card.id === question.cardId),
     [cards]
   );
 
+  /** Stops a generation run. Whatever has already been saved is kept. */
   const stopGenerating = useCallback(() => abortRef.current?.abort(), []);
 
   return {

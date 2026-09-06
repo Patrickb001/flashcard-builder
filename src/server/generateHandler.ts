@@ -1,5 +1,5 @@
 import { CARD_SYSTEM_PROMPT } from '../lib/cardPrompt';
-import { QUIZ_SYSTEM_PROMPT, VIGNETTE_SYSTEM_PROMPT } from '../lib/quizPrompt';
+import { QUIZ_SYSTEM_PROMPT, VIGNETTE_SYSTEM_PROMPT, VIGNETTE_AUDIT_SYSTEM_PROMPT } from '../lib/quizPrompt';
 import type { HandlerResult } from './endpoint';
 
 /**
@@ -8,11 +8,9 @@ import type { HandlerResult } from './endpoint';
  * Holding the Anthropic key on the server is what makes a deployed site usable
  * by people who have no key of their own; the key never reaches the client.
  *
- * The prompts are imported rather than restated. A copy of the card prompt used
- * to live in the Netlify function and fell behind the real one — it still
- * described an output shape with no code or image fields, so snippets and
- * diagrams attached to cards locally and were silently dropped in production.
- * Importing removes the class of problem rather than one instance of it.
+ * The prompts are imported from src/lib rather than restated here, so a hosted
+ * deployment and a bring-your-own-key browser cannot drift into asking the model
+ * for different output shapes.
  */
 
 /** Used when the deployment names no model of its own. */
@@ -21,21 +19,19 @@ const DEFAULT_MODEL = 'claude-sonnet-5';
 /**
  * Response ceiling per task.
  *
- * A quiz question costs about five strings where a card costs two, so quiz
- * batches sit far closer to the ceiling. At 4000 they came back truncated
- * mid-JSON and the client silently lost the tail of every large batch.
- *
- * Cards were left at 4000 on the assumption that two strings a card could not
- * reach it. A dense reference page defeats that — the prompt asks for a card
- * per table cell and per defined term — and a 16-page clinical deck truncated
- * on three batches of four, falling back to rule-based cards for most of the
- * document. Keep this in step with MAX_TOKENS in src/lib/aiTransport.ts, or
- * hosted and bring-your-own-key mode draft differently from the same input.
- *
  * Fixed here rather than accepted from the client, deliberately: a request
  * cannot ask the server to run up an unbounded bill.
+ *
+ * Must stay in step with MAX_TOKENS in src/lib/aiTransport.ts, or hosted and
+ * bring-your-own-key mode draft differently from the same input. See "Model
+ * response ceilings" in docs/tuning-notes.md for why each value is what it is.
  */
-const MAX_TOKENS: Record<string, number> = { cards: 16000, quiz: 8000, vignette: 16000 };
+const MAX_TOKENS: Record<string, number> = {
+  cards: 16000,
+  quiz: 8000,
+  vignette: 16000,
+  'vignette-audit': 1000,
+};
 
 /**
  * The prompt each task is answered with.
@@ -49,10 +45,11 @@ const PROMPTS = new Map<string, string>([
   ['cards', CARD_SYSTEM_PROMPT],
   ['quiz', QUIZ_SYSTEM_PROMPT],
   ['vignette', VIGNETTE_SYSTEM_PROMPT],
+  ['vignette-audit', VIGNETTE_AUDIT_SYSTEM_PROMPT],
 ]);
 
 /** Anything larger than this is refused before it reaches the model. */
-const MAX_PAYLOAD_CHARS = 120_000;
+const MAX_REQUEST_CHARS = 120_000;
 
 export interface GenerateOptions {
   apiKey: string | undefined;
@@ -62,6 +59,18 @@ export interface GenerateOptions {
   onError?: (message: string) => void;
 }
 
+/**
+ * The whole server contract for talking to the model: validate the request,
+ * pick the prompt for the named task, call Anthropic, and shape the reply.
+ *
+ * Everything the client can influence is checked before a paid call is made —
+ * the task must name a known prompt, the payload must be under the size cap,
+ * and max_tokens is fixed here rather than accepted from the request.
+ *
+ * Never throws. Every failure, including an upstream one, comes back as a
+ * HandlerResult with a status, because both adapters just serialise what they
+ * are given.
+ */
 export async function handleGenerate(
   body: unknown,
   options: GenerateOptions
@@ -90,7 +99,7 @@ export async function handleGenerate(
   }
 
   const payload = JSON.stringify(sections);
-  if (payload.length > MAX_PAYLOAD_CHARS) {
+  if (payload.length > MAX_REQUEST_CHARS) {
     return { status: 413, body: { error: 'Payload too large.' } };
   }
 

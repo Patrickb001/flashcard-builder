@@ -6,7 +6,7 @@ import { hasConflictingNumbers, overlapRatio } from '../src/lib/textUtils.ts';
 /**
  * Near-duplicate removal, for cards and for the questions drawn from them.
  *
- *   node --experimental-strip-types --loader ./tools/ts-ext-hooks.mjs tools/test-dedupe.mjs
+ *   node --experimental-strip-types --import ./tools/register.mjs tools/test-dedupe.mjs
  *
  * Pure — no model call. The fixture deck is a real one that restates itself in
  * several places, which is what this exists to catch; the pairs asserted below

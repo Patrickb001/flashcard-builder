@@ -49,9 +49,8 @@ function isAbort(error: unknown): boolean {
  * is given the chance to substitute something, and the run continues. Anything
  * a batch *partly* achieved is the caller's to record inside `run`.
  *
- * Cancellation is not a failure. The abort rejection used to fall into the
- * generic catch, so someone who pressed Stop was told "No questions could be
- * written. The operation was aborted." as though something had gone wrong.
+ * Cancellation is separated from failure and reported as its own outcome. Left
+ * to the generic catch, pressing Stop reads back to the user as an error.
  */
 export async function runBatches<T>(
   batches: T[],
