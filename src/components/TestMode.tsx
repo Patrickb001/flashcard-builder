@@ -102,7 +102,8 @@ export default function TestMode({ deckId, onExit, onManageExit }: Props) {
       answers={quiz.answers}
       cardFor={quiz.cardFor}
       onAgain={() => quiz.setPhase("setup")}
-      onExit={onExit}
+      onManageExit={onManageExit}
+      deckId={quiz.deck.id}
     />
   );
 }

@@ -1,6 +1,6 @@
-import type { Flashcard, TestQuestion } from '../../types';
-import type { PreparedQuestion } from '../../lib/quizSelection';
-import QuestionStem from './QuestionStem';
+import type { Flashcard, TestQuestion } from "../../types";
+import type { PreparedQuestion } from "../../lib/quizSelection";
+import QuestionStem from "./QuestionStem";
 
 interface Props {
   /** The questions that were asked, in the order they were asked. */
@@ -10,11 +10,12 @@ interface Props {
    * or null where it was left unanswered. Parallel to `asked`.
    */
   answers: (number | null)[];
+  deckId: string;
   /** The card a question came from, for the "from the card" line. */
   cardFor: (question: TestQuestion) => Flashcard | undefined;
   /** Starts another test over the same deck. */
   onAgain: () => void;
-  onExit: () => void;
+  onManageExit: (id: string) => void;
 }
 
 /**
@@ -26,12 +27,21 @@ interface Props {
  * failures. The explanation is written to teach the distinction rather than to
  * restate the answer, which is worth reading on a lucky guess too.
  */
-export default function QuizResults({ asked, answers, cardFor, onAgain, onExit }: Props) {
+export default function QuizResults({
+  asked,
+  answers,
+  cardFor,
+  onAgain,
+  onManageExit,
+  deckId,
+}: Props) {
   const correctCount = asked.reduce(
-    (total, prepared, index) => total + (answers[index] === prepared.correctIndex ? 1 : 0),
-    0
+    (total, prepared, index) =>
+      total + (answers[index] === prepared.correctIndex ? 1 : 0),
+    0,
   );
-  const pct = asked.length === 0 ? 0 : Math.round((correctCount / asked.length) * 100);
+  const pct =
+    asked.length === 0 ? 0 : Math.round((correctCount / asked.length) * 100);
   const missedCount = asked.length - correctCount;
 
   return (
@@ -48,7 +58,11 @@ export default function QuizResults({ asked, answers, cardFor, onAgain, onExit }
           <p className="eyebrow">
             Review — {missedCount} missed · {correctCount} correct
           </p>
-          {missedCount === 0 && <p className="muted centered">Clean sheet — every answer correct.</p>}
+          {missedCount === 0 && (
+            <p className="muted centered">
+              Clean sheet — every answer correct.
+            </p>
+          )}
 
           <ul className="quiz-review">
             {asked.map((prepared, index) => {
@@ -57,19 +71,50 @@ export default function QuizResults({ asked, answers, cardFor, onAgain, onExit }
               const card = cardFor(prepared.question);
               return (
                 <li
-                  className={`quiz-review-row ${wasCorrect ? 'correct' : 'missed'}`}
+                  className={`quiz-review-row ${wasCorrect ? "correct" : "missed"}`}
                   key={prepared.question.id}
                 >
-                  <p className={`quiz-verdict ${wasCorrect ? 'correct' : 'missed'}`}>
-                    <span aria-hidden="true">{wasCorrect ? '✓' : '✕'}</span>
-                    {wasCorrect ? 'Correct' : 'Missed'}
+                  <p
+                    className={`quiz-verdict ${wasCorrect ? "correct" : "missed"}`}
+                  >
+                    <span aria-hidden="true">
+                      {wasCorrect ? (
+                        <svg
+                          width="12"
+                          height="12"
+                          viewBox="0 0 24 24"
+                          fill="none"
+                          stroke="currentColor"
+                          strokeWidth="2.5"
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                        >
+                          <path d="M20 6 9 17l-5-5" />
+                        </svg>
+                      ) : (
+                        <svg
+                          width="12"
+                          height="12"
+                          viewBox="0 0 24 24"
+                          fill="none"
+                          stroke="currentColor"
+                          strokeWidth="2.5"
+                          strokeLinecap="round"
+                        >
+                          <path d="M18 6 6 18M6 6l12 12" />
+                        </svg>
+                      )}
+                    </span>
+                    {wasCorrect ? "Correct" : "Missed"}
                   </p>
 
                   <QuestionStem question={prepared.question} />
 
-                  <p className={`quiz-answer-line ${wasCorrect ? 'correct' : 'picked'}`}>
+                  <p
+                    className={`quiz-answer-line ${wasCorrect ? "correct" : "picked"}`}
+                  >
                     <span className="quiz-answer-tag">You chose</span>
-                    {picked === null ? 'nothing' : prepared.options[picked]}
+                    {picked === null ? "nothing" : prepared.options[picked]}
                   </p>
                   {/* Only worth a second line when it differs from the first —
                       repeating a right answer back reads as a correction. */}
@@ -80,7 +125,9 @@ export default function QuizResults({ asked, answers, cardFor, onAgain, onExit }
                     </p>
                   )}
 
-                  <p className="quiz-explanation">{prepared.question.explanation}</p>
+                  <p className="quiz-explanation">
+                    {prepared.question.explanation}
+                  </p>
                   {card && (
                     <p className="muted small">
                       From the card: {card.front} — {card.back}
@@ -94,8 +141,8 @@ export default function QuizResults({ asked, answers, cardFor, onAgain, onExit }
       )}
 
       <div className="form-actions">
-        <button className="ghost-btn" onClick={onExit}>
-          Back to library
+        <button className="ghost-btn" onClick={() => onManageExit(deckId)}>
+          Back to deck manager
         </button>
         <button className="primary-btn" onClick={onAgain}>
           Test again

@@ -1,6 +1,7 @@
 import { Suspense } from 'react';
 import { Outlet, useLocation, useNavigate } from 'react-router-dom';
 import RouteFallback from './components/RouteFallback';
+import ThemeToggle from './components/ui/ThemeToggle';
 
 /**
  * The frame every screen sits in: the masthead, and the routed slot below it.
@@ -18,23 +19,24 @@ export default function App() {
       <header className="top-bar">
         <button className="brand" onClick={() => navigate('/')}>
           <span className="brand-mark" aria-hidden="true">
-            <svg viewBox="0 0 40 40" width="28" height="28">
-              <line x1="10" y1="8" x2="10" y2="32" />
-              <line x1="16" y1="8" x2="16" y2="32" />
-              <line x1="22" y1="8" x2="22" y2="32" />
-              <line x1="28" y1="8" x2="28" y2="32" />
-              <line x1="7" y1="28" x2="31" y2="10" />
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+              <rect x="4" y="7" width="14" height="10" rx="2" />
+              <path d="M8 7V5.5A1.5 1.5 0 0 1 9.5 4h9A1.5 1.5 0 0 1 20 5.5v9a1.5 1.5 0 0 1-1.5 1.5H17" />
             </svg>
           </span>
-          <span className="brand-text">
-            Flashcard <em>Forge</em>
-          </span>
+          <span className="brand-text">Flashcard Forge</span>
         </button>
-        {!atLibrary && (
-          <button className="ghost-btn" onClick={() => navigate('/')}>
-            ← Back to library
-          </button>
-        )}
+        <div className="top-bar-actions">
+          {!atLibrary && (
+            <button className="ghost-btn" onClick={() => navigate('/')}>
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M15 6l-6 6 6 6" />
+              </svg>
+              Back to library
+            </button>
+          )}
+          <ThemeToggle />
+        </div>
       </header>
 
       <main className="stage">

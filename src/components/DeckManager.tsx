@@ -16,7 +16,6 @@ import ErrorNotice from "./ui/ErrorNotice";
 interface Props {
   /** The deck to manage. Everything on screen is read from it on mount. */
   deckId: string;
-  onExit: () => void;
   onStudy: (deckId: string) => void;
   onTest: (deckId: string) => void;
   /**
@@ -36,7 +35,6 @@ interface Props {
  */
 export default function DeckManager({
   deckId,
-  onExit,
   onStudy,
   onTest,
   onDeckDeleted,
@@ -238,9 +236,6 @@ export default function DeckManager({
           >
             Test this deck
           </button>
-          <button className="ghost-btn" onClick={onExit}>
-            Back to library
-          </button>
         </div>
       </div>
 
@@ -263,7 +258,25 @@ export default function DeckManager({
             disabled={cards.length === 0}
             title="Copy the deck as delimited text"
           >
-            {copied ? "Copied ✓" : "Copy"}
+            {copied ? (
+              <>
+                <svg
+                  width="13"
+                  height="13"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                >
+                  <path d="M20 6 9 17l-5-5" />
+                </svg>
+                Copied
+              </>
+            ) : (
+              "Copy"
+            )}
           </button>
         </div>
       </div>
@@ -313,7 +326,17 @@ export default function DeckManager({
                 title="Delete card"
                 onClick={() => handleDelete(card.id)}
               >
-                ✕
+                <svg
+                  width="13"
+                  height="13"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                  strokeLinecap="round"
+                >
+                  <path d="M18 6 6 18M6 6l12 12" />
+                </svg>
               </button>
             </li>
           ))}
