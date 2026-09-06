@@ -193,7 +193,9 @@ ordinary batch still generates and bills only a couple of thousand tokens.
 **Vignette-audit — why 1000.** The audit call returns one verdict object per question in
 the batch — an id and a boolean — never prose, so it costs a small fraction of what
 generating the batch did. This was a starting estimate, not a measured one, when it
-shipped; see the 2026-09-05 entry below for whether a real run needed more.
+shipped; `stopReason` is now logged for this call (see the 2026-09-05 entry below), so a
+future real run can say whether 1000 was ever hit — this pass didn't observe that either
+way.
 
 ---
 
@@ -340,10 +342,15 @@ latency, not request count, is already what keeps a run under the hosted 20/min 
 so one small audit call per batch doesn't need the extra complexity.
 
 **Resolved 2026-09-05:** run for real as part of the prompt-quality-refinements plan.
-Offline parsing, selection, and compilation checks (Task 4 of that plan) passed —
-`tsc -b` is clean, and the quiz, vignette, coverage, and neighbour-context test tools
-all passed against the golden decks (94/94 cards got a question across six decks, 0
-batches truncated). The payload test tool could not be run — it requires a `PDF`
+Parsing, selection, and compilation checks (Task 4 of that plan) passed — `tsc -b` is
+clean, and `tools/test-coverage.mjs` made real generation calls against the golden
+decks (`tools/fixtures/golden/*.json`, via `tools/fixtures/pages/*.html`), landing at
+94/94 cards getting a question across six decks with 0 batches truncated.
+`tools/test-quiz.mjs`, `tools/test-vignette.mjs`, and `tools/test-neighbour-context.mjs`
+each made their own real generation pass against their own fixtures
+(`tools/fixtures/quiz-cards.json`, `tools/fixtures/pance-cards.json`, and
+`tools/fixtures/react-effects-cards.json` respectively), all passing. The payload test
+tool could not be run — it requires a `PDF`
 fixture this repo deliberately doesn't check in — but that gap doesn't weigh against
 confidence here, since the only change to that file's path was the
 `CARD_SYSTEM_PROMPT` string, not any parsing function. The audit pass's reject rate
@@ -415,7 +422,14 @@ at 16/16 cards answered, 8/8 batches total, 0 truncated. A 50% first-pass batch 
 rate is high enough to record plainly rather than wave past — per the calibration note
 above, a high rate points at the audit prompt itself being too strict — but this plan
 does not attempt to tune that prompt; it only makes the rate visible for the first
-time. Separately, `tools/test-neighbour-context.mjs` — which measures
+time. That said, the logging added in this pass didn't yet capture `stopReason` for
+the audit call, so this run cannot say whether any of the flagged batches were actually
+a truncated or malformed audit reply rather than a genuine "unsafe" verdict on every
+question — the "Model response ceilings" section's open question about whether the
+audit call ever needs more than 1000 tokens is still unanswered by this run. The
+audit's logging now reports `stopReason` and a separate count of ids the reply never
+covered, so the next real run is what would actually answer it. Separately,
+`tools/test-neighbour-context.mjs` — which measures
 double-correctness (a neighbour's answer also being correct for a
 differently-worded stem), not distractor plausibility — showed no regression from
 this plan's changes: a real before/after comparison (before: the pre-change commit in

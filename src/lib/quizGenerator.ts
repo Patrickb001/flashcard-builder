@@ -364,15 +364,23 @@ async function auditVignettes(
     // Wrapped in an array for the same reason the generation call is: the
     // endpoint's contract is a non-empty list of things for the model, even
     // when — as here — there is only one thing to send.
-    const { text } = await callModel('vignette-audit', [{ context, questions }], settings, signal);
+    const { text, stopReason } = await callModel('vignette-audit', [{ context, questions }], settings, signal);
     const verdicts = parseAuditResponse(text);
     const kept = parsed.filter((item) => verdicts.get(item.id) === true);
     const flagged = parsed.length - kept.length;
+    const missingVerdict = parsed.filter((item) => !verdicts.has(item.id)).length;
     // The reject rate itself is what docs/tuning-notes.md's vignette-audit
     // entry needs measured: too high means the audit prompt is too strict,
-    // never rejecting even a planted bad distractor means it is too lax.
+    // never rejecting even a planted bad distractor means it is too lax. A
+    // truncated or malformed audit reply looks identical to a flagged
+    // question here unless missingVerdict/stopReason are reported alongside
+    // it — a batch that hit the ceiling is a transport problem, not a
+    // judgment about the questions.
     if (flagged > 0) {
-      console.warn(`Vignette audit flagged ${flagged} of ${parsed.length} question(s); dropped for retry.`);
+      console.warn(
+        `Vignette audit flagged ${flagged} of ${parsed.length} question(s) ` +
+          `(${missingVerdict} had no verdict in the reply; stopReason=${stopReason}); dropped for retry.`
+      );
     }
     return kept;
   } catch (err) {

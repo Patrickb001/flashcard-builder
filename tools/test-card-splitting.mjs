@@ -78,7 +78,7 @@ const sections = [
   },
 ];
 
-console.log('Drafting 3 synthetic sections\n');
+console.log(`Drafting ${sections.length} synthetic sections\n`);
 
 const result = await generateCandidatesWithAi(sections, { mode: 'byok', apiKey: key });
 
@@ -112,7 +112,7 @@ check(
 );
 check(
   'the nine-item list did not land on a single card',
-  byLabel('Section 3').length !== 1,
+  byLabel('Section 3').length >= 2,
   `got ${byLabel('Section 3').length} card(s) for 9 items`
 );
 if (result.firstError) console.log(`\n  !! ${result.firstError}`);
@@ -123,5 +123,5 @@ console.log(
     '  should be split into smaller groupings rather than one long list-back card.'
 );
 
-console.log(`\n${failures === 0 ? 'All checks passed.' : `${failures} CHECK(S) FAILED.`}`);
+console.log(`\n${failures === 0 ? 'All checks passed.' : `${failures} check(s) failed.`}`);
 process.exit(failures === 0 ? 0 : 1);
