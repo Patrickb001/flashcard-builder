@@ -1,14 +1,15 @@
-import { useDeckQuiz } from './quiz/useDeckQuiz';
-import QuizGenerating from './quiz/QuizGenerating';
-import QuizSetup from './quiz/QuizSetup';
-import QuizRunner from './quiz/QuizRunner';
-import QuizResults from './quiz/QuizResults';
-import DeckGate from './ui/DeckGate';
+import { useDeckQuiz } from "./quiz/useDeckQuiz";
+import QuizGenerating from "./quiz/QuizGenerating";
+import QuizSetup from "./quiz/QuizSetup";
+import QuizRunner from "./quiz/QuizRunner";
+import QuizResults from "./quiz/QuizResults";
+import DeckGate from "./ui/DeckGate";
 
 interface Props {
   /** The deck to test. Everything else is derived from it by useDeckQuiz. */
   deckId: string;
   onExit: () => void;
+  onManageExit: (id: string) => void;
 }
 
 /**
@@ -23,13 +24,13 @@ interface Props {
  * nothing and works offline: nothing below the setup screen makes a network
  * request.
  */
-export default function TestMode({ deckId, onExit }: Props) {
+export default function TestMode({ deckId, onExit, onManageExit }: Props) {
   const quiz = useDeckQuiz(deckId);
 
-  if (quiz.phase === 'loading' || !quiz.deck) {
+  if (quiz.phase === "loading" || !quiz.deck) {
     return (
       <DeckGate
-        loading={quiz.phase === 'loading'}
+        loading={quiz.phase === "loading"}
         // Only a failure notice counts as a read error here; the same field also
         // carries ordinary generation outcomes, which must not be reported as
         // the deck being unopenable.
@@ -39,7 +40,7 @@ export default function TestMode({ deckId, onExit }: Props) {
     );
   }
 
-  if (quiz.phase === 'generating') {
+  if (quiz.phase === "generating") {
     return (
       <QuizGenerating
         deckName={quiz.deck.name}
@@ -50,7 +51,7 @@ export default function TestMode({ deckId, onExit }: Props) {
     );
   }
 
-  if (quiz.phase === 'setup') {
+  if (quiz.phase === "setup") {
     return (
       <QuizSetup
         deck={quiz.deck}
@@ -66,15 +67,22 @@ export default function TestMode({ deckId, onExit }: Props) {
         count={quiz.count}
         onCountChange={quiz.setCount}
         onWriteMissing={() =>
-          quiz.generate(quiz.unwritten, quiz.cards, quiz.deck!.name, quiz.ai, quiz.style)
+          quiz.generate(
+            quiz.unwritten,
+            quiz.cards,
+            quiz.deck!.name,
+            quiz.ai,
+            quiz.style,
+          )
         }
         onStart={quiz.startTest}
         onExit={onExit}
+        onManageExit={onManageExit}
       />
     );
   }
 
-  if (quiz.phase === 'taking') {
+  if (quiz.phase === "taking") {
     return (
       <QuizRunner
         asked={quiz.asked}
@@ -93,7 +101,7 @@ export default function TestMode({ deckId, onExit }: Props) {
       asked={quiz.asked}
       answers={quiz.answers}
       cardFor={quiz.cardFor}
-      onAgain={() => quiz.setPhase('setup')}
+      onAgain={() => quiz.setPhase("setup")}
       onExit={onExit}
     />
   );

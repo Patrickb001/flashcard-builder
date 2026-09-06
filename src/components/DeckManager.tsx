@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import type { Flashcard } from "../types";
 import { addCard, deleteCard, renameDeck, updateCard } from "../db/db";
 import { confirmAndDeleteDeck } from "../lib/deckActions";
+import { deckNameForUrl } from "../lib/pageSource";
 import {
   downloadTextFile,
   exportFileName,
@@ -67,7 +68,9 @@ export default function DeckManager({
     value: string,
   ) => {
     setCards((prev) =>
-      prev.map((existing) => (existing.id === id ? { ...existing, [field]: value } : existing)),
+      prev.map((existing) =>
+        existing.id === id ? { ...existing, [field]: value } : existing,
+      ),
     );
   };
 
@@ -88,7 +91,9 @@ export default function DeckManager({
     // instead of wherever its UUID happened to fall.
     const lastOrder = cards.reduce(
       (max, existing) =>
-        typeof existing.order === "number" && existing.order > max ? existing.order : max,
+        typeof existing.order === "number" && existing.order > max
+          ? existing.order
+          : max,
       -1,
     );
     const newCard: Flashcard = {
@@ -201,6 +206,19 @@ export default function DeckManager({
             {cards.length} card{cards.length === 1 ? "" : "s"} · from{" "}
             {deck.sourceFileName}
           </p>
+          {deck.sourceUrls && deck.sourceUrls.length > 0 && (
+            <p className="source-links">
+              Source{deck.sourceUrls.length === 1 ? "" : "s"}:{" "}
+              {deck.sourceUrls.map((url, i) => (
+                <span key={url}>
+                  {i > 0 && ", "}
+                  <a href={url} target="_blank" rel="noopener noreferrer">
+                    {deckNameForUrl(url)}
+                  </a>
+                </span>
+              ))}
+            </p>
+          )}
         </div>
         <div className="manager-actions">
           <button
@@ -264,9 +282,7 @@ export default function DeckManager({
                   onChange={(e) =>
                     handleFieldChange(card.id, "front", e.target.value)
                   }
-                  onBlur={() =>
-                    persistCard(card)
-                  }
+                  onBlur={() => persistCard(card)}
                   placeholder="Front"
                 />
                 <textarea
@@ -276,9 +292,7 @@ export default function DeckManager({
                   onChange={(e) =>
                     handleFieldChange(card.id, "back", e.target.value)
                   }
-                  onBlur={() =>
-                    persistCard(card)
-                  }
+                  onBlur={() => persistCard(card)}
                   placeholder="Back"
                 />
                 {/* No onRemove: the text is editable here, but a snippet is

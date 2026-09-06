@@ -23,7 +23,9 @@ interface Props {
     sourceType: SourceType,
     ai: AiSettings,
     /** Shown on the review screen when some sources were skipped. */
-    notice?: string
+    notice?: string,
+    /** The address(es) read, for a deck built from one or more URLs. */
+    sourceUrls?: string[]
   ) => void;
   onCancel: () => void;
 }
@@ -124,7 +126,7 @@ export default function Uploader({ onParsed, onCancel }: Props) {
     setProgress({ done: 0, total: Math.min(urls.length, MAX_PAGES), url: urls[0] });
 
     try {
-      const { sections, name, failures, pages } = await fetchPagesSections(urls, setProgress);
+      const { sections, name, failures, pages, sourceUrls } = await fetchPagesSections(urls, setProgress);
 
       if (sections.length === 0) {
         setProgress(null);
@@ -147,7 +149,8 @@ export default function Uploader({ onParsed, onCancel }: Props) {
         name,
         'html',
         ai,
-        failures.length > 0 ? describeFailures(failures, pages) : undefined
+        failures.length > 0 ? describeFailures(failures, pages) : undefined,
+        sourceUrls
       );
     } catch (err) {
       setProgress(null);

@@ -25,6 +25,8 @@ interface Props {
   ai: AiSettings;
   /** Set when some sources were skipped, e.g. a page that could not be read. */
   notice?: string;
+  /** The address(es) read, for a deck built from one or more URLs. */
+  sourceUrls?: string[];
   /** Fired with the new deck's id once it is safely in the database. */
   onSaved: (deckId: string) => void;
   onCancel: () => void;
@@ -79,6 +81,7 @@ export default function CandidateReview({
   sourceType,
   ai,
   notice,
+  sourceUrls,
   onSaved,
   onCancel,
 }: Props) {
@@ -231,6 +234,7 @@ export default function CandidateReview({
       name: deckName.trim() || 'Untitled deck',
       sourceFileName: fileName,
       sourceType,
+      sourceUrls,
       createdAt: now,
       cardCount: toSave.length,
     };

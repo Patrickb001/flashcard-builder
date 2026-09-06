@@ -22,6 +22,7 @@ export default function ReviewRoute() {
       sourceType={draft.sourceType}
       ai={draft.ai}
       notice={draft.notice}
+      sourceUrls={draft.sourceUrls}
       // Replace, so Back from the new deck does not return to a review screen
       // whose cards have already been saved.
       onSaved={(deckId) => navigate(`/deck/${deckId}`, { replace: true })}

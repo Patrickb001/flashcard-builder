@@ -482,6 +482,10 @@ p {
 
 /* ---------- Review / manager shared list ---------- */
 
+.source-links {
+  font-size: 0.65rem;
+}
+
 .deck-name-row {
   display: flex;
   flex-direction: column;
@@ -893,7 +897,6 @@ textarea {
   flex-wrap: wrap;
 }
 
-
 /* ---------- AI drafting ---------- */
 
 .ai-section {
@@ -1231,7 +1234,6 @@ textarea {
   color: var(--text-faint);
 }
 
-
 /* ---------- Test mode ---------- */
 
 .quiz {
@@ -1522,7 +1524,6 @@ textarea {
 .quiz .centered {
   text-align: center;
 }
-
 
 /* ---------- Responsive ---------- */
 

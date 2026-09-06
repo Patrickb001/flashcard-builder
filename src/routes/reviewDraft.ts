@@ -20,6 +20,8 @@ export interface ReviewDraft {
   ai: AiSettings;
   /** Set when some sources were skipped, e.g. a page that could not be read. */
   notice?: string;
+  /** The address(es) read, for a deck built from one or more URLs. */
+  sourceUrls?: string[];
 }
 
 /** Reads a draft out of history state, or null when there is nothing there. */

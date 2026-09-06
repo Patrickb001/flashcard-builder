@@ -10,6 +10,12 @@ export interface Deck {
   /** The document this came from, shown on the manage screen. */
   sourceFileName: string;
   sourceType: SourceType;
+  /**
+   * The page address(es) a web-sourced deck was built from, in the order they
+   * were read. Absent for a deck built from an uploaded file, and for every
+   * deck saved before this field existed.
+   */
+  sourceUrls?: string[];
   createdAt: number;
   /**
    * Cards in this deck, kept in step by addCard and deleteCard so the library

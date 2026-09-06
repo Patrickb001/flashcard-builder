@@ -46,6 +46,8 @@ export interface MultiPageResult {
   failures: PageFailure[];
   /** How many pages contributed sections. */
   pages: number;
+  /** Addresses that actually contributed sections, in the order they were read. */
+  sourceUrls: string[];
 }
 
 /** "https://18.react.dev/learn/state" -> "18.react.dev/learn/state". */
@@ -234,6 +236,7 @@ export async function fetchPagesSections(
   const wanted = urls.slice(0, MAX_PAGES);
   const sections: DocumentSection[] = [];
   const names: string[] = [];
+  const sourceUrls: string[] = [];
   // Anything over the limit is reported rather than dropped in silence.
   const failures: PageFailure[] = urls.slice(MAX_PAGES).map((url) => ({
     url,
@@ -266,6 +269,7 @@ export async function fetchPagesSections(
       }
 
       names.push(page.name);
+      sourceUrls.push(page.url);
       sections.push(...(wanted.length > 1 ? labelForDeck(page) : page.sections));
     } catch (err) {
       // A missing reader endpoint is a setup problem, not a bad address:
@@ -284,7 +288,7 @@ export async function fetchPagesSections(
         ? names[0]
         : `${shorten(names[0], 40)} + ${names.length - 1} more`;
 
-  return { sections, name, failures, pages: names.length };
+  return { sections, name, failures, pages: names.length, sourceUrls };
 }
 
 /** One line summarising what was skipped, short enough to read at a glance. */

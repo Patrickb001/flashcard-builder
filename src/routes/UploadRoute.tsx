@@ -8,8 +8,8 @@ export default function UploadRoute() {
 
   return (
     <Uploader
-      onParsed={(sections, fileName, sourceType, ai, notice) => {
-        const draft: ReviewDraft = { sections, fileName, sourceType, ai, notice };
+      onParsed={(sections, fileName, sourceType, ai, notice, sourceUrls) => {
+        const draft: ReviewDraft = { sections, fileName, sourceType, ai, notice, sourceUrls };
         navigate('/review', { state: draft });
       }}
       onCancel={() => navigate('/')}
