@@ -29,10 +29,21 @@ const PDF_RENDER_JPEG_QUALITY = 0.82;
  *  simply omitted from the result — see "Non-goals" in
  *  docs/superpowers/specs/2026-09-07-pdf-ocr-support-design.md. */
 const MAX_OCR_PAGES = 24;
+/** Hard cap on a rendered page's longer edge, in pixels — independent of
+ *  PDF_RENDER_SCALE. A PDF whose declared page size is abnormally large
+ *  (e.g. a scanned/photographed PDF whose MediaBox is set to the source
+ *  photo's raw pixel dimensions rather than a real physical page size)
+ *  would otherwise render at many megapixels and produce a JPEG too large
+ *  for MAX_IMAGE_BASE64_CHARS in generateHandler.ts. A normal PDF (Letter,
+ *  A4, etc.) never comes close to this cap, so its render is unaffected. */
+const MAX_RENDER_DIMENSION = 1600;
 
 /** Renders one PDF page to a JPEG, base64-encoded with no `data:` prefix. */
 async function renderPageToJpeg(page: pdfjsLib.PDFPageProxy): Promise<string> {
-  const viewport = page.getViewport({ scale: PDF_RENDER_SCALE });
+  const natural = page.getViewport({ scale: 1 });
+  const longerEdge = Math.max(natural.width, natural.height);
+  const scale = Math.min(PDF_RENDER_SCALE, MAX_RENDER_DIMENSION / longerEdge);
+  const viewport = page.getViewport({ scale });
   const canvas = document.createElement('canvas');
   canvas.width = viewport.width;
   canvas.height = viewport.height;
