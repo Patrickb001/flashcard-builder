@@ -1,10 +1,11 @@
 import { useEffect, useState } from 'react';
 import type { CandidateCard, Deck, Flashcard, SourceType } from '../types';
-import type { DocumentSection } from '../lib/documentModel';
+import type { DocumentSection, OcrPage } from '../lib/documentModel';
 import { generateCandidates } from '../lib/flashcardGenerator';
 import type { AiSettings } from '../lib/aiGenerator';
 import type { BatchProgress } from '../lib/batchRunner';
 import { generateCandidatesWithAi } from '../lib/aiGenerator';
+import { transcribePagesWithAi } from '../lib/ocrGenerator';
 import { saveDeckWithCards } from '../db/db';
 import CardAttachments from './ui/CardAttachments';
 import DraftingBanner from './ui/DraftingBanner';
@@ -27,6 +28,12 @@ interface Props {
   notice?: string;
   /** The address(es) read, for a deck built from one or more URLs. */
   sourceUrls?: string[];
+  /**
+   * Scanned/photographed pages a PDF upload found no text on. Only entries
+   * with `image` set (ocrEnabled was true when the file was parsed) are ever
+   * transcribed; undefined or empty for every non-PDF source.
+   */
+  ocrPages?: OcrPage[];
   /** Fired with the new deck's id once it is safely in the database. */
   onSaved: (deckId: string) => void;
   onCancel: () => void;
@@ -82,6 +89,7 @@ export default function CandidateReview({
   ai,
   notice,
   sourceUrls,
+  ocrPages,
   onSaved,
   onCancel,
 }: Props) {
@@ -99,6 +107,11 @@ export default function CandidateReview({
   const [progress, setProgress] = useState<BatchProgress | null>(null);
   const [aiNotice, setAiNotice] = useState<string | null>(null);
   const [aiFailed, setAiFailed] = useState(false);
+  // True only while scanned pages are being transcribed — a phase that runs
+  // before card drafting, and reuses the same banner/progress components.
+  const [ocrRunning, setOcrRunning] = useState(false);
+  const [ocrProgress, setOcrProgress] = useState<BatchProgress | null>(null);
+  const [ocrNotice, setOcrNotice] = useState<string | null>(null);
   // Held back rather than merged into `candidates` until the user asks for
   // them via the button below the banner.
   const [fallbackCards, setFallbackCards] = useState<CandidateCard[]>([]);
@@ -112,9 +125,36 @@ export default function CandidateReview({
     const controller = new AbortController();
 
     (async () => {
+      // Reassigned once OCR resolves (below); the emergency fallback in catch
+      // reads whatever this holds, so it is declared outside the try block
+      // rather than as a `const` inside it.
+      let workingSections = sections;
       try {
+        // Scanned pages, if any, are transcribed first. From card drafting's
+        // point of view below, an OCR'd page becomes indistinguishable from
+        // any other section — it can get real AI-drafted cards, and a
+        // rule-based fallback too if its own card drafting specifically fails.
+        const toOcr = (ocrPages ?? []).filter((p) => p.image);
+        if (toOcr.length > 0) {
+          setOcrRunning(true);
+          const ocrResult = await transcribePagesWithAi(toOcr, ai, {
+            onProgress: (batch) => !cancelled && setOcrProgress(batch),
+            signal: controller.signal,
+          });
+          if (cancelled || ocrResult.aborted) return;
+          setOcrRunning(false);
+          workingSections = [...sections, ...ocrResult.sections].sort(
+            (a, b) => (a.pageNum ?? 0) - (b.pageNum ?? 0)
+          );
+          if (ocrResult.failedPages.length > 0) {
+            setOcrNotice(
+              `${ocrResult.failedPages.length} of ${toOcr.length} scanned page${toOcr.length === 1 ? '' : 's'} could not be read.`
+            );
+          }
+        }
+
         const { cards, fallbackCards: fallback, failedSections, truncatedBatches, firstError, aborted } =
-          await generateCandidatesWithAi(sections, ai, {
+          await generateCandidatesWithAi(workingSections, ai, {
             onProgress: (batch) => !cancelled && setProgress(batch),
             signal: controller.signal,
           });
@@ -144,7 +184,7 @@ export default function CandidateReview({
 
         if (failed === 0) {
           setAiNotice(null);
-        } else if (failed === sections.length) {
+        } else if (failed === workingSections.length) {
           // Nothing here came from the model. This must be unmissable: the
           // cards look normal and the count alone will not reveal that the
           // selected feature never ran.
@@ -155,25 +195,29 @@ export default function CandidateReview({
         } else {
           setAiFailed(false);
           setAiNotice(
-            `${failed} of ${sections.length} ${unit}${sections.length === 1 ? '' : 's'} fell back to rule-based drafting (${named}). ${why}`.trim()
+            `${failed} of ${workingSections.length} ${unit}${workingSections.length === 1 ? '' : 's'} fell back to rule-based drafting (${named}). ${why}`.trim()
           );
         }
       } catch (err) {
         if (!cancelled) {
           setAiFailed(true);
-          // A hard failure means generateCandidatesWithAi never returned at
-          // all, so there is no fallbackCards to read from it — computed
-          // fresh here for every section, or the button below would have
+          // A hard failure means generateCandidatesWithAi (or the OCR step
+          // before it) never returned at all, so there is no fallbackCards to
+          // read from it — computed fresh here for whatever sections were
+          // known at the point of failure, or the button below would have
           // nothing to offer and the user would be left with an empty list.
           setFallbackCards(
-            generateCandidates(sections).map((card) => ({ ...card, origin: 'rule-based' as const }))
+            generateCandidates(workingSections).map((card) => ({ ...card, origin: 'rule-based' as const }))
           );
           setAiNotice(
             `AI drafting failed. ${err instanceof Error ? err.message : ''}`.trim()
           );
         }
       } finally {
-        if (!cancelled) setDrafting(false);
+        if (!cancelled) {
+          setDrafting(false);
+          setOcrRunning(false);
+        }
       }
     })();
 
@@ -181,7 +225,7 @@ export default function CandidateReview({
       cancelled = true;
       controller.abort();
     };
-  }, [sections, ai, sourceType]);
+  }, [sections, ocrPages, ai, sourceType]);
   const [deckName, setDeckName] = useState(defaultDeckName(fileName));
   const [saving, setSaving] = useState(false);
 
@@ -280,17 +324,31 @@ export default function CandidateReview({
       <p className="eyebrow">Step 2 of 2</p>
       <h1>Check the draft deck</h1>
       <p className="muted">
-        Found {sections.length} {UNIT_NOUN[sourceType]}
-        {sections.length === 1 ? '' : 's'} and drafted {candidates.length} candidate card
+        Found {sections.length + (ocrPages?.length ?? 0)} {UNIT_NOUN[sourceType]}
+        {sections.length + (ocrPages?.length ?? 0) === 1 ? '' : 's'} and drafted {candidates.length} candidate card
         {candidates.length === 1 ? '' : 's'}. Uncheck anything you don't want, edit the wording, or add
         your own before saving.
       </p>
 
-      {drafting && (
+      {ocrRunning && (
+        <>
+          <DraftingBanner activity="reading scanned pages" progress={ocrProgress} />
+          <ProgressBar fraction={ocrProgress ? ocrProgress.done / ocrProgress.total : 0} />
+        </>
+      )}
+
+      {drafting && !ocrRunning && (
         <>
           <DraftingBanner activity="drafting cards" progress={progress} />
           <ProgressBar fraction={progress ? progress.done / progress.total : 0} />
         </>
+      )}
+
+      {ocrNotice && (
+        <div className="ai-notice partial" role="status">
+          <strong>Some scanned pages could not be read</strong>
+          <span>{ocrNotice}</span>
+        </div>
       )}
 
       {notice && (
@@ -312,7 +370,7 @@ export default function CandidateReview({
         </div>
       )}
 
-      {drafting && candidates.length === 0 && fallbackCards.length === 0 && (
+      {drafting && !ocrRunning && candidates.length === 0 && fallbackCards.length === 0 && (
         <p className="muted">Waiting for the first cards…</p>
       )}
 
