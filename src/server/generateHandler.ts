@@ -1,5 +1,6 @@
 import { CARD_SYSTEM_PROMPT } from '../lib/cardPrompt';
 import { QUIZ_SYSTEM_PROMPT, VIGNETTE_SYSTEM_PROMPT, VIGNETTE_AUDIT_SYSTEM_PROMPT } from '../lib/quizPrompt';
+import { OCR_SYSTEM_PROMPT } from '../lib/ocrPrompt';
 import type { HandlerResult } from './endpoint';
 
 /**
@@ -31,6 +32,7 @@ const MAX_TOKENS: Record<string, number> = {
   quiz: 8000,
   vignette: 16000,
   'vignette-audit': 1000,
+  ocr: 16000,
 };
 
 /**
@@ -46,10 +48,25 @@ const PROMPTS = new Map<string, string>([
   ['quiz', QUIZ_SYSTEM_PROMPT],
   ['vignette', VIGNETTE_SYSTEM_PROMPT],
   ['vignette-audit', VIGNETTE_AUDIT_SYSTEM_PROMPT],
+  ['ocr', OCR_SYSTEM_PROMPT],
 ]);
 
 /** Anything larger than this is refused before it reaches the model. */
 const MAX_REQUEST_CHARS = 120_000;
+
+/**
+ * Guardrails for the OCR task's images, independent of MAX_REQUEST_CHARS
+ * above (which only ever measured text). At the cap, MAX_OCR_IMAGES *
+ * MAX_IMAGE_BASE64_CHARS = 4 * 1,400,000 = 5,600,000 chars ~= 5.6MB, which
+ * stays comfortably under Netlify's ~6MB synchronous function payload limit.
+ * Keep that product under ~6,000,000 if either value changes.
+ *
+ * Must stay in step with OCR_BATCH_SIZE in src/lib/ocrGenerator.ts, which
+ * must not exceed MAX_OCR_IMAGES — otherwise a batch is rejected here after
+ * pages were already rendered client-side.
+ */
+const MAX_OCR_IMAGES = 4;
+const MAX_IMAGE_BASE64_CHARS = 1_400_000;
 
 export interface GenerateOptions {
   apiKey: string | undefined;
@@ -85,7 +102,11 @@ export async function handleGenerate(
     };
   }
 
-  const { sections, task } = (body ?? {}) as { sections?: unknown; task?: unknown };
+  const { sections, task, images } = (body ?? {}) as {
+    sections?: unknown;
+    task?: unknown;
+    images?: unknown;
+  };
 
   if (!Array.isArray(sections) || sections.length === 0) {
     return { status: 400, body: { error: 'Expected a non-empty "sections" array.' } };
@@ -102,6 +123,39 @@ export async function handleGenerate(
   if (payload.length > MAX_REQUEST_CHARS) {
     return { status: 413, body: { error: 'Payload too large.' } };
   }
+
+  let imageList: string[] | undefined;
+  if (images !== undefined) {
+    const valid =
+      Array.isArray(images) &&
+      images.length > 0 &&
+      images.length <= MAX_OCR_IMAGES &&
+      images.every(
+        (img) => typeof img === 'string' && img.length > 0 && img.length <= MAX_IMAGE_BASE64_CHARS
+      );
+    if (!valid) {
+      return { status: 413, body: { error: 'Invalid or oversized "images".' } };
+    }
+    imageList = images as string[];
+  }
+
+  // Multimodal only when images passed validation above — every other task's
+  // request body is unchanged. Real pages (src/lib/pdfParser.ts) are always
+  // rendered to JPEG, so the media type is fixed rather than derived from
+  // the bytes.
+  const content = imageList
+    ? [
+        ...imageList.map((data) => ({
+          type: 'image',
+          source: {
+            type: 'base64',
+            media_type: 'image/jpeg',
+            data,
+          },
+        })),
+        { type: 'text', text: payload },
+      ]
+    : payload;
 
   try {
     const upstream = await fetch('https://api.anthropic.com/v1/messages', {
@@ -120,7 +174,7 @@ export async function handleGenerate(
         // cache. Drafting a document is many requests behind one long prompt,
         // which is exactly the shape caching pays for.
         system: [{ type: 'text', text: systemPrompt, cache_control: { type: 'ephemeral' } }],
-        messages: [{ role: 'user', content: payload }],
+        messages: [{ role: 'user', content }],
       }),
     });
 

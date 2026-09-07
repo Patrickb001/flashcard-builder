@@ -1,6 +1,7 @@
 import { Navigate, useLocation, useNavigate } from 'react-router-dom';
 import CandidateReview from '../components/CandidateReview';
 import { draftFromState } from './reviewDraft';
+import { readOcrPages } from '../lib/ocrPageHandoff';
 
 /**
  * Reviewing the drafted cards before they become a deck.
@@ -23,6 +24,7 @@ export default function ReviewRoute() {
       ai={draft.ai}
       notice={draft.notice}
       sourceUrls={draft.sourceUrls}
+      ocrPages={readOcrPages()}
       // Replace, so Back from the new deck does not return to a review screen
       // whose cards have already been saved.
       onSaved={(deckId) => navigate(`/deck/${deckId}`, { replace: true })}

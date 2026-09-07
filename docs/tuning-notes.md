@@ -170,6 +170,7 @@ thread immediately after drafting, while someone waits to see their cards.
 | `quiz` | 8000 |
 | `vignette` | 16000 |
 | `vignette-audit` | 1000 |
+| `ocr` | 16000 |
 
 **Quiz — why not 4000.** A quiz question costs about five strings where a card costs
 two, so a quiz batch sits far closer to the ceiling. At 4000 a full batch came back
@@ -196,6 +197,12 @@ generating the batch did. This was a starting estimate, not a measured one, when
 shipped; `stopReason` is now logged for this call (see the 2026-09-05 entry below), so a
 future real run can say whether 1000 was ever hit — this pass didn't observe that either
 way.
+
+**OCR — why 16000.** A transcribed scanned page can be as text-dense as a card-drafting
+batch — the same reasoning as `cards`' ceiling — so it starts at the same value rather
+than a fresh estimate. This was not measured against a real run when it shipped; see the
+2026-09-07 entry below for whether `docs/pdf-test/EXAM 1 STUDY GUIDE.pdf`'s 16 pages ever
+approached it.
 
 ---
 
@@ -442,3 +449,56 @@ neighbouring cards").
 **Still open:** temperature has still never been set on any of these calls; if it is
 tried, score it by the vignette audit's flag count (now logged) rather than by eye
 alone.
+
+---
+
+## 2026-09-07 — PDF OCR support
+
+**Why this exists.** `docs/pdf-test/EXAM 1 STUDY GUIDE.pdf` — 16 pages, ~107MB, every
+page a full-page scan with zero embedded text — could not produce a single flashcard
+before this: `pdfParser.ts` either dropped a zero-text page silently (a mixed PDF) or
+failed the whole upload (a fully-scanned one). Scanned pages are now rendered to JPEGs
+and transcribed through Claude's vision (a new `ocr` AI task, reusing the existing
+hosted/BYOK transport), merged back into the normal `DocumentSection` pipeline, and
+drafted into cards exactly like any other page. See
+`docs/superpowers/specs/2026-09-07-pdf-ocr-support-design.md` for the full design.
+
+**Verification.** `tsc -b` and `npm run build` both passed. `tools/test-ocr.mjs`'s three
+parts (response parsing, multimodal transport, full batch/retry round trip) all passed
+for real — an `ANTHROPIC_API_KEY` was available, so none were skipped. The end-to-end
+manual pass against the real test PDF (Task 7, Step 9) produced real drafted cards in
+the correct page order, but only on the second attempt. The first attempt reached the
+review screen with the "reading scanned pages" OCR banner and finished drafting, but 2
+of the 16 pages failed OCR with real `413 Invalid or oversized "images"` errors from the
+server — "Found 16 pages and drafted 283 candidate cards," with an AI notice reading "2
+of 16 scanned pages could not be read." Root cause: this PDF's declared page MediaBox is
+set to the source photo's raw pixel dimensions rather than a real physical page size
+(one page declared 2232×3506 "points"), so the fixed `PDF_RENDER_SCALE = 1.5` multiplier
+produced 12–17.6 megapixel canvas renders, well past the `MAX_IMAGE_BASE64_CHARS`
+guardrail. Fixed in commit `b58aa50` (reviewed clean) by adding
+`MAX_RENDER_DIMENSION = 1600` (pixels) to `src/lib/pdfParser.ts` and changing
+`renderPageToJpeg` to compute
+`scale = Math.min(PDF_RENDER_SCALE, MAX_RENDER_DIMENSION / longerEdgeInPoints)` instead
+of always using `PDF_RENDER_SCALE` directly — bounding the render to at most 1600px on
+the longer edge for any PDF with an abnormally large declared page size, while leaving
+normal-sized PDFs (Letter, A4, etc.) unaffected (a 792pt Letter page: `1600/792 ≈ 2.02`,
+so `min(1.5, 2.02) = 1.5`, unchanged). On the second attempt, all 16 pages transcribed
+successfully — "Found 16 pages and drafted 310 candidate cards," zero failed pages, zero
+AI notice, zero browser console errors, cards appearing in correct page order (Page 1's
+cards before Page 2's, and so on). The mixed-PDF manual pass (Task 8, Step 2) was
+skipped — no mixed-PDF fixture (some real-text pages plus some scanned pages in one
+file) was available in this worktree.
+
+**Open, not yet done:** the `ocr` ceiling (16000, borrowed from `cards`) still hasn't
+been measured against a real overrun — `stopReason` never came back `max_tokens` for the
+`ocr` task in this run, whether in `tools/test-ocr.mjs`'s real pass or the end-to-end
+manual pass, so that number is still unmeasured against real overrun, exactly as
+anticipated when it shipped; if a future run does hit it, that's the signal to raise it,
+the same way `cards`' own ceiling was raised after a real overrun (see "Cards — why not
+4000" above). `PDF_RENDER_SCALE` (1.5), `PDF_RENDER_JPEG_QUALITY` (0.82), and the new
+`MAX_RENDER_DIMENSION` (1600) are no longer purely-untested guesses: they were exercised
+against a real, unusually large-format scanned document and found to need the dimension
+cap, which is now in place and confirmed working end to end. The one thing this run did
+not confirm is the mixed-PDF path — real-text pages and scanned pages together in one
+file — since no fixture was available; that manual pass was skipped rather than asserted
+as passing.
