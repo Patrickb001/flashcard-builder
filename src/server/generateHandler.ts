@@ -135,16 +135,15 @@ export async function handleGenerate(
 
   // Multimodal only when images passed validation above — every other task's
   // request body is unchanged. Real pages (src/lib/pdfParser.ts) are always
-  // JPEG, but this route must stay in step with the "byok" path in
-  // src/lib/aiTransport.ts, which also sniffs the media type rather than
-  // assuming JPEG — see the comment on imageMediaType there.
+  // rendered to JPEG, so the media type is fixed rather than derived from
+  // the bytes.
   const content = imageList
     ? [
         ...imageList.map((data) => ({
           type: 'image',
           source: {
             type: 'base64',
-            media_type: data.startsWith('iVBORw0KGgo') ? 'image/png' : 'image/jpeg',
+            media_type: 'image/jpeg',
             data,
           },
         })),

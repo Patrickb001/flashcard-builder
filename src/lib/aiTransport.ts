@@ -190,19 +190,6 @@ async function callHosted(
   };
 }
 
-/**
- * Real pages (src/lib/pdfParser.ts) are always rendered to JPEG, but the
- * OCR transport smoke test (tools/test-ocr.mjs) sends a hand-built PNG —
- * there is no way to render a PDF page to an image from plain Node, so it
- * stands in with a fixture that is cheap to construct by hand instead.
- * Anthropic rejects a base64 payload whose declared media_type doesn't
- * match its actual bytes, so this sniffs the real one from the PNG
- * signature rather than assuming JPEG for every caller.
- */
-function imageMediaType(data: string): 'image/png' | 'image/jpeg' {
-  return data.startsWith('iVBORw0KGgo') ? 'image/png' : 'image/jpeg';
-}
-
 async function callDirect(
   task: AiTask,
   payload: unknown,
@@ -218,7 +205,7 @@ async function callDirect(
       ? [
           ...images.map((data) => ({
             type: 'image' as const,
-            source: { type: 'base64' as const, media_type: imageMediaType(data), data },
+            source: { type: 'base64' as const, media_type: 'image/jpeg' as const, data },
           })),
           { type: 'text' as const, text: JSON.stringify(payload) },
         ]
