@@ -15,7 +15,9 @@ import { parseOcrResponse } from './ocrPrompt';
  * nothing to fall back to if the model never covers it.
  */
 
-/** Pages per OCR request, on the first pass. */
+/** Pages per OCR request, on the first pass. Must stay in step with (i.e. not
+ *  exceed) MAX_OCR_IMAGES in src/server/generateHandler.ts, or a batch built
+ *  here is rejected there as oversized. */
 const OCR_BATCH_SIZE = 3;
 /** Pages per request on the retry pass — the same "give whatever failed the
  *  most headroom" reasoning aiGenerator.ts's RETRY_BATCH_SIZE uses. */
@@ -71,8 +73,14 @@ export async function transcribePagesWithAi(
    * truncated reply left out come back here to be retried.
    */
   async function runBatch(batch: OcrPage[]): Promise<OcrPage[]> {
-    const images = batch.map((p) => p.image).filter((img): img is string => !!img);
-    const manifest = batch.map((p) => ({ page: p.label }));
+    // Built from one filtered list rather than two separate maps over batch,
+    // so images and manifest can never drift out of correspondence — a page
+    // with no image (shouldn't happen; callers pre-filter) is simply left
+    // uncovered rather than silently shifting every later image's label.
+    const usable = batch.filter((p) => p.image);
+    if (usable.length === 0) return batch;
+    const images = usable.map((p) => p.image!);
+    const manifest = usable.map((p) => ({ page: p.label }));
     const { text, stopReason } = await callModel('ocr', manifest, settings, options.signal, images);
     const truncated = stopReason === 'max_tokens';
     if (truncated) truncatedBatches += 1;

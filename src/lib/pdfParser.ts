@@ -119,9 +119,18 @@ export async function extractPdfSections(
     } else {
       const label = `Page ${pageNum}`;
       if (options.ocrEnabled && rendered < MAX_OCR_PAGES) {
-        const image = await renderPageToJpeg(page);
-        ocrPages.push({ pageNum, label, image });
-        rendered += 1;
+        try {
+          const image = await renderPageToJpeg(page);
+          ocrPages.push({ pageNum, label, image });
+          rendered += 1;
+        } catch (err) {
+          // A render failure is rare and page-specific (no 2D context,
+          // toBlob returning null, a malformed content stream) — it should
+          // not fail the whole upload. Reported the same as ocrEnabled being
+          // false: no image, so the model simply has nothing to OCR here.
+          console.error(err);
+          ocrPages.push({ pageNum, label });
+        }
       } else if (!options.ocrEnabled) {
         ocrPages.push({ pageNum, label });
       }

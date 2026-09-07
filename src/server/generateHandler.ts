@@ -56,11 +56,17 @@ const MAX_REQUEST_CHARS = 120_000;
 
 /**
  * Guardrails for the OCR task's images, independent of MAX_REQUEST_CHARS
- * above (which only ever measured text). Sized to stay comfortably under
- * Netlify's ~6MB synchronous function payload limit even at the cap.
+ * above (which only ever measured text). At the cap, MAX_OCR_IMAGES *
+ * MAX_IMAGE_BASE64_CHARS = 4 * 1,400,000 = 5,600,000 chars ~= 5.6MB, which
+ * stays comfortably under Netlify's ~6MB synchronous function payload limit.
+ * Keep that product under ~6,000,000 if either value changes.
+ *
+ * Must stay in step with OCR_BATCH_SIZE in src/lib/ocrGenerator.ts, which
+ * must not exceed MAX_OCR_IMAGES — otherwise a batch is rejected here after
+ * pages were already rendered client-side.
  */
 const MAX_OCR_IMAGES = 4;
-const MAX_IMAGE_BASE64_CHARS = 2_000_000;
+const MAX_IMAGE_BASE64_CHARS = 1_400_000;
 
 export interface GenerateOptions {
   apiKey: string | undefined;

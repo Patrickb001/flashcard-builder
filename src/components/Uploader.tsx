@@ -156,6 +156,9 @@ export default function Uploader({ onParsed, onCancel }: Props) {
 
     setStatus('fetching');
     setError(null);
+    // Cleared before every attempt, same as handleFile: a scan stashed for a
+    // cancelled or earlier upload must never leak into an unrelated deck.
+    stashOcrPages([]);
     setProgress({ done: 0, total: Math.min(urls.length, MAX_PAGES), url: urls[0] });
 
     try {
