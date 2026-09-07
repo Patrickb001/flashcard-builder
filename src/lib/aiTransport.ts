@@ -1,6 +1,7 @@
 import type { AiSettings } from './aiGenerator';
 import { CARD_SYSTEM_PROMPT } from './cardPrompt';
 import { QUIZ_SYSTEM_PROMPT, VIGNETTE_SYSTEM_PROMPT, VIGNETTE_AUDIT_SYSTEM_PROMPT } from './quizPrompt';
+import { OCR_SYSTEM_PROMPT } from './ocrPrompt';
 
 /**
  * Getting a payload to the model, by whichever route is available.
@@ -25,7 +26,7 @@ import { QUIZ_SYSTEM_PROMPT, VIGNETTE_SYSTEM_PROMPT, VIGNETTE_AUDIT_SYSTEM_PROMP
  * and looks it up — see the lookup in netlify/functions/generate.mts for why
  * that boundary matters.
  */
-export type AiTask = 'cards' | 'quiz' | 'vignette' | 'vignette-audit';
+export type AiTask = 'cards' | 'quiz' | 'vignette' | 'vignette-audit' | 'ocr';
 
 /** The prompts, for the direct-from-browser route which has no server to ask. */
 const PROMPTS: Record<AiTask, string> = {
@@ -33,6 +34,7 @@ const PROMPTS: Record<AiTask, string> = {
   quiz: QUIZ_SYSTEM_PROMPT,
   vignette: VIGNETTE_SYSTEM_PROMPT,
   'vignette-audit': VIGNETTE_AUDIT_SYSTEM_PROMPT,
+  ocr: OCR_SYSTEM_PROMPT,
 };
 
 const MODEL = 'claude-sonnet-5';
@@ -55,6 +57,9 @@ const MAX_TOKENS: Record<AiTask, number> = {
   // A verdict list, not prose — see "vignette-audit" in docs/tuning-notes.md
   // once real batches have been measured against this starting estimate.
   'vignette-audit': 1000,
+  // A transcribed page can be as dense as a card-drafting batch; same
+  // ceiling as `cards` until real batches say otherwise (docs/tuning-notes.md).
+  ocr: 16000,
 };
 
 /**
@@ -138,7 +143,12 @@ export interface ModelReply {
   stopReason: string | null;
 }
 
-async function callHosted(task: AiTask, payload: unknown, signal?: AbortSignal): Promise<ModelReply> {
+async function callHosted(
+  task: AiTask,
+  payload: unknown,
+  signal?: AbortSignal,
+  images?: string[]
+): Promise<ModelReply> {
   const guard = withTimeout(signal);
   let res: Response;
   try {
@@ -146,9 +156,11 @@ async function callHosted(task: AiTask, payload: unknown, signal?: AbortSignal):
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       // The field is still called "sections" though it now sometimes carries
-      // cards. It means "the JSON for the model"; renaming it would break the
-      // deployed function for no gain.
-      body: JSON.stringify({ task, sections: payload }),
+      // cards, or an OCR page-label manifest. It means "the JSON for the
+      // model"; renaming it would break the deployed function for no gain.
+      // `images` is omitted from the JSON entirely when undefined, so every
+      // task other than "ocr" sends exactly the request it always has.
+      body: JSON.stringify({ task, sections: payload, images }),
       signal: guard.signal,
     });
   } catch (err) {
@@ -178,13 +190,39 @@ async function callHosted(task: AiTask, payload: unknown, signal?: AbortSignal):
   };
 }
 
+/**
+ * Real pages (src/lib/pdfParser.ts) are always rendered to JPEG, but the
+ * OCR transport smoke test (tools/test-ocr.mjs) sends a hand-built PNG —
+ * there is no way to render a PDF page to an image from plain Node, so it
+ * stands in with a fixture that is cheap to construct by hand instead.
+ * Anthropic rejects a base64 payload whose declared media_type doesn't
+ * match its actual bytes, so this sniffs the real one from the PNG
+ * signature rather than assuming JPEG for every caller.
+ */
+function imageMediaType(data: string): 'image/png' | 'image/jpeg' {
+  return data.startsWith('iVBORw0KGgo') ? 'image/png' : 'image/jpeg';
+}
+
 async function callDirect(
   task: AiTask,
   payload: unknown,
   apiKey: string,
-  signal?: AbortSignal
+  signal?: AbortSignal,
+  images?: string[]
 ): Promise<ModelReply> {
   const guard = withTimeout(signal);
+  // Multimodal only when there are images to send — every other task keeps
+  // today's bare-string content, byte-for-byte.
+  const content =
+    images && images.length > 0
+      ? [
+          ...images.map((data) => ({
+            type: 'image' as const,
+            source: { type: 'base64' as const, media_type: imageMediaType(data), data },
+          })),
+          { type: 'text' as const, text: JSON.stringify(payload) },
+        ]
+      : JSON.stringify(payload);
   let res: Response;
   try {
     res = await fetch('https://api.anthropic.com/v1/messages', {
@@ -207,7 +245,7 @@ async function callDirect(
         system: [
           { type: 'text', text: PROMPTS[task], cache_control: { type: 'ephemeral' } },
         ],
-        messages: [{ role: 'user', content: JSON.stringify(payload) }],
+        messages: [{ role: 'user', content }],
       }),
       signal: guard.signal,
     });
@@ -243,9 +281,10 @@ export function callModel(
   task: AiTask,
   payload: unknown,
   settings: AiSettings,
-  signal?: AbortSignal
+  signal?: AbortSignal,
+  images?: string[]
 ): Promise<ModelReply> {
   return settings.mode === 'byok' && settings.apiKey
-    ? callDirect(task, payload, settings.apiKey, signal)
-    : callHosted(task, payload, signal);
+    ? callDirect(task, payload, settings.apiKey, signal, images)
+    : callHosted(task, payload, signal, images);
 }
