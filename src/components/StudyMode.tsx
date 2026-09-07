@@ -66,7 +66,8 @@ export default function StudyMode({ deckId, onExit }: Props) {
     [cards],
   );
 
-  const progressFraction = order.length === 0 ? 0 : Math.min(position, order.length) / order.length;
+  const progressFraction =
+    order.length === 0 ? 0 : Math.min(position, order.length) / order.length;
 
   /** Records how the current card went, saves it, and moves to the next. */
   const mark = async (status: "known" | "unknown") => {
@@ -82,7 +83,9 @@ export default function StudyMode({ deckId, onExit }: Props) {
       console.error("[study] Could not save the card status:", err);
       setError("Your progress on that card could not be saved.");
     }
-    setCards((prev) => prev.map((card) => (card.id === updated.id ? updated : card)));
+    setCards((prev) =>
+      prev.map((card) => (card.id === updated.id ? updated : card)),
+    );
     setFlipped(false);
     setPosition((p) => p + 1);
   };
@@ -137,6 +140,7 @@ export default function StudyMode({ deckId, onExit }: Props) {
           </p>
 
           <div
+            key={current.id}
             className={`flip-card ${flipped ? "is-flipped" : ""} ${
               deckHasMedia ? "deck-has-media" : ""
             }`}
