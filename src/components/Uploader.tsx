@@ -4,6 +4,7 @@ import type { AiSettings } from '../lib/aiGenerator';
 import { loadAiSettings } from '../lib/aiGenerator';
 import type { SourceType } from '../types';
 import type { DocumentSection } from '../lib/documentModel';
+import { stashOcrPages } from '../lib/ocrPageHandoff';
 
 import type { PageProgress } from '../lib/pageSource';
 import { MAX_PAGES, deckNameForUrl, describeFailures, fetchPagesSections, parseUrlList } from '../lib/pageSource';
@@ -77,14 +78,50 @@ export default function Uploader({ onParsed, onCancel }: Props) {
 
       setStatus('parsing');
       setError(null);
+      // Cleared before every attempt, PDF or not, so a scan stashed for a
+      // cancelled or earlier upload never leaks into an unrelated deck.
+      stashOcrPages([]);
       try {
+        if (isPdf) {
+          const { sections, ocrPages } = await (
+            await import('../lib/pdfParser')
+          ).extractPdfSections(file, { ocrEnabled: ai.mode !== 'off' });
+
+          if (sections.length === 0 && ocrPages.length === 0) {
+            setError("Couldn't find any text in that file. If it's a scanned/image-only PDF, this app can't read it yet.");
+            setStatus('error');
+            return;
+          }
+          if (sections.length === 0 && ai.mode === 'off') {
+            // ocrPages.length > 0 here — every page looked scanned, but there
+            // is nothing rendered for them (ocrEnabled was false).
+            setError(
+              "Couldn't find any text in that file. It looks like a scanned/photographed PDF — turn on AI drafting above and try again so the model can read it."
+            );
+            setStatus('error');
+            return;
+          }
+
+          let notice: string | undefined;
+          if (ai.mode === 'off' && ocrPages.length > 0) {
+            // A mixed PDF (real text plus scanned pages) with AI off: the
+            // deck still builds from the text pages, but the gap is worth a
+            // notice on the review screen rather than being silent.
+            notice = `${ocrPages.length} page${ocrPages.length === 1 ? '' : 's'} look like scanned images and have no readable text — turn on AI drafting above to read them.`;
+          }
+
+          // Stashed even when empty, so ReviewRoute reads a real (possibly
+          // empty) list rather than something left over from a previous file.
+          stashOcrPages(ocrPages);
+          onParsed(sections, file.name, 'pdf', ai, notice);
+          return;
+        }
+
         // Each parser is fetched only when a file of that type is chosen.
         // Imported statically, all four rode in the entry chunk, so every
         // visitor downloaded pdf.js and JSZip before seeing the deck list.
         let sections;
-        if (isPdf) {
-          sections = await (await import('../lib/pdfParser')).extractPdfSections(file);
-        } else if (isPptx) {
+        if (isPptx) {
           sections = await (await import('../lib/pptxParser')).extractPptxSections(file);
         } else if (isMarkdown) {
           sections = await (await import('../lib/markdownParser')).extractMarkdownSections(file);
@@ -92,15 +129,11 @@ export default function Uploader({ onParsed, onCancel }: Props) {
           sections = await (await import('../lib/htmlParser')).extractHtmlSections(file);
         }
         if (sections.length === 0) {
-          setError(
-            isPdf
-              ? "Couldn't find any text in that file. If it's a scanned/image-only PDF, this app can't read it yet."
-              : 'That file looks empty — there was no text to turn into cards.'
-          );
+          setError('That file looks empty — there was no text to turn into cards.');
           setStatus('error');
           return;
         }
-        const sourceType: SourceType = isPdf ? 'pdf' : isPptx ? 'pptx' : isMarkdown ? 'md' : 'html';
+        const sourceType: SourceType = isPptx ? 'pptx' : isMarkdown ? 'md' : 'html';
         onParsed(sections, file.name, sourceType, ai);
       } catch (err) {
         console.error(err);
