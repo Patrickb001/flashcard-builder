@@ -104,6 +104,13 @@ export interface DocumentSection {
    * attributed to the right source.
    */
   group?: string;
+  /**
+   * Which page this section came from — set only by the PDF pipeline (both
+   * pdf.js's direct text extraction and OCR transcription), so the two can be
+   * merged back into page order in CandidateReview. Every other format's
+   * parser leaves this undefined.
+   */
+  pageNum?: number;
   blocks: Block[];
 }
 
@@ -114,6 +121,21 @@ export interface PositionedItem {
   y: number;
   width: number;
   fontSize: number;
+}
+
+/**
+ * One PDF page pdf.js found no text on — a scanned or photographed page.
+ *
+ * Always produced for a zero-text page, so a caller can report that scanned
+ * pages exist even without reading them. `image` (a bare base64 JPEG, no
+ * `data:` prefix) is populated only when the caller asked for OCR rendering —
+ * see extractPdfSections in pdfParser.ts.
+ */
+export interface OcrPage {
+  pageNum: number;
+  /** "Page N" — matches the label a text-bearing page from the same document carries. */
+  label: string;
+  image?: string;
 }
 
 /**
