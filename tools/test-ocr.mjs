@@ -105,5 +105,39 @@ if (!key) {
   check('transport: got a non-empty reply for a multimodal OCR request', text.trim().length > 0);
 }
 
+// ---------------------------------------------------------------------------
+// Part 3 — full transcribePagesWithAi round trip.
+// ---------------------------------------------------------------------------
+
+console.log('\nPart 3 — transcribePagesWithAi\n');
+
+if (!key) {
+  console.log('  Skipped — set ANTHROPIC_API_KEY to run it.');
+} else {
+  const { transcribePagesWithAi } = await import('../src/lib/ocrGenerator.ts');
+  const ocrPages = [
+    { pageNum: 1, label: 'Page 1', image: TEST_JPEG_BASE64 },
+    { pageNum: 2, label: 'Page 2', image: TEST_JPEG_BASE64 },
+  ];
+
+  const result = await transcribePagesWithAi(ocrPages, { mode: 'byok', apiKey: key });
+
+  console.log(
+    `  ${result.sections.length} section(s), ${result.totalBatches} batch(es), ${result.failedPages.length} failed page(s)`
+  );
+  for (const section of result.sections) {
+    console.log(`    ${section.label} (page ${section.pageNum}): ${section.blocks.length} block(s)`);
+  }
+  if (result.firstError) console.log(`  !! ${result.firstError}`);
+
+  check('ocr: every page produced a section', result.sections.length === ocrPages.length, `got ${result.sections.length}`);
+  check('ocr: no failed pages', result.failedPages.length === 0, result.failedPages.join(', '));
+  check(
+    'ocr: pageNum carried through onto every section',
+    result.sections.every((s) => typeof s.pageNum === 'number'),
+    ''
+  );
+}
+
 console.log(`\n${failures === 0 ? 'All checks passed.' : `${failures} CHECK(S) FAILED.`}`);
 process.exit(failures === 0 ? 0 : 1);
