@@ -489,7 +489,7 @@ export default function DeckLibrary({
                     </p>
                     <div className="deck-card-actions">
                       <button
-                        className="secondary-btn"
+                        className="btn-study"
                         onClick={(e) => {
                           e.stopPropagation();
                           onStudy(deck.id);
@@ -498,7 +498,7 @@ export default function DeckLibrary({
                         Study
                       </button>
                       <button
-                        className="ghost-btn small"
+                        className="btn-manage"
                         onClick={(e) => {
                           e.stopPropagation();
                           onManage(deck.id);
@@ -508,7 +508,7 @@ export default function DeckLibrary({
                       </button>
                       {selectedFolder && (
                         <button
-                          className="ghost-btn small"
+                          className="btn-remove"
                           onClick={(e) => handleRemoveFromFolder(e, deck.id)}
                         >
                           Remove from folder

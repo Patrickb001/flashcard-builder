@@ -1,7 +1,8 @@
-import { Suspense } from 'react';
+import { Suspense, useRef } from 'react';
 import { Outlet, useLocation, useNavigate } from 'react-router-dom';
 import RouteFallback from './components/RouteFallback';
 import ThemeToggle from './components/ui/ThemeToggle';
+import { canNavigateBack, currentHistoryIdx } from './lib/navigationHistory';
 
 /**
  * The frame every screen sits in: the masthead, and the routed slot below it.
@@ -13,6 +14,13 @@ export default function App() {
   const navigate = useNavigate();
   const { pathname } = useLocation();
   const atLibrary = pathname === '/';
+  // The history index as of this page load. A fresh load or reload always
+  // starts even with its own baseline, so Back only offers a page this
+  // instance actually navigated to itself — see the design doc's
+  // Decisions table and Mechanism section for why this can't just read
+  // the browser's raw index on its own.
+  const mountIdxRef = useRef(currentHistoryIdx());
+  const canGoBack = canNavigateBack(mountIdxRef.current, currentHistoryIdx());
 
   return (
     <div className="app-shell">
@@ -27,12 +35,12 @@ export default function App() {
           <span className="brand-text">Flashcard Forge</span>
         </button>
         <div className="top-bar-actions">
-          {!atLibrary && (
-            <button className="ghost-btn" onClick={() => navigate('/')}>
+          {!atLibrary && canGoBack && (
+            <button className="ghost-btn" onClick={() => navigate(-1)}>
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                 <path d="M15 6l-6 6 6 6" />
               </svg>
-              Back to library
+              Back
             </button>
           )}
           <ThemeToggle />

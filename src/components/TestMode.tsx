@@ -77,7 +77,6 @@ export default function TestMode({ deckId, onExit, onManageExit }: Props) {
         }
         onStart={quiz.startTest}
         onExit={onExit}
-        onManageExit={onManageExit}
       />
     );
   }
