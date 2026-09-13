@@ -2,13 +2,7 @@ import { Suspense, useRef } from 'react';
 import { Outlet, useLocation, useNavigate } from 'react-router-dom';
 import RouteFallback from './components/RouteFallback';
 import ThemeToggle from './components/ui/ThemeToggle';
-import { canNavigateBack } from './lib/navigationHistory';
-
-/** The browser's own history-entry index for right now, or 0 if react-router-dom's history hasn't set one yet (there is always one once the router has rendered once, but this keeps the read total). */
-function currentHistoryIdx(): number {
-  const state = window.history.state as { idx?: number } | null;
-  return state?.idx ?? 0;
-}
+import { canNavigateBack, currentHistoryIdx } from './lib/navigationHistory';
 
 /**
  * The frame every screen sits in: the masthead, and the routed slot below it.

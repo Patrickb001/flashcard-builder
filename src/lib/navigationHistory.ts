@@ -10,3 +10,13 @@
 export function canNavigateBack(mountIdx: number, currentIdx: number): boolean {
   return currentIdx > mountIdx;
 }
+
+/**
+ * The browser's own history-entry index for right now, or 0 if
+ * react-router-dom's history hasn't set one yet (there is always one once
+ * the router has rendered once, but this keeps the read total).
+ */
+export function currentHistoryIdx(): number {
+  const state = window.history.state as { idx?: number } | null;
+  return state?.idx ?? 0;
+}
