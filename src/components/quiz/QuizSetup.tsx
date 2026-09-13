@@ -32,7 +32,6 @@ interface Props {
   onWriteMissing: () => void;
   onStart: () => void;
   onExit: () => void;
-  onManageExit: (id: string) => void;
 }
 
 /** The two styles, as the picker offers them. */
@@ -73,7 +72,6 @@ export default function QuizSetup({
   onWriteMissing,
   onStart,
   onExit,
-  onManageExit,
 }: Props) {
   if (cards.length === 0) {
     return (
@@ -215,8 +213,8 @@ export default function QuizSetup({
       )}
 
       <div className="form-actions">
-        <button className="ghost-btn" onClick={() => onManageExit(deck.id)}>
-          Back to manage cards
+        <button className="ghost-btn" onClick={onExit}>
+          Exit to library
         </button>
         <button
           className="primary-btn"
