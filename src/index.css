@@ -528,6 +528,66 @@ p {
   border-bottom-color: var(--accent);
 }
 
+.folder-toolbar-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+
+/* The "+ Add decks" checklist. Same card surface as .deck-card and the same
+   row shape as a candidate row, so it reads as native to the library rather
+   than a bolted-on picker. */
+.add-decks-panel {
+  background: var(--surface);
+  border: 1px solid var(--border-soft);
+  border-radius: 10px;
+  padding: 0.9rem;
+  margin-bottom: 1.25rem;
+}
+
+.add-decks-list {
+  list-style: none;
+  margin: 0 0 0.9rem;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+  max-height: 15rem;
+  overflow-y: auto;
+}
+
+.add-decks-row label {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  padding: 0.5rem 0.6rem;
+  border-radius: 8px;
+  cursor: pointer;
+}
+
+.add-decks-row label:hover {
+  background: var(--surface-raised);
+}
+
+.add-decks-row input[type="checkbox"] {
+  width: 16px;
+  height: 16px;
+  accent-color: var(--accent);
+  flex: none;
+}
+
+.add-decks-row span:first-of-type {
+  flex: 1;
+  min-width: 0;
+}
+
+.add-decks-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.6rem;
+}
+
 .deck-card-tags {
   display: flex;
   align-items: center;
@@ -640,6 +700,7 @@ p {
   display: flex;
   gap: 0.5rem;
   margin-top: 0.4rem;
+  flex-wrap: wrap;
 }
 
 /* ---------- Uploader ---------- */

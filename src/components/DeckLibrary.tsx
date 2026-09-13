@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import type { Deck, Folder } from '../types';
-import { createFolder, renameFolder } from '../db/db';
+import { createFolder, moveDeckToFolder, renameFolder } from '../db/db';
 import { confirmAndDeleteDeck, confirmAndDeleteFolder } from '../lib/deckActions';
 import {
   UNFILED,
@@ -69,6 +69,8 @@ export default function DeckLibrary({
   const [folderNameDraft, setFolderNameDraft] = useState('');
   const [creatingFolder, setCreatingFolder] = useState(false);
   const [newFolderDraft, setNewFolderDraft] = useState('');
+  const [addingDecks, setAddingDecks] = useState(false);
+  const [selectedDeckIds, setSelectedDeckIds] = useState<Set<string>>(new Set());
 
   const folderIds = useMemo(() => new Set(folders.map((folder) => folder.id)), [folders]);
   const folderNames = useMemo(
@@ -82,12 +84,23 @@ export default function DeckLibrary({
     [decks, folders, filter, sort]
   );
   const selectedFolder = folders.find((folder) => folder.id === filter) ?? null;
+  const unfiledDecks = useMemo(
+    () => decks.filter((deck) => folderOf(deck, folderIds) === UNFILED),
+    [decks, folderIds]
+  );
 
   // The folder name is a draft the reader edits, so it is re-seeded whenever a
   // different folder is opened or the open one is renamed.
   useEffect(() => {
     setFolderNameDraft(selectedFolder?.name ?? '');
   }, [selectedFolder?.id, selectedFolder?.name]);
+
+  // The add-decks panel belongs to whichever folder opened it, so switching
+  // folders closes it rather than leaving it open against the wrong one.
+  useEffect(() => {
+    setAddingDecks(false);
+    setSelectedDeckIds(new Set());
+  }, [selectedFolder?.id]);
 
   const changeSort = (next: LibrarySort) => {
     setSort(next);
@@ -196,6 +209,57 @@ export default function DeckLibrary({
     } catch (err) {
       console.error('[library] Deleting the folder failed:', err);
       setActionError(`The folder "${selectedFolder.name}" could not be deleted.`);
+    }
+  };
+
+  /** Opens the "+ Add decks" checklist for the open folder. */
+  const startAddDecks = () => {
+    setActionError(null);
+    setSelectedDeckIds(new Set());
+    setAddingDecks(true);
+  };
+
+  const cancelAddDecks = () => {
+    setAddingDecks(false);
+    setSelectedDeckIds(new Set());
+  };
+
+  const toggleDeckSelected = (deckId: string) => {
+    setSelectedDeckIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(deckId)) next.delete(deckId);
+      else next.add(deckId);
+      return next;
+    });
+  };
+
+  /** Files every checked deck into the open folder in one go. */
+  const submitAddDecks = async () => {
+    if (!selectedFolder || selectedDeckIds.size === 0) return;
+    try {
+      setActionError(null);
+      await Promise.all(
+        Array.from(selectedDeckIds).map((deckId) => moveDeckToFolder(deckId, selectedFolder.id))
+      );
+      setAddingDecks(false);
+      setSelectedDeckIds(new Set());
+      await onLibraryChange();
+    } catch (err) {
+      console.error('[library] Adding decks to the folder failed:', err);
+      setActionError('The decks could not be added to the folder.');
+    }
+  };
+
+  /** Unfiles a deck from its card's "Remove from folder" button, leaving the folder itself intact. */
+  const handleRemoveFromFolder = async (e: React.MouseEvent, deckId: string) => {
+    e.stopPropagation();
+    try {
+      setActionError(null);
+      await moveDeckToFolder(deckId, null);
+      await onLibraryChange();
+    } catch (err) {
+      console.error('[library] Removing the deck from its folder failed:', err);
+      setActionError('The deck could not be removed from the folder.');
     }
   };
 
@@ -340,9 +404,63 @@ export default function DeckLibrary({
                   if (e.key === 'Enter') e.currentTarget.blur();
                 }}
               />
-              <button className="ghost-btn small danger-text" onClick={handleDeleteFolder}>
-                Delete folder
-              </button>
+              <div className="folder-toolbar-actions">
+                <button className="ghost-btn small" onClick={startAddDecks}>
+                  + Add decks
+                </button>
+                <button className="ghost-btn small danger-text" onClick={handleDeleteFolder}>
+                  Delete folder
+                </button>
+              </div>
+            </div>
+          )}
+
+          {selectedFolder && addingDecks && (
+            <div className="add-decks-panel">
+              {unfiledDecks.length === 0 ? (
+                <>
+                  <p className="muted">There are no unfiled decks to add.</p>
+                  <div className="add-decks-actions">
+                    <button className="ghost-btn small" onClick={cancelAddDecks}>
+                      Close
+                    </button>
+                  </div>
+                </>
+              ) : (
+                <>
+                  <ul className="add-decks-list">
+                    {unfiledDecks.map((deck) => (
+                      <li key={deck.id} className="add-decks-row">
+                        <label>
+                          <input
+                            type="checkbox"
+                            checked={selectedDeckIds.has(deck.id)}
+                            onChange={() => toggleDeckSelected(deck.id)}
+                          />
+                          <span>{deck.name}</span>
+                          <span className="deck-meta">
+                            {deck.cardCount} card{deck.cardCount === 1 ? '' : 's'}
+                          </span>
+                        </label>
+                      </li>
+                    ))}
+                  </ul>
+                  <div className="add-decks-actions">
+                    <button className="ghost-btn small" onClick={cancelAddDecks}>
+                      Cancel
+                    </button>
+                    <button
+                      className="primary-btn"
+                      disabled={selectedDeckIds.size === 0}
+                      onClick={submitAddDecks}
+                    >
+                      {selectedDeckIds.size === 0
+                        ? 'Add decks'
+                        : `Add ${selectedDeckIds.size} deck${selectedDeckIds.size === 1 ? '' : 's'}`}
+                    </button>
+                  </div>
+                </>
+              )}
             </div>
           )}
 
@@ -410,6 +528,14 @@ export default function DeckLibrary({
                       >
                         Manage cards
                       </button>
+                      {selectedFolder && (
+                        <button
+                          className="ghost-btn small"
+                          onClick={(e) => handleRemoveFromFolder(e, deck.id)}
+                        >
+                          Remove from folder
+                        </button>
+                      )}
                     </div>
                   </div>
                 );
