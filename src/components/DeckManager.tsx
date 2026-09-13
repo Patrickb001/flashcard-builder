@@ -1,7 +1,15 @@
 import { useEffect, useRef, useState } from "react";
-import type { Flashcard } from "../types";
-import { addCard, deleteCard, renameDeck, updateCard } from "../db/db";
+import type { Flashcard, Folder } from "../types";
+import {
+  addCard,
+  deleteCard,
+  getAllFolders,
+  moveDeckToFolder,
+  renameDeck,
+  updateCard,
+} from "../db/db";
 import { confirmAndDeleteDeck } from "../lib/deckActions";
+import { UNFILED, folderOf, sortFolders } from "../lib/deckFolders";
 import { deckNameForUrl } from "../lib/pageSource";
 import {
   downloadTextFile,
@@ -43,6 +51,29 @@ export default function DeckManager({
     useDeck(deckId);
   const [nameDraft, setNameDraft] = useState("");
   const [copied, setCopied] = useState(false);
+  const [folders, setFolders] = useState<Folder[]>([]);
+  const [foldersLoaded, setFoldersLoaded] = useState(false);
+
+  // Read here rather than through useDeck, which the study and test screens
+  // share and which have no use for folders. The select stays disabled until
+  // this settles, so a deck already in a folder never shows as Unfiled first.
+  // A failed read leaves only Unfiled to choose; the cards stay editable.
+  useEffect(() => {
+    let cancelled = false;
+    getAllFolders()
+      .then((all) => {
+        if (!cancelled) setFolders(all);
+      })
+      .catch((err) => {
+        console.error("[manager] Could not read the folders:", err);
+      })
+      .finally(() => {
+        if (!cancelled) setFoldersLoaded(true);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
   const copiedTimer = useRef<number | null>(null);
 
   // The name is a draft the user edits, so it is seeded from the deck once it
@@ -165,6 +196,26 @@ export default function DeckManager({
     }
   };
 
+  /**
+   * Files the deck in the chosen folder, putting the select back if the write fails.
+   *
+   * Shown as moved straight away; the write is one small transaction, and a
+   * failure is rare enough that snapping back with a notice is the better trade.
+   */
+  const handleFolderChange = async (value: string) => {
+    if (!deck) return;
+    const folderId = value === UNFILED ? null : value;
+    const previous = deck;
+    setDeck({ ...deck, folderId: folderId ?? undefined });
+    try {
+      await moveDeckToFolder(deckId, folderId);
+    } catch (err) {
+      console.error("[manager] Moving the deck failed:", err);
+      setError("The deck could not be moved to that folder.");
+      setDeck(previous);
+    }
+  };
+
   /** Saves a renamed deck on blur, restoring the old name if the write fails. */
   const commitName = async () => {
     if (!deck) return;
@@ -200,6 +251,25 @@ export default function DeckManager({
             onChange={(e) => setNameDraft(e.target.value)}
             onBlur={commitName}
           />
+          <div className="manager-folder-row">
+            <label htmlFor="deck-folder">Folder</label>
+            {/* Always A–Z, whatever the library is sorted by: a dropdown is
+                scanned for a name, not browsed by age. */}
+            <select
+              id="deck-folder"
+              className="folder-select"
+              value={folderOf(deck, new Set(folders.map((folder) => folder.id)))}
+              disabled={!foldersLoaded}
+              onChange={(e) => handleFolderChange(e.target.value)}
+            >
+              <option value={UNFILED}>Unfiled</option>
+              {sortFolders(folders, "name").map((folder) => (
+                <option key={folder.id} value={folder.id}>
+                  {folder.name}
+                </option>
+              ))}
+            </select>
+          </div>
           <p className="muted small">
             {cards.length} card{cards.length === 1 ? "" : "s"} · from{" "}
             {deck.sourceFileName}

@@ -1014,6 +1014,39 @@ textarea:focus-visible {
   border-bottom-color: var(--accent);
 }
 
+.manager-folder-row {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin: 0.4rem 0 0.3rem;
+}
+
+.manager-folder-row label {
+  font-size: 0.8rem;
+  color: var(--text-secondary);
+}
+
+/* The folder picker on the manage and review screens. */
+.folder-select {
+  background: var(--surface);
+  border: 1px solid var(--border-soft);
+  border-radius: 8px;
+  padding: 0.4rem 0.6rem;
+  color: var(--text-primary);
+  font-family: var(--font-ui);
+  font-size: 0.9rem;
+  max-width: 100%;
+}
+
+.folder-select:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+}
+
+.folder-select:disabled {
+  opacity: 0.6;
+}
+
 .manager-actions {
   display: flex;
   gap: 0.6rem;
