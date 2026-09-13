@@ -25,6 +25,17 @@ If a batch fails, those sections fall back to rule-based drafting, so a network 
 
 See [DEPLOYING.md](DEPLOYING.md) for GitHub and Netlify setup.
 
+## Organising decks
+
+Decks can be filed into folders. Folders are one level deep, and a deck lives in at most one of them. A deck in none is **Unfiled**, which is where every deck saved before folders existed sits.
+
+- **Create** a folder with **+ New folder** on the library, or with **New folder…** in the Folder menu on the review screen.
+- **Save into** a folder by choosing it on the review screen. Pressing **+ New deck from a file** while a folder is open preselects that folder.
+- **Move** a deck from its manage screen, with the Folder menu under its name.
+- **Rename or delete** a folder by opening it on the library. Deleting a folder never deletes decks; they move to Unfiled.
+
+The **Newest / A–Z** switch sorts both the folders and the decks, and is remembered in this browser. A–Z ignores case and reads numbers as numbers, so "Chapter 2" comes before "Chapter 10". The folder a library view shows is in its address (`/?folder=…`), so reloading or going Back keeps it. The Folder menus on the review and manage screens always list folders A–Z.
+
 ## How extraction works
 
 The hard part of this app is not making flashcards — it is reading the document correctly in the first place.
@@ -160,6 +171,10 @@ URL=https://18.react.dev/learn/state-a-components-memory node \
 # generate real questions and read the wrong answers for yourself.
 node --experimental-strip-types --import ./tools/register.mjs \
   tools/test-quiz.mjs
+
+# Folder grouping, library sorting, and the remembered sort choice. Pure; no key.
+node --experimental-strip-types --import ./tools/register.mjs \
+  tools/test-folders.mjs
 ```
 
 `tools/test-quiz.mjs` is the one to run after touching question generation. It

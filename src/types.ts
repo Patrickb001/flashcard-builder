@@ -22,6 +22,27 @@ export interface Deck {
    * can show a count without reading the cards themselves.
    */
   cardCount: number;
+  /**
+   * The folder this deck is filed in. Absent means Unfiled — which is every
+   * deck saved before folders existed, so there is nothing to migrate.
+   *
+   * Never read this directly to decide where a deck belongs: it can name a
+   * folder another tab has since deleted. Go through folderOf in
+   * lib/deckFolders, which treats that as Unfiled.
+   */
+  folderId?: string;
+}
+
+/**
+ * A named group of decks, one level deep.
+ *
+ * Holds no deck ids. Decks point at their folder instead, so moving a deck is
+ * one write and deleting a deck never has to touch a folder.
+ */
+export interface Folder {
+  id: string;
+  name: string;
+  createdAt: number;
 }
 
 /** Which kind of document a deck was built from. */

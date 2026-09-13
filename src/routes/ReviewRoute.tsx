@@ -24,6 +24,7 @@ export default function ReviewRoute() {
       ai={draft.ai}
       notice={draft.notice}
       sourceUrls={draft.sourceUrls}
+      folderId={draft.folderId}
       ocrPages={readOcrPages()}
       // Replace, so Back from the new deck does not return to a review screen
       // whose cards have already been saved.

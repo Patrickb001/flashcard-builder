@@ -44,6 +44,52 @@
   try {
     const db = await import('/src/db/db.ts');
 
+    // ---- 0. a v2 database upgrades to v3 with nothing lost ----
+    // Runs first, before anything has opened the database through db.ts: it
+    // DELETES the app's database and rebuilds it at version 2 by hand. Only run
+    // this page in a throwaway browser profile (a fresh --user-data-dir).
+    {
+      const settle = (req) =>
+        new Promise((resolve, reject) => {
+          req.onsuccess = () => resolve(req.result);
+          req.onerror = () => reject(req.error);
+        });
+      await settle(indexedDB.deleteDatabase('flashcard-forge'));
+
+      const id = 'probe-v2';
+      const openV2 = indexedDB.open('flashcard-forge', 2);
+      openV2.onupgradeneeded = () => {
+        const raw = openV2.result;
+        const decks = raw.createObjectStore('decks', { keyPath: 'id' });
+        decks.createIndex('by-createdAt', 'createdAt');
+        const cards = raw.createObjectStore('flashcards', { keyPath: 'id' });
+        cards.createIndex('by-deckId', 'deckId');
+        const questions = raw.createObjectStore('testQuestions', { keyPath: 'id' });
+        questions.createIndex('by-deckId', 'deckId');
+        questions.createIndex('by-cardId', 'cardId');
+
+        decks.put({ ...deck(id), cardCount: 1 });
+        cards.put(card(id, 0));
+        questions.put({
+          id: 'probe-v2-q', deckId: id, cardId: id + '-c0', stem: 'S', correctAnswer: 'R',
+          distractors: ['a', 'b', 'c'], explanation: 'E', cardHash: 'h',
+          createdAt: Date.now(), timesAsked: 0, lastAskedAt: null, timesCorrect: 0,
+        });
+      };
+      (await settle(openV2)).close();
+
+      const upgraded = await db.getDeck(id);
+      const upgradedCards = await db.getCardsForDeck(id);
+      const upgradedQuestions = await db.getQuestionsForDeck(id);
+      const folders = await db.getAllFolders();
+      check('v2 upgrade: deck kept', !!upgraded && upgraded.name === id, JSON.stringify(upgraded));
+      check('v2 upgrade: deck is unfiled', !!upgraded && !('folderId' in upgraded));
+      check('v2 upgrade: cards kept', upgradedCards.length === 1, upgradedCards.length + '/1');
+      check('v2 upgrade: questions kept', upgradedQuestions.length === 1, upgradedQuestions.length + '/1');
+      check('v2 upgrade: folders store exists and is empty', Array.isArray(folders) && folders.length === 0, JSON.stringify(folders));
+      await db.deleteDeck(id);
+    }
+
     // ---- 1. concurrent addCard must not lose an increment ----
     {
       const id = 'probe-add';
@@ -102,6 +148,90 @@
       check('same question answered twice counts twice', back.timesAsked === 2, 'timesAsked=' + back.timesAsked);
       check('correct tally kept', back.timesCorrect === 1, 'timesCorrect=' + back.timesCorrect);
       await db.deleteDeck(id);
+    }
+
+    // ---- 5. deleteFolder unfiles its decks, and only its decks ----
+    {
+      const keep = await db.createFolder('probe keep');
+      const drop = await db.createFolder('probe drop');
+      await db.saveDeckWithCards({ ...deck('probe-in-drop'), folderId: drop.id }, []);
+      await db.saveDeckWithCards({ ...deck('probe-in-keep'), folderId: keep.id }, []);
+
+      await db.deleteFolder(drop.id);
+
+      const folders = await db.getAllFolders();
+      const inDrop = await db.getDeck('probe-in-drop');
+      const inKeep = await db.getDeck('probe-in-keep');
+      check('deleteFolder removes the folder', !folders.some((f) => f.id === drop.id));
+      check('deleteFolder keeps the folder\'s decks', !!inDrop);
+      check('deleteFolder unfiles them (key removed)', !!inDrop && !('folderId' in inDrop), JSON.stringify(inDrop));
+      check('deleteFolder leaves other folders\' decks alone', !!inKeep && inKeep.folderId === keep.id, JSON.stringify(inKeep));
+
+      await db.deleteDeck('probe-in-drop');
+      await db.deleteDeck('probe-in-keep');
+      await db.deleteFolder(keep.id);
+    }
+
+    // ---- 6. moveDeckToFolder must not clobber a concurrent cardCount ----
+    {
+      const id = 'probe-move';
+      const folder = await db.createFolder('probe move target');
+      await db.saveDeckWithCards(deck(id), []);
+      const N = 15;
+      await Promise.all([
+        ...Array.from({ length: N }, (_, i) => db.addCard(card(id, i))),
+        db.moveDeckToFolder(id, folder.id),
+      ]);
+      const moved = await db.getDeck(id);
+      check('move racing 15 adds: cardCount survives', moved.cardCount === N, moved.cardCount + '/' + N);
+      check('move racing 15 adds: folder applied', moved.folderId === folder.id, String(moved.folderId));
+
+      await db.moveDeckToFolder(id, null);
+      const unfiled = await db.getDeck(id);
+      check('move to null unfiles (key removed)', !('folderId' in unfiled), JSON.stringify(unfiled));
+
+      let refused = false;
+      try {
+        await db.moveDeckToFolder(id, 'probe-no-such-folder');
+      } catch {
+        refused = true;
+      }
+      check('move into a missing folder is refused', refused);
+
+      await db.deleteDeck(id);
+      await db.deleteFolder(folder.id);
+    }
+
+    // ---- 7. folder names are unique, ignoring case and spacing ----
+    {
+      const rejectsAsDuplicate = async (fn) => {
+        try {
+          await fn();
+          return false;
+        } catch (err) {
+          return !!err && err.name === 'DuplicateFolderNameError';
+        }
+      };
+      const a = await db.createFolder('Probe Names');
+      const b = await db.createFolder('Probe Other');
+
+      check('createFolder rejects a case/space variant', await rejectsAsDuplicate(() => db.createFolder('  probe   names ')));
+      check('renameFolder rejects another folder\'s name', await rejectsAsDuplicate(() => db.renameFolder(b.id, 'PROBE NAMES')));
+
+      await db.renameFolder(a.id, 'probe names');
+      const recased = (await db.getAllFolders()).find((f) => f.id === a.id);
+      check('renameFolder allows re-casing its own name', !!recased && recased.name === 'probe names', JSON.stringify(recased));
+
+      let emptyRefused = false;
+      try {
+        await db.createFolder('   ');
+      } catch {
+        emptyRefused = true;
+      }
+      check('createFolder rejects an empty name', emptyRefused);
+
+      await db.deleteFolder(a.id);
+      await db.deleteFolder(b.id);
     }
 
     log('');

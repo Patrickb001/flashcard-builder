@@ -1,5 +1,6 @@
 import { openDB, type DBSchema, type IDBPDatabase } from 'idb';
-import type { Deck, Flashcard, TestQuestion } from '../types';
+import type { Deck, Flashcard, Folder, TestQuestion } from '../types';
+import { DuplicateFolderNameError, cleanFolderName, isDuplicateFolderName } from '../lib/deckFolders';
 
 interface FlashcardForgeDB extends DBSchema {
   decks: {
@@ -17,10 +18,19 @@ interface FlashcardForgeDB extends DBSchema {
     value: TestQuestion;
     indexes: { 'by-deckId': string; 'by-cardId': string };
   };
+  /**
+   * No index, and none on decks by folder: the library reads every deck anyway,
+   * and an index on `folderId` would silently leave out the Unfiled decks,
+   * whose key is absent.
+   */
+  folders: {
+    key: string;
+    value: Folder;
+  };
 }
 
 const DB_NAME = 'flashcard-forge';
-const DB_VERSION = 2;
+const DB_VERSION = 3;
 
 let dbPromise: Promise<IDBPDatabase<FlashcardForgeDB>> | null = null;
 
@@ -75,7 +85,7 @@ function getDB() {
       /**
        * Each block runs only for a database old enough to be missing that
        * store, and `oldVersion` is 0 for a browser that has never opened this
-       * app — so a first run falls through every block and gets all three.
+       * app — so a first run falls through every block and gets every store.
        *
        * The version guards are load-bearing, not decoration: creating a store
        * that already exists throws ConstraintError, which on a version bump
@@ -94,6 +104,12 @@ function getDB() {
           const questionStore = db.createObjectStore('testQuestions', { keyPath: 'id' });
           questionStore.createIndex('by-deckId', 'deckId');
           questionStore.createIndex('by-cardId', 'cardId');
+        }
+
+        // Additive only. Existing decks gain no field: an absent folderId is
+        // what Unfiled means, so every deck from v2 arrives already filed.
+        if (oldVersion < 3) {
+          db.createObjectStore('folders', { keyPath: 'id' });
         }
       },
 
@@ -383,6 +399,118 @@ export async function renameDeck(deckId: string, name: string): Promise<void> {
   if (deck) {
     deck.name = name;
     await tx.store.put(deck);
+  }
+
+  await tx.done;
+}
+
+// ---------------------------------------------------------------------------
+// Folders
+// ---------------------------------------------------------------------------
+
+/** A cleaned folder name, or a thrown error when nothing is left after cleaning. */
+function requireFolderName(name: string): string {
+  const cleaned = cleanFolderName(name);
+  if (!cleaned) throw new Error('A folder needs a name.');
+  return cleaned;
+}
+
+/** Every folder, in no particular order. Screens sort them with sortFolders. */
+export async function getAllFolders(): Promise<Folder[]> {
+  const db = await getDB();
+  return db.getAll('folders');
+}
+
+/**
+ * Creates a folder, refusing a name another folder already has.
+ *
+ * The existing names are read inside the same readwrite transaction as the
+ * write. Readwrite transactions on one store run one at a time, so two tabs
+ * creating "Biology" at once cannot both pass the check.
+ */
+export async function createFolder(name: string): Promise<Folder> {
+  const cleaned = requireFolderName(name);
+  const db = await getDB();
+  const tx = db.transaction('folders', 'readwrite');
+
+  const existing = await tx.store.getAll();
+  if (isDuplicateFolderName(cleaned, existing)) throw new DuplicateFolderNameError(cleaned);
+
+  const folder: Folder = { id: crypto.randomUUID(), name: cleaned, createdAt: Date.now() };
+  await Promise.all([tx.store.put(folder), tx.done]);
+  return folder;
+}
+
+/**
+ * Renames a folder, refusing a name a different folder already has.
+ *
+ * Re-casing a folder's own name is allowed. A folder deleted in the meantime
+ * is left deleted rather than recreated.
+ */
+export async function renameFolder(folderId: string, name: string): Promise<void> {
+  const cleaned = requireFolderName(name);
+  const db = await getDB();
+  const tx = db.transaction('folders', 'readwrite');
+
+  const all = await tx.store.getAll();
+  const folder = all.find((candidate) => candidate.id === folderId);
+  if (folder) {
+    if (isDuplicateFolderName(cleaned, all, folderId)) throw new DuplicateFolderNameError(cleaned);
+    folder.name = cleaned;
+    await tx.store.put(folder);
+  }
+
+  await tx.done;
+}
+
+/**
+ * Deletes a folder and moves its decks to Unfiled. No deck is deleted.
+ *
+ * One transaction across both stores, so the folder cannot disappear while
+ * decks written in this tab still point at it. The key is deleted rather than
+ * set to undefined, so an unfiled deck looks exactly like one saved before
+ * folders existed.
+ */
+export async function deleteFolder(folderId: string): Promise<void> {
+  const db = await getDB();
+  const tx = db.transaction(['folders', 'decks'], 'readwrite');
+  await tx.objectStore('folders').delete(folderId);
+
+  let cursor = await tx.objectStore('decks').openCursor();
+  while (cursor) {
+    if (cursor.value.folderId === folderId) {
+      const unfiled: Deck = { ...cursor.value };
+      delete unfiled.folderId;
+      await cursor.update(unfiled);
+    }
+    cursor = await cursor.continue();
+  }
+
+  await tx.done;
+}
+
+/**
+ * Files a deck in a folder, or in no folder when `folderId` is null.
+ *
+ * Read and write in one transaction, for the reason renameDeck gives: apart, a
+ * cardCount written by an addCard in the gap is silently reverted. The folder
+ * is checked in the same transaction, so a deck is never pointed at a folder
+ * another tab has just deleted.
+ */
+export async function moveDeckToFolder(deckId: string, folderId: string | null): Promise<void> {
+  const db = await getDB();
+  const tx = db.transaction(['decks', 'folders'], 'readwrite');
+
+  if (folderId !== null && !(await tx.objectStore('folders').get(folderId))) {
+    throw new Error('That folder no longer exists.');
+  }
+
+  const deckStore = tx.objectStore('decks');
+  const deck = await deckStore.get(deckId);
+  if (deck) {
+    if (folderId === null) delete deck.folderId;
+    else deck.folderId = folderId;
+    await deckStore.put(deck);
   }
 
   await tx.done;
