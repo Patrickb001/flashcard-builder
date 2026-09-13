@@ -50,6 +50,35 @@ export function isDuplicateFolderName(name: string, folders: Folder[], exceptId?
 }
 
 /**
+ * The message for a failed folder write. A duplicate name is worth showing as
+ * it is; anything else falls back to a generic message written for the
+ * specific action that failed (create vs. rename).
+ *
+ * Shared by every screen that writes a folder, so the same failure reads the
+ * same way wherever it happens — folder-name errors phrased differently on
+ * different screens are the kind of thing people stop reading.
+ */
+export function folderErrorMessage(err: unknown, fallback: string): string {
+  return err instanceof DuplicateFolderNameError ? err.message : fallback;
+}
+
+/**
+ * The confirmation question for deleting a folder.
+ *
+ * Says where the decks go, because "delete folder" beside a count of decks
+ * reads as though the decks go with it — and they do not. Kept as a pure
+ * function, separate from the `confirm()` call itself, so its three wording
+ * branches can be checked without a browser (see tools/test-folders.mjs) —
+ * this is the copy that stops someone believing a folder delete wipes their
+ * decks, so a regression here should be caught by a test, not a screenshot.
+ */
+export function deleteFolderConfirmMessage(name: string, deckCount: number): string {
+  return deckCount === 0
+    ? `Delete the empty folder "${name}"?`
+    : `Delete the folder "${name}"? Its ${deckCount} deck${deckCount === 1 ? '' : 's'} will move to Unfiled. No decks are deleted.`;
+}
+
+/**
  * The folder a deck is really in: its folderId when that folder exists, else UNFILED.
  *
  * The one place `deck.folderId` is interpreted. A deck can outlive its folder

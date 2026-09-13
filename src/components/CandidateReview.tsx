@@ -7,8 +7,9 @@ import type { BatchProgress } from '../lib/batchRunner';
 import { generateCandidatesWithAi } from '../lib/aiGenerator';
 import { transcribePagesWithAi } from '../lib/ocrGenerator';
 import { createFolder, getAllFolders, saveDeckWithCards } from '../db/db';
-import { DuplicateFolderNameError, UNFILED, cleanFolderName, sortFolders } from '../lib/deckFolders';
+import { UNFILED, cleanFolderName, folderErrorMessage, sortFolders } from '../lib/deckFolders';
 import CardAttachments from './ui/CardAttachments';
+import ErrorNotice from './ui/ErrorNotice';
 import DraftingBanner from './ui/DraftingBanner';
 import ProgressBar from './ui/ProgressBar';
 
@@ -280,9 +281,7 @@ export default function CandidateReview({
       setFolderChoice(folder.id);
     } catch (err) {
       console.error('[review] Creating the folder failed:', err);
-      setFolderError(
-        err instanceof DuplicateFolderNameError ? err.message : 'The folder could not be created.'
-      );
+      setFolderError(folderErrorMessage(err, 'The folder could not be created.'));
     }
   };
 
@@ -462,11 +461,7 @@ export default function CandidateReview({
             ))}
             <option value={NEW_FOLDER}>New folder…</option>
           </select>
-          {folderError && (
-            <p className="muted small" role="alert">
-              {folderError}
-            </p>
-          )}
+          {folderError && <ErrorNotice message={folderError} />}
         </div>
       </div>
 

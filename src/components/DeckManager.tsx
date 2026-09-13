@@ -55,25 +55,31 @@ export default function DeckManager({
   const [foldersLoaded, setFoldersLoaded] = useState(false);
 
   // Read here rather than through useDeck, which the study and test screens
-  // share and which have no use for folders. The select stays disabled until
-  // this settles, so a deck already in a folder never shows as Unfiled first.
-  // A failed read leaves only Unfiled to choose; the cards stay editable.
+  // share and which have no use for folders. `foldersLoaded` gates the
+  // select's `disabled` prop, not its displayed value — a slow read shows a
+  // greyed-out control, never a wrong one. A failed read is the one case
+  // that must NOT flip the select on: `folders` would still be `[]`, so
+  // folderOf would report a filed deck as Unfiled — a false statement about
+  // where the deck actually lives, not just a smaller set of choices. So a
+  // failure keeps the select disabled and says so, rather than re-enabling
+  // it over a value it can no longer vouch for.
   useEffect(() => {
     let cancelled = false;
     getAllFolders()
       .then((all) => {
-        if (!cancelled) setFolders(all);
+        if (cancelled) return;
+        setFolders(all);
+        setFoldersLoaded(true);
       })
       .catch((err) => {
+        if (cancelled) return;
         console.error("[manager] Could not read the folders:", err);
-      })
-      .finally(() => {
-        if (!cancelled) setFoldersLoaded(true);
+        setError("This deck's folder could not be read.");
       });
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [setError]);
   const copiedTimer = useRef<number | null>(null);
 
   // The name is a draft the user edits, so it is seeded from the deck once it
@@ -206,7 +212,15 @@ export default function DeckManager({
     if (!deck) return;
     const folderId = value === UNFILED ? null : value;
     const previous = deck;
-    setDeck({ ...deck, folderId: folderId ?? undefined });
+    // Omits the key for Unfiled rather than setting it to undefined — this
+    // value never reaches storage (every db.ts writer re-reads the record
+    // inside its own transaction), but every other write of Unfiled in this
+    // codebase uses the same omit-the-key shape, and 'folderId' in deck is
+    // exactly what several IndexedDB tests check for.
+    const optimistic = { ...deck };
+    if (folderId === null) delete optimistic.folderId;
+    else optimistic.folderId = folderId;
+    setDeck(optimistic);
     try {
       await moveDeckToFolder(deckId, folderId);
     } catch (err) {

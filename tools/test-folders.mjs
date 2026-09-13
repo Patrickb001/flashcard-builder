@@ -3,6 +3,7 @@ import {
   UNFILED,
   cleanFolderName,
   countDecksByFolder,
+  deleteFolderConfirmMessage,
   filterDecks,
   folderOf,
   isDuplicateFolderName,
@@ -82,6 +83,23 @@ check('empty param is all', parseFolderFilter('', folders), 'all');
 check('unfiled is unfiled', parseFolderFilter('unfiled', folders), UNFILED);
 check('a real folder id is kept', parseFolderFilter('f-bio', folders), 'f-bio');
 check('an unknown id falls back to all', parseFolderFilter('f-gone', folders), 'all');
+
+console.log('\nDELETE-FOLDER WORDING');
+check(
+  'an empty folder is offered a plain question',
+  deleteFolderConfirmMessage('Chem', 0),
+  'Delete the empty folder "Chem"?'
+);
+check(
+  'one deck reads as singular',
+  deleteFolderConfirmMessage('Chem', 1),
+  'Delete the folder "Chem"? Its 1 deck will move to Unfiled. No decks are deleted.'
+);
+check(
+  'more than one deck reads as plural',
+  deleteFolderConfirmMessage('Chem', 3),
+  'Delete the folder "Chem"? Its 3 decks will move to Unfiled. No decks are deleted.'
+);
 
 console.log('\nNAMES');
 check('clean trims and collapses spaces', cleanFolderName('  Organic   Chem  '), 'Organic Chem');

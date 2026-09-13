@@ -1,4 +1,5 @@
 import { deleteDeck, deleteFolder } from '../db/db';
+import { deleteFolderConfirmMessage } from './deckFolders';
 
 /**
  * Asks before deleting a deck, then deletes it and everything in it.
@@ -31,11 +32,7 @@ export async function confirmAndDeleteFolder(
   name: string,
   deckCount: number
 ): Promise<boolean> {
-  const question =
-    deckCount === 0
-      ? `Delete the empty folder "${name}"?`
-      : `Delete the folder "${name}"? Its ${deckCount} deck${deckCount === 1 ? '' : 's'} will move to Unfiled. No decks are deleted.`;
-  if (!confirm(question)) return false;
+  if (!confirm(deleteFolderConfirmMessage(name, deckCount))) return false;
   await deleteFolder(folderId);
   return true;
 }

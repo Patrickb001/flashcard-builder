@@ -3,11 +3,11 @@ import type { Deck, Folder } from '../types';
 import { createFolder, renameFolder } from '../db/db';
 import { confirmAndDeleteDeck, confirmAndDeleteFolder } from '../lib/deckActions';
 import {
-  DuplicateFolderNameError,
   UNFILED,
   cleanFolderName,
   countDecksByFolder,
   filterDecks,
+  folderErrorMessage,
   folderOf,
   sortDecks,
   sortFolders,
@@ -41,11 +41,6 @@ const SORT_OPTIONS: { value: LibrarySort; label: string }[] = [
   { value: 'newest', label: 'Newest' },
   { value: 'name', label: 'A–Z' },
 ];
-
-/** The message for a failed folder write. A duplicate name is worth showing as it is. */
-function folderErrorMessage(err: unknown, fallback: string): string {
-  return err instanceof DuplicateFolderNameError ? err.message : fallback;
-}
 
 /**
  * The deck shelf: a folder bar, a sort switch, and the decks the chosen folder
