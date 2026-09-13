@@ -23,8 +23,8 @@ export default function App() {
   // The history index as of this page load. A fresh load or reload always
   // starts even with its own baseline, so Back only offers a page this
   // instance actually navigated to itself — see the design doc's
-  // Verification section for why this can't just read the browser's raw
-  // index on its own.
+  // Decisions table and Mechanism section for why this can't just read
+  // the browser's raw index on its own.
   const mountIdxRef = useRef(currentHistoryIdx());
   const canGoBack = canNavigateBack(mountIdxRef.current, currentHistoryIdx());
 

@@ -7,7 +7,7 @@ import { canNavigateBack } from '../src/lib/navigationHistory.ts';
  *
  * Pure — no browser, no React Router. The real `window.history.state.idx`
  * this is fed in the browser is checked by hand against the dev server; see
- * the spec's Verification section for the empirical trace that shape came from.
+ * the spec's Mechanism section for the empirical trace that shape came from.
  */
 
 let failures = 0;
