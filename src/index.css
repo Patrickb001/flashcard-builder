@@ -398,6 +398,114 @@ p {
   flex-wrap: wrap;
 }
 
+.library-header-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+}
+
+/* Two .mode-chips joined into one control; the chips keep their own look. */
+.sort-switch {
+  display: inline-flex;
+  gap: 0.2rem;
+  padding: 0.2rem;
+  border: 1px solid var(--border-soft);
+  border-radius: 100px;
+}
+
+.sort-switch .mode-chip {
+  border-color: transparent;
+  padding: 0.3rem 0.8rem;
+}
+
+.sort-switch .mode-chip.active {
+  border-color: var(--accent);
+}
+
+/* One line that scrolls sideways on a narrow screen rather than wrapping into
+   a stack of chips that pushes the decks off the first screen. */
+.folder-bar {
+  display: flex;
+  gap: 0.5rem;
+  overflow-x: auto;
+  padding-bottom: 0.35rem;
+  margin-bottom: 1.25rem;
+  scrollbar-width: thin;
+}
+
+.folder-chip {
+  flex-shrink: 0;
+  white-space: nowrap;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+
+.folder-chip-count {
+  font-size: 0.75rem;
+  color: var(--text-faint);
+}
+
+.folder-chip.active .folder-chip-count {
+  color: inherit;
+}
+
+.folder-chip.new-folder {
+  border-style: dashed;
+}
+
+.folder-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+  margin-bottom: 1.25rem;
+}
+
+.folder-title-input {
+  font-family: var(--font-ui);
+  font-weight: 600;
+  font-size: 1.25rem;
+  background: transparent;
+  border: none;
+  border-bottom: 2px solid transparent;
+  padding: 0;
+  color: var(--text-primary);
+  min-width: 0;
+  max-width: 100%;
+}
+
+.folder-title-input:focus {
+  outline: none;
+  border-bottom-color: var(--accent);
+}
+
+.deck-card-tags {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  min-width: 0;
+}
+
+.folder-tag {
+  font-family: var(--font-ui);
+  font-size: 0.7rem;
+  padding: 0.15rem 0.5rem;
+  border-radius: 100px;
+  background: var(--surface-raised);
+  color: var(--text-secondary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 10rem;
+}
+
+.empty-state.compact {
+  padding: 2.5rem 1.5rem;
+}
+
 .empty-state {
   border: 1px dashed var(--border-strong);
   border-radius: 10px;

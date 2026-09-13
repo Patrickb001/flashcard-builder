@@ -1,31 +1,40 @@
 import { useCallback, useEffect, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
-import type { Deck } from '../types';
-import { getAllDecks, onUpgradeBlocked } from '../db/db';
+import { useNavigate, useSearchParams } from 'react-router-dom';
+import type { Deck, Folder } from '../types';
+import { getAllDecks, getAllFolders, onUpgradeBlocked } from '../db/db';
+import { parseFolderFilter } from '../lib/deckFolders';
 import DeckLibrary from '../components/DeckLibrary';
 
 /**
- * The deck list, and the state behind it.
+ * The deck shelf, its folders, and the state behind them.
  *
- * The list belongs to this route rather than to App, so arriving here mounts it
+ * The lists belong to this route rather than to App, so arriving here mounts it
  * and loading is simply what mounting does. No other screen has to remember to
  * refresh the library after saving or deleting a deck.
+ *
+ * Which folder is open lives in the URL (`?folder=`), so Back, reload and a
+ * copied link all return to the same view.
  */
 export default function LibraryRoute() {
   const navigate = useNavigate();
+  const [searchParams, setSearchParams] = useSearchParams();
   const [decks, setDecks] = useState<Deck[]>([]);
+  const [folders, setFolders] = useState<Folder[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
   // loading is cleared on both paths. Clearing it only on success is what
   // left this screen spinning forever whenever IndexedDB was unavailable -
   // a private window, a full disk, storage switched off.
-  const refreshDecks = useCallback(async () => {
+  const refreshLibrary = useCallback(async () => {
     setLoading(true);
     setError(null);
     try {
-      const all = await getAllDecks();
-      setDecks(all);
+      // Read together, so the folder bar's counts and the grid always describe
+      // the same moment.
+      const [allDecks, allFolders] = await Promise.all([getAllDecks(), getAllFolders()]);
+      setDecks(allDecks);
+      setFolders(allFolders);
     } catch (err) {
       console.error('[app] Could not read the deck list:', err);
       setError(
@@ -37,8 +46,8 @@ export default function LibraryRoute() {
   }, []);
 
   useEffect(() => {
-    refreshDecks();
-  }, [refreshDecks]);
+    refreshLibrary();
+  }, [refreshLibrary]);
 
   /**
    * Reports an upgrade another tab is holding open.
@@ -56,15 +65,22 @@ export default function LibraryRoute() {
     });
   }, []);
 
+  const filter = parseFolderFilter(searchParams.get('folder'), folders);
+
   return (
     <DeckLibrary
       decks={decks}
+      folders={folders}
+      filter={filter}
       loading={loading}
       error={error}
-      onNewDeck={() => navigate('/upload')}
+      onNewDeck={(folderId) =>
+        navigate(folderId ? `/upload?folder=${encodeURIComponent(folderId)}` : '/upload')
+      }
+      onSelectFolder={(next) => setSearchParams(next === 'all' ? {} : { folder: next })}
       onStudy={(deckId) => navigate(`/deck/${deckId}/study`)}
       onManage={(deckId) => navigate(`/deck/${deckId}`)}
-      onDeckChange={refreshDecks}
+      onLibraryChange={refreshLibrary}
     />
   );
 }
