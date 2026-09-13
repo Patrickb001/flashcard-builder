@@ -23,7 +23,7 @@
     | `basic` | 3–4 | 2–3 | 5 | 4 |
     | `standard` | 5–7 | 3–4 | 8 | 5 |
     | `detailed` | 8–12 | 3–5 | 14 | 6 |
-  - `MAX_TOKENS.infographic = 4000` (both `src/lib/aiTransport.ts` and `src/server/generateHandler.ts` — these two copies must stay in step, per that file's own existing rule).
+  - Three AI tasks, not one: `'infographic-basic' | 'infographic-standard' | 'infographic-detailed'` (detail selects the task, since the server's request validator requires every task's payload to be a plain array — see Task 3's Step 1 note). `MAX_TOKENS['infographic-basic'] = MAX_TOKENS['infographic-standard'] = MAX_TOKENS['infographic-detailed'] = 4000` (both `src/lib/aiTransport.ts` and `src/server/generateHandler.ts` — these two copies must stay in step, per that file's own existing rule).
   - `DB_VERSION` goes from `3` to `4`.
   - New IndexedDB store: `infographics`, `keyPath: 'id'`, index `by-deckId` on `'deckId'`.
   - Delete confirmation text: `` `Delete "${title}"? This can't be undone.` ``.
@@ -48,8 +48,8 @@
 - Consumes: nothing new (only existing `Flashcard` shape, read-only, for the payload shape described in the prompt — this task does not build the payload itself, see Task 3).
 - Produces (all from `src/types.ts` unless noted):
   - `InfographicIcon`, `InfographicDetail`, `InfographicSection { heading: string; icon: InfographicIcon; points: string[] }`, `Infographic { id: string; deckId: string; title: string; detail: InfographicDetail; sections: InfographicSection[]; cardIds: string[]; createdAt: number }`, `LlmInfographic { title: string; sections: InfographicSection[] }`.
-  - `src/lib/infographicPrompt.ts`: `INFOGRAPHIC_SYSTEM_PROMPT: string`, `parseInfographicResponse(text: string, deckName: string, detail: InfographicDetail): LlmInfographic | null`.
-  - Task 3 imports `INFOGRAPHIC_SYSTEM_PROMPT` and `parseInfographicResponse` from `../lib/infographicPrompt`; Task 7 imports the five type exports from `../types`.
+  - `src/lib/infographicPrompt.ts`: `INFOGRAPHIC_SYSTEM_PROMPTS: Record<InfographicDetail, string>` (one prompt per level — see the note below the code, this is not one shared prompt), `parseInfographicResponse(text: string, deckName: string, detail: InfographicDetail): LlmInfographic | null`.
+  - Task 3 imports `INFOGRAPHIC_SYSTEM_PROMPTS` and `parseInfographicResponse` from `../lib/infographicPrompt`; Task 7 imports the five type exports from `../types`.
 
 - [ ] **Step 1: Add the types**
 
@@ -277,11 +277,9 @@ const ICONS: InfographicIcon[] = [
 
 /**
  * Clamp ceilings per level — enforced by the parser below on whatever the
- * model actually returns. Distinct from the *targets* named in the prompt
- * text below: those are guidance the model reads from the payload's own
- * `detail` field (see generateInfographic in infographicGenerator.ts,
- * Task 3), never told to the model as a hard limit the way these ceilings
- * are enforced here.
+ * model actually returns. Distinct from the *targets* embedded in each
+ * level's own prompt text below: never told to the model as a hard limit
+ * the way these ceilings are enforced here.
  */
 const CEILINGS: Record<InfographicDetail, { sections: number; points: number }> = {
   basic: { sections: 5, points: 4 },
@@ -289,23 +287,17 @@ const CEILINGS: Record<InfographicDetail, { sections: number; points: number }> 
   detailed: { sections: 14, points: 6 },
 };
 
-/**
- * A static prompt — one string, reused for every call regardless of which
- * detail level was requested. The request payload itself (built in
- * infographicGenerator.ts, Task 3) carries a `detail` field alongside the
- * cards; this text is what tells the model to read that field and apply
- * the matching target range below. There is no per-level *variant* of this
- * prompt — a single call's target comes entirely from its own payload.
- */
-export const INFOGRAPHIC_SYSTEM_PROMPT = `You turn a student's flashcards into a single-page-style infographic they can use to review the material at a glance.
+/** Per-level target guidance, folded into each level's own prompt text below. */
+const TARGET_GUIDANCE: Record<InfographicDetail, string> = {
+  basic: 'roughly 3-4 sections, 2-3 points each',
+  standard: 'roughly 5-7 sections, 3-4 points each',
+  detailed: 'roughly 8-12 sections, 3-5 points each',
+};
 
-You are given a JSON object with two fields: "detail" (one of "basic", "standard", "detailed") and "cards" (an array of flashcards, each with front, back, and sometimes a topic). Use "detail" to choose how much to write, aiming for — never strictly capped at — this range:
+function buildInfographicPrompt(detail: InfographicDetail): string {
+  return `You turn a student's flashcards into a single-page-style infographic they can use to review the material at a glance.
 
-- basic: roughly 3-4 sections, 2-3 points each.
-- standard: roughly 5-7 sections, 3-4 points each.
-- detailed: roughly 8-12 sections, 3-5 points each.
-
-These are guides, not hard limits — write what the material actually supports.
+You are given some flashcards from one deck (front, back, and sometimes a topic). Write ${TARGET_GUIDANCE[detail]} — aim for that range, but it is a guide, not a hard limit; write what the material actually supports.
 
 Reply with ONLY a JSON object, no prose before or after, shaped exactly like this:
 
@@ -321,6 +313,25 @@ Rules:
 2. icon MUST be exactly one of: ${ICONS.join(', ')}. Pick whichever reads best for that section's topic; never invent a name outside this list.
 3. Keep headings and points short — this is read at a glance, not studied line by line.
 4. Every section needs at least one point and a heading; never return an empty sections array.`;
+}
+
+/**
+ * One prompt per detail level — not one shared prompt with the level named
+ * in the payload. Two reasons: it matches how this file's neighbor,
+ * quizPrompt.ts, already splits "vignette" from "vignette-audit" as
+ * separate tasks rather than one task with a mode field; and more
+ * concretely, the server's request validator (generateHandler.ts) requires
+ * every task's payload to be a plain array ("Expected a non-empty
+ * 'sections' array") — an object payload carrying `{ detail, cards }`
+ * would be rejected by hosted mode before ever reaching the model. So
+ * `detail` travels as *which task* gets called (see the AiTask additions
+ * and TASK_BY_DETAIL in Task 3), never as extra payload content.
+ */
+export const INFOGRAPHIC_SYSTEM_PROMPTS: Record<InfographicDetail, string> = {
+  basic: buildInfographicPrompt('basic'),
+  standard: buildInfographicPrompt('standard'),
+  detailed: buildInfographicPrompt('detailed'),
+};
 
 /**
  * Reads the model's reply as one JSON object, tolerating a markdown fence,
@@ -544,23 +555,33 @@ EOF
 - Create: `src/lib/infographicGenerator.ts`
 
 **Interfaces:**
-- Consumes: `INFOGRAPHIC_SYSTEM_PROMPT`, `parseInfographicResponse` from `../lib/infographicPrompt` (Task 1); `callModel` from `./aiTransport` (existing); `AiSettings` from `./aiGenerator` (existing); `Flashcard`, `Infographic`, `InfographicDetail` from `../types` (Task 1 for the last two).
+- Consumes: `INFOGRAPHIC_SYSTEM_PROMPTS`, `parseInfographicResponse` from `../lib/infographicPrompt` (Task 1); `callModel` from `./aiTransport` (existing); `AiSettings` from `./aiGenerator` (existing); `Flashcard`, `Infographic`, `InfographicDetail` from `../types` (Task 1 for the last two).
 - Produces: `generateInfographic(deckId: string, deckName: string, cards: Flashcard[], detail: InfographicDetail, settings: AiSettings, signal?: AbortSignal): Promise<Infographic>`. Task 7's `InfographicMode` calls this and then calls Task 2's `saveInfographic` on the result.
 
 - [ ] **Step 1: Read `AiTask`, `PROMPTS`, and `MAX_TOKENS` in `aiTransport.ts` before changing them**
 
 Open `src/lib/aiTransport.ts`. Find `export type AiTask = 'cards' | 'quiz' | 'vignette' | 'vignette-audit' | 'ocr';`, the `PROMPTS` record below it, and the `MAX_TOKENS` record below that.
 
-- [ ] **Step 2: Add the task to `aiTransport.ts`**
+**Why three task names, not one:** `detail` (basic/standard/detailed) has to reach the model somehow, but it cannot travel as an extra payload field — `generateHandler.ts`'s request validator requires every task's payload to be a plain array (`if (!Array.isArray(sections) || sections.length === 0) return { status: 400, ... }`), so an object payload like `{ detail, cards }` would be rejected by hosted mode before ever reaching the model. Instead, `detail` selects *which task* is called — three task names, one per level, each with its own prompt (already built that way in Task 1's `INFOGRAPHIC_SYSTEM_PROMPTS`). This mirrors how `vignette` and `vignette-audit` are already separate tasks rather than one task with a mode flag.
+
+- [ ] **Step 2: Add the tasks to `aiTransport.ts`**
 
 ```ts
-export type AiTask = 'cards' | 'quiz' | 'vignette' | 'vignette-audit' | 'ocr' | 'infographic';
+export type AiTask =
+  | 'cards'
+  | 'quiz'
+  | 'vignette'
+  | 'vignette-audit'
+  | 'ocr'
+  | 'infographic-basic'
+  | 'infographic-standard'
+  | 'infographic-detailed';
 ```
 
 Add the import at the top, alongside the other prompt imports:
 
 ```ts
-import { INFOGRAPHIC_SYSTEM_PROMPT } from './infographicPrompt';
+import { INFOGRAPHIC_SYSTEM_PROMPTS } from './infographicPrompt';
 ```
 
 In `PROMPTS`:
@@ -572,7 +593,9 @@ const PROMPTS: Record<AiTask, string> = {
   vignette: VIGNETTE_SYSTEM_PROMPT,
   'vignette-audit': VIGNETTE_AUDIT_SYSTEM_PROMPT,
   ocr: OCR_SYSTEM_PROMPT,
-  infographic: INFOGRAPHIC_SYSTEM_PROMPT,
+  'infographic-basic': INFOGRAPHIC_SYSTEM_PROMPTS.basic,
+  'infographic-standard': INFOGRAPHIC_SYSTEM_PROMPTS.standard,
+  'infographic-detailed': INFOGRAPHIC_SYSTEM_PROMPTS.detailed,
 };
 ```
 
@@ -585,16 +608,18 @@ const MAX_TOKENS: Record<AiTask, number> = {
   vignette: 16000,
   'vignette-audit': 1000,
   ocr: 16000,
-  infographic: 4000,
+  'infographic-basic': 4000,
+  'infographic-standard': 4000,
+  'infographic-detailed': 4000,
 };
 ```
 
-- [ ] **Step 3: Add the same task to `generateHandler.ts`**
+- [ ] **Step 3: Add the same tasks to `generateHandler.ts`**
 
 Open `src/server/generateHandler.ts`. Add the import:
 
 ```ts
-import { INFOGRAPHIC_SYSTEM_PROMPT } from '../lib/infographicPrompt';
+import { INFOGRAPHIC_SYSTEM_PROMPTS } from '../lib/infographicPrompt';
 ```
 
 In its own `MAX_TOKENS` (a `Record<string, number>`, separate from but must match `aiTransport.ts`'s):
@@ -606,7 +631,9 @@ const MAX_TOKENS: Record<string, number> = {
   vignette: 16000,
   'vignette-audit': 1000,
   ocr: 16000,
-  infographic: 4000,
+  'infographic-basic': 4000,
+  'infographic-standard': 4000,
+  'infographic-detailed': 4000,
 };
 ```
 
@@ -619,7 +646,9 @@ const PROMPTS = new Map<string, string>([
   ['vignette', VIGNETTE_SYSTEM_PROMPT],
   ['vignette-audit', VIGNETTE_AUDIT_SYSTEM_PROMPT],
   ['ocr', OCR_SYSTEM_PROMPT],
-  ['infographic', INFOGRAPHIC_SYSTEM_PROMPT],
+  ['infographic-basic', INFOGRAPHIC_SYSTEM_PROMPTS.basic],
+  ['infographic-standard', INFOGRAPHIC_SYSTEM_PROMPTS.standard],
+  ['infographic-detailed', INFOGRAPHIC_SYSTEM_PROMPTS.detailed],
 ]);
 ```
 
@@ -634,9 +663,17 @@ Create `src/lib/infographicGenerator.ts`:
 
 ```ts
 import type { AiSettings } from './aiGenerator';
+import type { AiTask } from './aiTransport';
 import { callModel } from './aiTransport';
 import { parseInfographicResponse } from './infographicPrompt';
 import type { Flashcard, Infographic, InfographicDetail } from '../types';
+
+/** Which AiTask a given detail level calls — see Step 1's note on why detail selects the task rather than riding in the payload. */
+const TASK_BY_DETAIL: Record<InfographicDetail, AiTask> = {
+  basic: 'infographic-basic',
+  standard: 'infographic-standard',
+  detailed: 'infographic-detailed',
+};
 
 /**
  * Turns a chosen set of a deck's cards into one saved-shaped Infographic.
@@ -657,16 +694,13 @@ export async function generateInfographic(
   settings: AiSettings,
   signal?: AbortSignal
 ): Promise<Infographic> {
-  const payload = {
-    detail,
-    cards: cards.map((card) => ({
-      front: card.front,
-      back: card.back,
-      context: card.context,
-    })),
-  };
+  const payload = cards.map((card) => ({
+    front: card.front,
+    back: card.back,
+    context: card.context,
+  }));
 
-  const { text } = await callModel('infographic', payload, settings, signal);
+  const { text } = await callModel(TASK_BY_DETAIL[detail], payload, settings, signal);
   const parsed = parseInfographicResponse(text, deckName, detail);
   if (!parsed) {
     throw new Error('The infographic could not be read from the model\'s reply.');
