@@ -67,6 +67,8 @@ export default function DeckLibrary({
   // grid draws once in the wrong order before correcting itself.
   const [sort, setSort] = useState<LibrarySort>(getStoredLibrarySort);
   const [folderNameDraft, setFolderNameDraft] = useState('');
+  const [creatingFolder, setCreatingFolder] = useState(false);
+  const [newFolderDraft, setNewFolderDraft] = useState('');
 
   const folderIds = useMemo(() => new Set(folders.map((folder) => folder.id)), [folders]);
   const folderNames = useMemo(
@@ -123,13 +125,35 @@ export default function DeckLibrary({
     }
   };
 
-  /** Asks for a name, creates the folder, and opens it. */
-  const handleNewFolder = async () => {
-    const name = prompt('Name the new folder');
-    if (name === null || !cleanFolderName(name)) return;
+  /** Opens the inline "+ New folder" field. */
+  const startNewFolder = () => {
+    setActionError(null);
+    setNewFolderDraft('');
+    setCreatingFolder(true);
+  };
+
+  /** Closes the inline field without creating anything. */
+  const cancelNewFolder = () => {
+    setActionError(null);
+    setCreatingFolder(false);
+    setNewFolderDraft('');
+  };
+
+  /**
+   * Creates the folder and opens it. Left open with its text on a failed
+   * write (e.g. a duplicate name), so fixing it is a retry, not a restart.
+   */
+  const submitNewFolder = async () => {
+    const cleaned = cleanFolderName(newFolderDraft);
+    if (!cleaned) {
+      cancelNewFolder();
+      return;
+    }
     try {
       setActionError(null);
-      const folder = await createFolder(name);
+      const folder = await createFolder(cleaned);
+      setCreatingFolder(false);
+      setNewFolderDraft('');
       // Refreshed first: until the route holds the new folder, its id would
       // not survive parseFolderFilter and the shelf would fall back to All.
       await onLibraryChange();
@@ -261,9 +285,47 @@ export default function DeckLibrary({
               folderChip(folder.id, folder.name, counts.get(folder.id) ?? 0)
             )}
             {folderChip(UNFILED, 'Unfiled', counts.get(UNFILED) ?? 0)}
-            <button type="button" className="mode-chip folder-chip new-folder" onClick={handleNewFolder}>
-              + New folder
-            </button>
+            {creatingFolder ? (
+              <form
+                className="folder-chip-form"
+                onSubmit={(e) => {
+                  e.preventDefault();
+                  submitNewFolder();
+                }}
+                onBlur={(e) => {
+                  if (!e.currentTarget.contains(e.relatedTarget as Node | null)) cancelNewFolder();
+                }}
+              >
+                <input
+                  autoFocus
+                  className="folder-chip-input"
+                  aria-label="New folder name"
+                  placeholder="Folder name"
+                  value={newFolderDraft}
+                  onChange={(e) => setNewFolderDraft(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Escape') {
+                      e.preventDefault();
+                      cancelNewFolder();
+                    }
+                  }}
+                />
+                <button type="submit" className="icon-btn folder-chip-confirm" title="Create folder" aria-label="Create folder">
+                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M20 6 9 17l-5-5" />
+                  </svg>
+                </button>
+                <button type="button" className="icon-btn" title="Cancel" aria-label="Cancel" onClick={cancelNewFolder}>
+                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
+                    <path d="M18 6 6 18M6 6l12 12" />
+                  </svg>
+                </button>
+              </form>
+            ) : (
+              <button type="button" className="mode-chip folder-chip new-folder" onClick={startNewFolder}>
+                + New folder
+              </button>
+            )}
           </nav>
 
           {selectedFolder && (
