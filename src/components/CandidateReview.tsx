@@ -1,12 +1,13 @@
 import { useEffect, useState } from 'react';
-import type { CandidateCard, Deck, Flashcard, SourceType } from '../types';
+import type { CandidateCard, Deck, Flashcard, Folder, SourceType } from '../types';
 import type { DocumentSection, OcrPage } from '../lib/documentModel';
 import { generateCandidates } from '../lib/flashcardGenerator';
 import type { AiSettings } from '../lib/aiGenerator';
 import type { BatchProgress } from '../lib/batchRunner';
 import { generateCandidatesWithAi } from '../lib/aiGenerator';
 import { transcribePagesWithAi } from '../lib/ocrGenerator';
-import { saveDeckWithCards } from '../db/db';
+import { createFolder, getAllFolders, saveDeckWithCards } from '../db/db';
+import { DuplicateFolderNameError, UNFILED, cleanFolderName, sortFolders } from '../lib/deckFolders';
 import CardAttachments from './ui/CardAttachments';
 import DraftingBanner from './ui/DraftingBanner';
 import ProgressBar from './ui/ProgressBar';
@@ -34,10 +35,18 @@ interface Props {
    * transcribed; undefined or empty for every non-PDF source.
    */
   ocrPages?: OcrPage[];
+  /**
+   * The folder to preselect, from the library view the upload started in.
+   * Ignored when no folder with this id exists once the folders have loaded.
+   */
+  folderId?: string;
   /** Fired with the new deck's id once it is safely in the database. */
   onSaved: (deckId: string) => void;
   onCancel: () => void;
 }
+
+/** The folder select's "New folder…" option. Not a UUID, so never a real folder id. */
+const NEW_FOLDER = '__new-folder__';
 
 /** What one parsed section is called, per source format. */
 const UNIT_NOUN: Record<SourceType, string> = {
@@ -90,6 +99,7 @@ export default function CandidateReview({
   notice,
   sourceUrls,
   ocrPages,
+  folderId,
   onSaved,
   onCancel,
 }: Props) {
@@ -228,6 +238,53 @@ export default function CandidateReview({
   }, [sections, ocrPages, ai, sourceType]);
   const [deckName, setDeckName] = useState(defaultDeckName(fileName));
   const [saving, setSaving] = useState(false);
+  const [folders, setFolders] = useState<Folder[]>([]);
+  // Unfiled until the folders load and the requested one is confirmed to exist.
+  const [folderChoice, setFolderChoice] = useState<string>(UNFILED);
+  const [folderError, setFolderError] = useState<string | null>(null);
+
+  // A failed read leaves only Unfiled and "New folder…" to choose from. Saving
+  // still works, so a folder problem never costs anyone their reviewed cards.
+  useEffect(() => {
+    let cancelled = false;
+    getAllFolders()
+      .then((all) => {
+        if (cancelled) return;
+        setFolders(all);
+        if (folderId && all.some((folder) => folder.id === folderId)) {
+          // Only if nothing has been picked yet, so a slow read cannot undo a choice.
+          setFolderChoice((current) => (current === UNFILED ? folderId : current));
+        }
+      })
+      .catch((err) => {
+        console.error('[review] Could not read the folders:', err);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [folderId]);
+
+  /** Applies the folder select, creating a folder first when "New folder…" was picked. */
+  const handleFolderSelect = async (value: string) => {
+    setFolderError(null);
+    if (value !== NEW_FOLDER) {
+      setFolderChoice(value);
+      return;
+    }
+    // The select is controlled, so cancelling leaves it on the previous choice.
+    const name = prompt('Name the new folder');
+    if (name === null || !cleanFolderName(name)) return;
+    try {
+      const folder = await createFolder(name);
+      setFolders((prev) => [...prev, folder]);
+      setFolderChoice(folder.id);
+    } catch (err) {
+      console.error('[review] Creating the folder failed:', err);
+      setFolderError(
+        err instanceof DuplicateFolderNameError ? err.message : 'The folder could not be created.'
+      );
+    }
+  };
 
   const includedCount = candidates.filter((candidate) => candidate.include).length;
 
@@ -281,6 +338,9 @@ export default function CandidateReview({
       sourceUrls,
       createdAt: now,
       cardCount: toSave.length,
+      // Left off entirely for Unfiled, so the record matches a deck saved
+      // before folders existed rather than carrying an undefined key.
+      ...(folderChoice === UNFILED ? {} : { folderId: folderChoice }),
     };
     // `order` is what preserves the review screen's order into the deck. Every
     // card here shares one `createdAt`, so nothing else in the record can say
@@ -374,15 +434,40 @@ export default function CandidateReview({
         <p className="muted">Waiting for the first cards…</p>
       )}
 
-      <div className="deck-name-row">
-        <label htmlFor="deck-name">Deck name</label>
-        <input
-          id="deck-name"
-          type="text"
-          value={deckName}
-          onChange={(e) => setDeckName(e.target.value)}
-          placeholder="Name this deck"
-        />
+      <div className="deck-save-fields">
+        <div className="deck-name-row">
+          <label htmlFor="deck-name">Deck name</label>
+          <input
+            id="deck-name"
+            type="text"
+            value={deckName}
+            onChange={(e) => setDeckName(e.target.value)}
+            placeholder="Name this deck"
+          />
+        </div>
+        <div className="deck-name-row deck-folder-row">
+          <label htmlFor="deck-folder">Folder</label>
+          {/* Always A–Z, whatever the library is sorted by. */}
+          <select
+            id="deck-folder"
+            className="folder-select"
+            value={folderChoice}
+            onChange={(e) => handleFolderSelect(e.target.value)}
+          >
+            <option value={UNFILED}>Unfiled</option>
+            {sortFolders(folders, 'name').map((folder) => (
+              <option key={folder.id} value={folder.id}>
+                {folder.name}
+              </option>
+            ))}
+            <option value={NEW_FOLDER}>New folder…</option>
+          </select>
+          {folderError && (
+            <p className="muted small" role="alert">
+              {folderError}
+            </p>
+          )}
+        </div>
       </div>
 
       <div className="review-toolbar">

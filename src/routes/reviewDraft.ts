@@ -22,6 +22,11 @@ export interface ReviewDraft {
   notice?: string;
   /** The address(es) read, for a deck built from one or more URLs. */
   sourceUrls?: string[];
+  /**
+   * The folder the library had open when "New deck" was pressed. Only a hint:
+   * the review screen preselects it only if a folder with this id still exists.
+   */
+  folderId?: string;
 }
 
 /** Reads a draft out of history state, or null when there is nothing there. */

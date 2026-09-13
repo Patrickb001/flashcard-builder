@@ -690,6 +690,28 @@ input[type="text"]:focus-visible,
   outline-offset: 1px;
 }
 
+/* Deck name and folder side by side, stacking once the row is too narrow. */
+.deck-save-fields {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0 1rem;
+  align-items: flex-start;
+}
+
+.deck-save-fields .deck-name-row {
+  flex: 1 1 260px;
+}
+
+.deck-save-fields .deck-folder-row {
+  flex: 0 1 220px;
+}
+
+/* Same height as the deck name input beside it. */
+.deck-name-row .folder-select {
+  padding: 0.55rem 0.75rem;
+  font-size: 1rem;
+}
+
 .review-toolbar {
   display: flex;
   justify-content: space-between;
