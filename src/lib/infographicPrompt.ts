@@ -27,11 +27,9 @@ const ICONS: InfographicIcon[] = [
 
 /**
  * Clamp ceilings per level — enforced by the parser below on whatever the
- * model actually returns. Distinct from the *targets* named in the prompt
- * text below: those are guidance the model reads from the payload's own
- * `detail` field (see generateInfographic in infographicGenerator.ts,
- * Task 3), never told to the model as a hard limit the way these ceilings
- * are enforced here.
+ * model actually returns. Distinct from the *targets* embedded in each
+ * level's own prompt text below: never told to the model as a hard limit
+ * the way these ceilings are enforced here.
  */
 const CEILINGS: Record<InfographicDetail, { sections: number; points: number }> = {
   basic: { sections: 5, points: 4 },
@@ -39,23 +37,17 @@ const CEILINGS: Record<InfographicDetail, { sections: number; points: number }> 
   detailed: { sections: 14, points: 6 },
 };
 
-/**
- * A static prompt — one string, reused for every call regardless of which
- * detail level was requested. The request payload itself (built in
- * infographicGenerator.ts, Task 3) carries a `detail` field alongside the
- * cards; this text is what tells the model to read that field and apply
- * the matching target range below. There is no per-level *variant* of this
- * prompt — a single call's target comes entirely from its own payload.
- */
-export const INFOGRAPHIC_SYSTEM_PROMPT = `You turn a student's flashcards into a single-page-style infographic they can use to review the material at a glance.
+/** Per-level target guidance, folded into each level's own prompt text below. */
+const TARGET_GUIDANCE: Record<InfographicDetail, string> = {
+  basic: 'roughly 3-4 sections, 2-3 points each',
+  standard: 'roughly 5-7 sections, 3-4 points each',
+  detailed: 'roughly 8-12 sections, 3-5 points each',
+};
 
-You are given a JSON object with two fields: "detail" (one of "basic", "standard", "detailed") and "cards" (an array of flashcards, each with front, back, and sometimes a topic). Use "detail" to choose how much to write, aiming for — never strictly capped at — this range:
+function buildInfographicPrompt(detail: InfographicDetail): string {
+  return `You turn a student's flashcards into a single-page-style infographic they can use to review the material at a glance.
 
-- basic: roughly 3-4 sections, 2-3 points each.
-- standard: roughly 5-7 sections, 3-4 points each.
-- detailed: roughly 8-12 sections, 3-5 points each.
-
-These are guides, not hard limits — write what the material actually supports.
+You are given some flashcards from one deck (front, back, and sometimes a topic). Write ${TARGET_GUIDANCE[detail]} — aim for that range, but it is a guide, not a hard limit; write what the material actually supports.
 
 Reply with ONLY a JSON object, no prose before or after, shaped exactly like this:
 
@@ -71,6 +63,25 @@ Rules:
 2. icon MUST be exactly one of: ${ICONS.join(', ')}. Pick whichever reads best for that section's topic; never invent a name outside this list.
 3. Keep headings and points short — this is read at a glance, not studied line by line.
 4. Every section needs at least one point and a heading; never return an empty sections array.`;
+}
+
+/**
+ * One prompt per detail level — not one shared prompt with the level named
+ * in the payload. Two reasons: it matches how this file's neighbor,
+ * quizPrompt.ts, already splits "vignette" from "vignette-audit" as
+ * separate tasks rather than one task with a mode field; and more
+ * concretely, the server's request validator (generateHandler.ts) requires
+ * every task's payload to be a plain array ("Expected a non-empty
+ * 'sections' array") — an object payload carrying `{ detail, cards }`
+ * would be rejected by hosted mode before ever reaching the model. So
+ * `detail` travels as *which task* gets called (see TASK_BY_DETAIL in
+ * infographicGenerator.ts), never as extra payload content.
+ */
+export const INFOGRAPHIC_SYSTEM_PROMPTS: Record<InfographicDetail, string> = {
+  basic: buildInfographicPrompt('basic'),
+  standard: buildInfographicPrompt('standard'),
+  detailed: buildInfographicPrompt('detailed'),
+};
 
 /**
  * Reads the model's reply as one JSON object, tolerating a markdown fence,

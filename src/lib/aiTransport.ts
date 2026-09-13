@@ -2,6 +2,7 @@ import type { AiSettings } from './aiGenerator';
 import { CARD_SYSTEM_PROMPT } from './cardPrompt';
 import { QUIZ_SYSTEM_PROMPT, VIGNETTE_SYSTEM_PROMPT, VIGNETTE_AUDIT_SYSTEM_PROMPT } from './quizPrompt';
 import { OCR_SYSTEM_PROMPT } from './ocrPrompt';
+import { INFOGRAPHIC_SYSTEM_PROMPTS } from './infographicPrompt';
 
 /**
  * Getting a payload to the model, by whichever route is available.
@@ -26,7 +27,15 @@ import { OCR_SYSTEM_PROMPT } from './ocrPrompt';
  * and looks it up — see the lookup in netlify/functions/generate.mts for why
  * that boundary matters.
  */
-export type AiTask = 'cards' | 'quiz' | 'vignette' | 'vignette-audit' | 'ocr';
+export type AiTask =
+  | 'cards'
+  | 'quiz'
+  | 'vignette'
+  | 'vignette-audit'
+  | 'ocr'
+  | 'infographic-basic'
+  | 'infographic-standard'
+  | 'infographic-detailed';
 
 /** The prompts, for the direct-from-browser route which has no server to ask. */
 const PROMPTS: Record<AiTask, string> = {
@@ -35,6 +44,9 @@ const PROMPTS: Record<AiTask, string> = {
   vignette: VIGNETTE_SYSTEM_PROMPT,
   'vignette-audit': VIGNETTE_AUDIT_SYSTEM_PROMPT,
   ocr: OCR_SYSTEM_PROMPT,
+  'infographic-basic': INFOGRAPHIC_SYSTEM_PROMPTS.basic,
+  'infographic-standard': INFOGRAPHIC_SYSTEM_PROMPTS.standard,
+  'infographic-detailed': INFOGRAPHIC_SYSTEM_PROMPTS.detailed,
 };
 
 const MODEL = 'claude-sonnet-5';
@@ -60,6 +72,9 @@ const MAX_TOKENS: Record<AiTask, number> = {
   // A transcribed page can be as dense as a card-drafting batch; same
   // ceiling as `cards` until real batches say otherwise (docs/tuning-notes.md).
   ocr: 16000,
+  'infographic-basic': 4000,
+  'infographic-standard': 4000,
+  'infographic-detailed': 4000,
 };
 
 /**

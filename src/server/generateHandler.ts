@@ -1,6 +1,7 @@
 import { CARD_SYSTEM_PROMPT } from '../lib/cardPrompt';
 import { QUIZ_SYSTEM_PROMPT, VIGNETTE_SYSTEM_PROMPT, VIGNETTE_AUDIT_SYSTEM_PROMPT } from '../lib/quizPrompt';
 import { OCR_SYSTEM_PROMPT } from '../lib/ocrPrompt';
+import { INFOGRAPHIC_SYSTEM_PROMPTS } from '../lib/infographicPrompt';
 import type { HandlerResult } from './endpoint';
 
 /**
@@ -33,6 +34,9 @@ const MAX_TOKENS: Record<string, number> = {
   vignette: 16000,
   'vignette-audit': 1000,
   ocr: 16000,
+  'infographic-basic': 4000,
+  'infographic-standard': 4000,
+  'infographic-detailed': 4000,
 };
 
 /**
@@ -49,6 +53,9 @@ const PROMPTS = new Map<string, string>([
   ['vignette', VIGNETTE_SYSTEM_PROMPT],
   ['vignette-audit', VIGNETTE_AUDIT_SYSTEM_PROMPT],
   ['ocr', OCR_SYSTEM_PROMPT],
+  ['infographic-basic', INFOGRAPHIC_SYSTEM_PROMPTS.basic],
+  ['infographic-standard', INFOGRAPHIC_SYSTEM_PROMPTS.standard],
+  ['infographic-detailed', INFOGRAPHIC_SYSTEM_PROMPTS.detailed],
 ]);
 
 /** Anything larger than this is refused before it reaches the model. */
