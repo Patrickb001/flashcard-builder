@@ -1,5 +1,5 @@
 import { openDB, type DBSchema, type IDBPDatabase } from 'idb';
-import type { Deck, Flashcard, Folder, TestQuestion } from '../types';
+import type { Deck, Flashcard, Folder, Infographic, TestQuestion } from '../types';
 import { DuplicateFolderNameError, cleanFolderName, isDuplicateFolderName } from '../lib/deckFolders';
 
 interface FlashcardForgeDB extends DBSchema {
@@ -27,10 +27,15 @@ interface FlashcardForgeDB extends DBSchema {
     key: string;
     value: Folder;
   };
+  infographics: {
+    key: string;
+    value: Infographic;
+    indexes: { 'by-deckId': string };
+  };
 }
 
 const DB_NAME = 'flashcard-forge';
-const DB_VERSION = 3;
+const DB_VERSION = 4;
 
 let dbPromise: Promise<IDBPDatabase<FlashcardForgeDB>> | null = null;
 
@@ -110,6 +115,11 @@ function getDB() {
         // what Unfiled means, so every deck from v2 arrives already filed.
         if (oldVersion < 3) {
           db.createObjectStore('folders', { keyPath: 'id' });
+        }
+
+        if (oldVersion < 4) {
+          const infographicStore = db.createObjectStore('infographics', { keyPath: 'id' });
+          infographicStore.createIndex('by-deckId', 'deckId');
         }
       },
 
@@ -257,19 +267,19 @@ export async function deleteCard(cardId: string, deckId: string): Promise<void> 
 }
 
 /**
- * Deletes a deck and everything written from it — its cards and their test
- * questions — as one transaction across all three stores.
+ * Deletes a deck and everything written from it — its cards, their test
+ * questions, and its infographics — as one transaction across all four stores.
  *
  * Cursors rather than a bulk delete, because IndexedDB has no "delete by index"
- * operation; the two child stores are swept by their by-deckId index. Nothing
+ * operation; the three child stores are swept by their by-deckId index. Nothing
  * here is recoverable, so the caller is expected to have confirmed first.
  */
 export async function deleteDeck(deckId: string): Promise<void> {
   const db = await getDB();
-  const tx = db.transaction(['decks', 'flashcards', 'testQuestions'], 'readwrite');
+  const tx = db.transaction(['decks', 'flashcards', 'testQuestions', 'infographics'], 'readwrite');
   await tx.objectStore('decks').delete(deckId);
 
-  for (const store of ['flashcards', 'testQuestions'] as const) {
+  for (const store of ['flashcards', 'testQuestions', 'infographics'] as const) {
     const index = tx.objectStore(store).index('by-deckId');
     let cursor = await index.openCursor(IDBKeyRange.only(deckId));
     while (cursor) {
@@ -514,4 +524,27 @@ export async function moveDeckToFolder(deckId: string, folderId: string | null):
   }
 
   await tx.done;
+}
+
+// ---------------------------------------------------------------------------
+// Infographics
+// ---------------------------------------------------------------------------
+
+/** Every infographic saved for a deck, newest first. */
+export async function getInfographicsForDeck(deckId: string): Promise<Infographic[]> {
+  const db = await getDB();
+  const infographics = await db.getAllFromIndex('infographics', 'by-deckId', deckId);
+  return infographics.sort((a, b) => b.createdAt - a.createdAt);
+}
+
+/** Stores one infographic. Always a new row — infographics are never overwritten by id. */
+export async function saveInfographic(infographic: Infographic): Promise<void> {
+  const db = await getDB();
+  await db.put('infographics', infographic);
+}
+
+/** Removes one infographic. Does not touch the deck or any of its other infographics. */
+export async function deleteInfographic(id: string): Promise<void> {
+  const db = await getDB();
+  await db.delete('infographics', id);
 }
