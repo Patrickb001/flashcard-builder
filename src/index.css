@@ -428,15 +428,13 @@ p {
   border-color: var(--accent);
 }
 
-/* One line that scrolls sideways on a narrow screen rather than wrapping into
-   a stack of chips that pushes the decks off the first screen. */
+/* Wraps onto additional lines rather than scrolling sideways once the
+   folder chips no longer fit on one row. */
 .folder-bar {
   display: flex;
+  flex-wrap: wrap;
   gap: 0.5rem;
-  overflow-x: auto;
-  padding-bottom: 0.35rem;
   margin-bottom: 1.25rem;
-  scrollbar-width: thin;
 }
 
 .folder-chip {

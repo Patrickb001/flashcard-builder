@@ -357,16 +357,17 @@ export default function DeckLibrary({
 
       {shelfVisible && (
         <>
-          {/* All first and Unfiled last whatever the sort; only real folders move. */}
+          {/* New folder, Unfiled, and All decks are fixed in place whatever the
+              sort; only the real folders between them move. */}
           <nav className="folder-bar" aria-label="Folders">
+            <button type="button" className="mode-chip folder-chip new-folder" onClick={startNewFolder}>
+              + New folder
+            </button>
+            {folderChip(UNFILED, 'Unfiled', counts.get(UNFILED) ?? 0)}
             {folderChip('all', 'All decks', decks.length)}
             {sortedFolders.map((folder) =>
               folderChip(folder.id, folder.name, counts.get(folder.id) ?? 0)
             )}
-            {folderChip(UNFILED, 'Unfiled', counts.get(UNFILED) ?? 0)}
-            <button type="button" className="mode-chip folder-chip new-folder" onClick={startNewFolder}>
-              + New folder
-            </button>
           </nav>
 
           {selectedFolder && (
