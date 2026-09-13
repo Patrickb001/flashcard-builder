@@ -1,0 +1,132 @@
+import { stripJsonFence } from './textUtils';
+import type { InfographicDetail, InfographicIcon, LlmInfographic } from '../types';
+
+/**
+ * Turns a deck's flashcards into one infographic — a title plus a handful of
+ * icon-and-bullet sections. Shared between the browser (bring-your-own-key
+ * mode) and the serverless function, exactly as the card and quiz prompts
+ * are. This module must import nothing at runtime beyond other such
+ * modules — the Netlify function imports it, and a stray reference to the
+ * DOM or to localStorage would follow it into the server bundle.
+ */
+
+const ICONS: InfographicIcon[] = [
+  'book',
+  'lightbulb',
+  'brain',
+  'chart',
+  'list',
+  'arrows',
+  'target',
+  'clock',
+  'check',
+  'warning',
+  'network',
+  'question',
+];
+
+/**
+ * Clamp ceilings per level — enforced by the parser below on whatever the
+ * model actually returns. Distinct from the *targets* named in the prompt
+ * text below: those are guidance the model reads from the payload's own
+ * `detail` field (see generateInfographic in infographicGenerator.ts,
+ * Task 3), never told to the model as a hard limit the way these ceilings
+ * are enforced here.
+ */
+const CEILINGS: Record<InfographicDetail, { sections: number; points: number }> = {
+  basic: { sections: 5, points: 4 },
+  standard: { sections: 8, points: 5 },
+  detailed: { sections: 14, points: 6 },
+};
+
+/**
+ * A static prompt — one string, reused for every call regardless of which
+ * detail level was requested. The request payload itself (built in
+ * infographicGenerator.ts, Task 3) carries a `detail` field alongside the
+ * cards; this text is what tells the model to read that field and apply
+ * the matching target range below. There is no per-level *variant* of this
+ * prompt — a single call's target comes entirely from its own payload.
+ */
+export const INFOGRAPHIC_SYSTEM_PROMPT = `You turn a student's flashcards into a single-page-style infographic they can use to review the material at a glance.
+
+You are given a JSON object with two fields: "detail" (one of "basic", "standard", "detailed") and "cards" (an array of flashcards, each with front, back, and sometimes a topic). Use "detail" to choose how much to write, aiming for — never strictly capped at — this range:
+
+- basic: roughly 3-4 sections, 2-3 points each.
+- standard: roughly 5-7 sections, 3-4 points each.
+- detailed: roughly 8-12 sections, 3-5 points each.
+
+These are guides, not hard limits — write what the material actually supports.
+
+Reply with ONLY a JSON object, no prose before or after, shaped exactly like this:
+
+{
+  "title": "A short title for the whole infographic",
+  "sections": [
+    { "heading": "A short section heading", "icon": "one of the icon names below", "points": ["A short point.", "Another short point."] }
+  ]
+}
+
+Rules:
+1. SYNTHESIZE, DON'T TRANSCRIBE — a point should read as a distilled idea, not a card's back pasted in verbatim. Group related cards into one section rather than writing one section per card.
+2. icon MUST be exactly one of: ${ICONS.join(', ')}. Pick whichever reads best for that section's topic; never invent a name outside this list.
+3. Keep headings and points short — this is read at a glance, not studied line by line.
+4. Every section needs at least one point and a heading; never return an empty sections array.`;
+
+/**
+ * Reads the model's reply as one JSON object, tolerating a markdown fence,
+ * then clamps its sections/points to the given level's ceiling. Clamps
+ * rather than rejects, so a reply that ran a little long or a little short
+ * of its target is still stored rather than thrown away.
+ *
+ * Returns null only when nothing usable could be read at all: the reply
+ * isn't a JSON object, or it parses but has zero sections.
+ */
+export function parseInfographicResponse(
+  text: string,
+  deckName: string,
+  detail: InfographicDetail
+): LlmInfographic | null {
+  const cleaned = stripJsonFence(text);
+  const start = cleaned.indexOf('{');
+  const end = cleaned.lastIndexOf('}');
+  if (start === -1 || end <= start) return null;
+
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(cleaned.slice(start, end + 1));
+  } catch {
+    return null;
+  }
+  if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) return null;
+
+  const raw = parsed as { title?: unknown; sections?: unknown };
+  if (!Array.isArray(raw.sections)) return null;
+
+  const ceiling = CEILINGS[detail];
+  const sections = raw.sections
+    .filter(
+      (item): item is { heading: string; icon: string; points: string[] } =>
+        !!item &&
+        typeof item === 'object' &&
+        typeof (item as { heading?: unknown }).heading === 'string' &&
+        typeof (item as { icon?: unknown }).icon === 'string' &&
+        Array.isArray((item as { points?: unknown }).points) &&
+        (item as { points: unknown[] }).points.every((p) => typeof p === 'string')
+    )
+    .slice(0, ceiling.sections)
+    .map((section) => ({
+      heading: section.heading.trim(),
+      icon: (ICONS as string[]).includes(section.icon) ? (section.icon as InfographicIcon) : ('list' as const),
+      points: section.points.slice(0, ceiling.points).map((p) => p.trim()),
+    }))
+    // A heading that trimmed to nothing isn't a usable section — dropped
+    // here rather than defaulted, since (unlike the deck-level title) there
+    // is no sensible per-section fallback to invent one from.
+    .filter((section) => section.heading.length > 0);
+
+  if (sections.length === 0) return null;
+
+  const title = typeof raw.title === 'string' && raw.title.trim() ? raw.title.trim() : deckName;
+
+  return { title, sections };
+}

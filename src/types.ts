@@ -45,6 +45,65 @@ export interface Folder {
   createdAt: number;
 }
 
+/**
+ * The icons an infographic section can carry. Fixed on purpose: the app can
+ * only render icons it ships its own SVG for, so the model is given exactly
+ * this list in the prompt and never asked to invent a name.
+ */
+export type InfographicIcon =
+  | 'book'
+  | 'lightbulb'
+  | 'brain'
+  | 'chart'
+  | 'list'
+  | 'arrows'
+  | 'target'
+  | 'clock'
+  | 'check'
+  | 'warning'
+  | 'network'
+  | 'question';
+
+/**
+ * How much content to ask for. A prompt-shaping choice, not a stored render
+ * setting the view screen reads — but it's kept on the record because the
+ * infographics list shows it.
+ */
+export type InfographicDetail = 'basic' | 'standard' | 'detailed';
+
+export interface InfographicSection {
+  heading: string;
+  icon: InfographicIcon;
+  points: string[];
+}
+
+/**
+ * One saved infographic. A deck can have any number of these — different
+ * detail levels or card subsets are different infographics, not versions of
+ * one, so there is no "the deck's infographic" singular and no overwrite.
+ */
+export interface Infographic {
+  id: string;
+  deckId: string;
+  title: string;
+  detail: InfographicDetail;
+  sections: InfographicSection[];
+  /** Which cards this one was built from, for the list screen's "N cards" line. */
+  cardIds: string[];
+  createdAt: number;
+}
+
+/**
+ * What the model's response actually contains — title and sections only.
+ * `Infographic` adds `id`, `deckId`, `detail`, `cardIds` and `createdAt`,
+ * none of which are in the model's own reply. Same split `LlmCard`
+ * (cardPrompt.ts) already keeps from the stored `Flashcard`.
+ */
+export interface LlmInfographic {
+  title: string;
+  sections: InfographicSection[];
+}
+
 /** Which kind of document a deck was built from. */
 export type SourceType = 'pdf' | 'pptx' | 'md' | 'html';
 

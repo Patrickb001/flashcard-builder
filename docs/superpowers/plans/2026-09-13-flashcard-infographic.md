@@ -30,6 +30,7 @@
 - No `?folder=` or history-based navigation tricks in this feature — Setup/List/View are phases of one mounted component at one URL, not separate routes, so moving between them is plain component state, never `navigate()`. Only entering (`/deck/:id` → `/deck/:id/infographic`) and leaving (`onExit` → `/`) are real navigations.
 - The model never writes HTML/CSS/markup and the app never renders any with `dangerouslySetInnerHTML` or an iframe — only the structured JSON shape in the Data Model below.
 - Match each file's existing quote style: `src/types.ts`, `src/db/db.ts`, and every new `src/lib/*.ts` file use single quotes (matching `deckFolders.ts`, `quizPrompt.ts`, `aiTransport.ts`). `src/components/InfographicMode.tsx`, everything under `src/components/infographic/`, and `src/routes/InfographicRoute.tsx` use double quotes (matching `DeckManager.tsx`, `StudyMode.tsx`, `TestMode.tsx`, and the `components/quiz/` sibling directory). `src/routes/router.tsx` keeps its existing single-quote style for the one line added to it.
+- Every "Type-check" step in this plan runs `npx tsc -b`, never `npx tsc --noEmit -p .` — this repo's root `tsconfig.json` is `{ "files": [], "references": [...] }`, so a plain `-p .` (without `-b`) resolves and type-checks **zero files**, always reporting success regardless of what the code contains. `-b` (build mode, which resolves the references) is also exactly what `npm run build` itself runs (`"build": "tsc -b && vite build"`).
 - No new `dependencies` or `devDependencies`.
 - Commit messages: a sentence-case description, no `feat:` prefix, ending with `Co-Authored-By: Claude Sonnet 5 <noreply@anthropic.com>`.
 - Work happens on the current branch, `CreateInfoGraphic`, already checked out for this feature.
@@ -170,7 +171,7 @@ check(
 console.log('\nclamping — sections beyond the ceiling');
 const tooManySections = JSON.stringify({
   title: 'Big Deck',
-  sections: Array.from({ length: 8 }, (_, i) => ({
+  sections: Array.from({ length: 10 }, (_, i) => ({
     heading: `Section ${i + 1}`,
     icon: 'list',
     points: ['One point.'],
@@ -178,12 +179,16 @@ const tooManySections = JSON.stringify({
 });
 {
   const result = parseInfographicResponse(tooManySections, 'Big Deck', 'basic');
-  check('basic (ceiling 5) keeps only the first 5 of 8 sections', result.sections.length, 5);
+  check('basic (ceiling 5) keeps only the first 5 of 10 sections', result.sections.length, 5);
   check('kept sections are the first ones, in order', result.sections[0].heading, 'Section 1');
 }
 {
+  const result = parseInfographicResponse(tooManySections, 'Big Deck', 'standard');
+  check('standard (ceiling 8) keeps only the first 8 of 10 sections', result.sections.length, 8);
+}
+{
   const result = parseInfographicResponse(tooManySections, 'Big Deck', 'detailed');
-  check('detailed (ceiling 14) keeps all 8 sections unclamped', result.sections.length, 8);
+  check('detailed (ceiling 14) keeps all 10 sections unclamped', result.sections.length, 10);
 }
 
 console.log('\nclamping — points beyond a section\'s ceiling');
@@ -196,6 +201,10 @@ const tooManyPoints = JSON.stringify({
 {
   const result = parseInfographicResponse(tooManyPoints, 'Verbose Deck', 'basic');
   check('basic (ceiling 4 points) keeps only the first 4 of 7', result.sections[0].points, ['p1', 'p2', 'p3', 'p4']);
+}
+{
+  const result = parseInfographicResponse(tooManyPoints, 'Verbose Deck', 'standard');
+  check('standard (ceiling 5 points) keeps only the first 5 of 7', result.sections[0].points, ['p1', 'p2', 'p3', 'p4', 'p5']);
 }
 {
   const result = parseInfographicResponse(tooManyPoints, 'Verbose Deck', 'detailed');
@@ -266,23 +275,37 @@ const ICONS: InfographicIcon[] = [
   'question',
 ];
 
-/** Target section/point counts per level — the prompt states these as guidance, never a hard cap. */
-const TARGETS: Record<InfographicDetail, { sections: string; points: string }> = {
-  basic: { sections: '3-4', points: '2-3' },
-  standard: { sections: '5-7', points: '3-4' },
-  detailed: { sections: '8-12', points: '3-5' },
-};
-
-/** Clamp ceilings per level — enforced by the parser below, never told to the model. */
+/**
+ * Clamp ceilings per level — enforced by the parser below on whatever the
+ * model actually returns. Distinct from the *targets* named in the prompt
+ * text below: those are guidance the model reads from the payload's own
+ * `detail` field (see generateInfographic in infographicGenerator.ts,
+ * Task 3), never told to the model as a hard limit the way these ceilings
+ * are enforced here.
+ */
 const CEILINGS: Record<InfographicDetail, { sections: number; points: number }> = {
   basic: { sections: 5, points: 4 },
   standard: { sections: 8, points: 5 },
   detailed: { sections: 14, points: 6 },
 };
 
+/**
+ * A static prompt — one string, reused for every call regardless of which
+ * detail level was requested. The request payload itself (built in
+ * infographicGenerator.ts, Task 3) carries a `detail` field alongside the
+ * cards; this text is what tells the model to read that field and apply
+ * the matching target range below. There is no per-level *variant* of this
+ * prompt — a single call's target comes entirely from its own payload.
+ */
 export const INFOGRAPHIC_SYSTEM_PROMPT = `You turn a student's flashcards into a single-page-style infographic they can use to review the material at a glance.
 
-You are given some flashcards from one deck (front, back, and sometimes a topic) and a target level of detail: Basic, Standard, or Detailed. Each level has a rough target for how many sections and how many points per section to write — aim for that range, but it is a guide, not a hard limit; write what the material actually supports.
+You are given a JSON object with two fields: "detail" (one of "basic", "standard", "detailed") and "cards" (an array of flashcards, each with front, back, and sometimes a topic). Use "detail" to choose how much to write, aiming for — never strictly capped at — this range:
+
+- basic: roughly 3-4 sections, 2-3 points each.
+- standard: roughly 5-7 sections, 3-4 points each.
+- detailed: roughly 8-12 sections, 3-5 points each.
+
+These are guides, not hard limits — write what the material actually supports.
 
 Reply with ONLY a JSON object, no prose before or after, shaped exactly like this:
 
@@ -293,7 +316,7 @@ Reply with ONLY a JSON object, no prose before or after, shaped exactly like thi
   ]
 }
 
-Rules:517
+Rules:
 1. SYNTHESIZE, DON'T TRANSCRIBE — a point should read as a distilled idea, not a card's back pasted in verbatim. Group related cards into one section rather than writing one section per card.
 2. icon MUST be exactly one of: ${ICONS.join(', ')}. Pick whichever reads best for that section's topic; never invent a name outside this list.
 3. Keep headings and points short — this is read at a glance, not studied line by line.
@@ -336,6 +359,7 @@ export function parseInfographicResponse(
         !!item &&
         typeof item === 'object' &&
         typeof (item as { heading?: unknown }).heading === 'string' &&
+        typeof (item as { icon?: unknown }).icon === 'string' &&
         Array.isArray((item as { points?: unknown }).points) &&
         (item as { points: unknown[] }).points.every((p) => typeof p === 'string')
     )
@@ -344,7 +368,11 @@ export function parseInfographicResponse(
       heading: section.heading.trim(),
       icon: (ICONS as string[]).includes(section.icon) ? (section.icon as InfographicIcon) : ('list' as const),
       points: section.points.slice(0, ceiling.points).map((p) => p.trim()),
-    }));
+    }))
+    // A heading that trimmed to nothing isn't a usable section — dropped
+    // here rather than defaulted, since (unlike the deck-level title) there
+    // is no sensible per-section fallback to invent one from.
+    .filter((section) => section.heading.length > 0);
 
   if (sections.length === 0) return null;
 
@@ -361,8 +389,8 @@ Expected: every line prints `ok`, then `All passed.`, exit code 0.
 
 - [ ] **Step 6: Type-check**
 
-Run: `npx tsc --noEmit -p .`
-Expected: no errors. This is a separate, necessary check from Step 5: `--experimental-strip-types` *erases* types to run the file, it does not check them, so a real type error (for instance in the `Array.isArray(raw.sections)` narrowing this file relies on) could pass Step 5 at runtime while still failing an actual build.
+Run: `npx tsc -b`
+Expected: no errors. This is a separate, necessary check from Step 5: `--experimental-strip-types` *erases* types to run the file, it does not check them, so a real type error (for instance in the `Array.isArray(raw.sections)` narrowing this file relies on) could pass Step 5 at runtime while still failing an actual build. Use `-b` (build mode), not `npx tsc --noEmit -p .` — this repo's root `tsconfig.json` is `{ "files": [], "references": [...] }`, so a plain `-p .` resolves and checks zero files (confirmed: `npx tsc --noEmit -p . --listFiles` lists nothing) and always "passes" no matter what the code contains. `-b` is also exactly what `npm run build` itself runs (`"build": "tsc -b && vite build"`), so it's the same check a real build gets, not an approximation of it.
 
 - [ ] **Step 7: Commit**
 
@@ -475,7 +503,7 @@ export async function deleteDeck(deckId: string): Promise<void> {
 
 - [ ] **Step 5: Type-check**
 
-Run: `npx tsc --noEmit -p .`
+Run: `npx tsc -b`
 Expected: no errors.
 
 - [ ] **Step 6: Verify against the running app**
@@ -597,7 +625,7 @@ const PROMPTS = new Map<string, string>([
 
 - [ ] **Step 4: Type-check the transport/server changes**
 
-Run: `npx tsc --noEmit -p .`
+Run: `npx tsc -b`
 Expected: no errors (this step alone should already pass, since Task 1 already created `infographicPrompt.ts`).
 
 - [ ] **Step 5: Write the generator**
@@ -629,11 +657,14 @@ export async function generateInfographic(
   settings: AiSettings,
   signal?: AbortSignal
 ): Promise<Infographic> {
-  const payload = cards.map((card) => ({
-    front: card.front,
-    back: card.back,
-    context: card.context,
-  }));
+  const payload = {
+    detail,
+    cards: cards.map((card) => ({
+      front: card.front,
+      back: card.back,
+      context: card.context,
+    })),
+  };
 
   const { text } = await callModel('infographic', payload, settings, signal);
   const parsed = parseInfographicResponse(text, deckName, detail);
@@ -655,7 +686,7 @@ export async function generateInfographic(
 
 - [ ] **Step 6: Type-check**
 
-Run: `npx tsc --noEmit -p .`
+Run: `npx tsc -b`
 Expected: no errors.
 
 - [ ] **Step 7: Run the existing infographic parser test once more (regression check)**
@@ -953,7 +984,7 @@ Append to `src/index.css`:
 
 - [ ] **Step 3: Type-check**
 
-Run: `npx tsc --noEmit -p .`
+Run: `npx tsc -b`
 Expected: no errors.
 
 No route renders this component yet — that's Task 7, whose end-to-end check (Step 8 there) is where its actual on-screen behavior (detail cards toggling, the checklist appearing, Generate's disabled state) gets verified against the running app. Step 3's type-check is this task's own gate.
@@ -1151,7 +1182,7 @@ Append to `src/index.css`:
 
 - [ ] **Step 3: Type-check**
 
-Run: `npx tsc --noEmit -p .`
+Run: `npx tsc -b`
 Expected: no errors.
 
 No route renders this component yet — that's Task 7, whose end-to-end check (Step 8 there) is where its actual on-screen behavior (each card's detail tag/meta line, the delete confirmation, the dashed "+ Create" tile) gets verified against the running app. Step 3's type-check is this task's own gate.
@@ -1474,7 +1505,7 @@ Append to `src/index.css`:
 
 - [ ] **Step 4: Type-check**
 
-Run: `npx tsc --noEmit -p .`
+Run: `npx tsc -b`
 Expected: no errors.
 
 No route renders this component yet — that's Task 7, whose end-to-end check (Step 8 there) is where its actual on-screen behavior (icons, the page-break divider on a longer infographic, the delete confirmation) gets verified against the running app. Step 4's type-check is this task's own gate.
@@ -1729,7 +1760,7 @@ In `src/components/DeckManager.tsx`'s `Props` interface, add `onInfographic: (de
 
 - [ ] **Step 6: Type-check**
 
-Run: `npx tsc --noEmit -p .`
+Run: `npx tsc -b`
 Expected: no errors.
 
 - [ ] **Step 7: Run the full pure-logic regression sweep**
