@@ -160,6 +160,10 @@ URL=https://18.react.dev/learn/state-a-components-memory node \
 # generate real questions and read the wrong answers for yourself.
 node --experimental-strip-types --import ./tools/register.mjs \
   tools/test-quiz.mjs
+
+# Folder grouping, library sorting, and the remembered sort choice. Pure; no key.
+node --experimental-strip-types --import ./tools/register.mjs \
+  tools/test-folders.mjs
 ```
 
 `tools/test-quiz.mjs` is the one to run after touching question generation. It
