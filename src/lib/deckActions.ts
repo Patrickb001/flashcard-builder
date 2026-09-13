@@ -1,5 +1,4 @@
-import { deleteDeck, deleteFolder } from '../db/db';
-import { deleteFolderConfirmMessage } from './deckFolders';
+import { deleteDeck } from '../db/db';
 
 /**
  * Asks before deleting a deck, then deletes it and everything in it.
@@ -17,22 +16,5 @@ export async function confirmAndDeleteDeck(deckId: string, name: string): Promis
     return false;
   }
   await deleteDeck(deckId);
-  return true;
-}
-
-/**
- * Asks before deleting a folder, then deletes it. Its decks move to Unfiled.
- *
- * The question says where the decks go, because "delete folder" beside a count
- * of decks reads as though the decks go with it — and they do not. Returns and
- * throws the same way confirmAndDeleteDeck does.
- */
-export async function confirmAndDeleteFolder(
-  folderId: string,
-  name: string,
-  deckCount: number
-): Promise<boolean> {
-  if (!confirm(deleteFolderConfirmMessage(name, deckCount))) return false;
-  await deleteFolder(folderId);
   return true;
 }

@@ -1,11 +1,12 @@
 import { useEffect, useMemo, useState } from 'react';
 import type { Deck, Folder } from '../types';
-import { createFolder, moveDeckToFolder, renameFolder } from '../db/db';
-import { confirmAndDeleteDeck, confirmAndDeleteFolder } from '../lib/deckActions';
+import { createFolder, deleteFolder, moveDeckToFolder, renameFolder } from '../db/db';
+import { confirmAndDeleteDeck } from '../lib/deckActions';
 import {
   UNFILED,
   cleanFolderName,
   countDecksByFolder,
+  deleteFolderModalCopy,
   filterDecks,
   folderErrorMessage,
   folderOf,
@@ -16,6 +17,7 @@ import {
 } from '../lib/deckFolders';
 import { getStoredLibrarySort, storeLibrarySort } from '../lib/librarySort';
 import ErrorNotice from './ui/ErrorNotice';
+import Modal from './ui/Modal';
 
 interface Props {
   /** Every saved deck, newest first. Loaded by the route, not by this screen. */
@@ -69,6 +71,9 @@ export default function DeckLibrary({
   const [folderNameDraft, setFolderNameDraft] = useState('');
   const [creatingFolder, setCreatingFolder] = useState(false);
   const [newFolderDraft, setNewFolderDraft] = useState('');
+  const [createFolderError, setCreateFolderError] = useState<string | null>(null);
+  const [deletingFolder, setDeletingFolder] = useState(false);
+  const [deleteFolderError, setDeleteFolderError] = useState<string | null>(null);
   const [addingDecks, setAddingDecks] = useState(false);
   const [selectedDeckIds, setSelectedDeckIds] = useState<Set<string>>(new Set());
 
@@ -84,6 +89,10 @@ export default function DeckLibrary({
     [decks, folders, filter, sort]
   );
   const selectedFolder = folders.find((folder) => folder.id === filter) ?? null;
+  const deleteFolderCopy = useMemo(
+    () => (selectedFolder ? deleteFolderModalCopy(selectedFolder.name, counts.get(selectedFolder.id) ?? 0) : null),
+    [selectedFolder, counts]
+  );
   const unfiledDecks = useMemo(
     () => decks.filter((deck) => folderOf(deck, folderIds) === UNFILED),
     [decks, folderIds]
@@ -95,11 +104,13 @@ export default function DeckLibrary({
     setFolderNameDraft(selectedFolder?.name ?? '');
   }, [selectedFolder?.id, selectedFolder?.name]);
 
-  // The add-decks panel belongs to whichever folder opened it, so switching
-  // folders closes it rather than leaving it open against the wrong one.
+  // The add-decks panel and the delete dialog both belong to whichever folder
+  // opened them, so switching folders closes them rather than leaving either
+  // open against the wrong one.
   useEffect(() => {
     setAddingDecks(false);
     setSelectedDeckIds(new Set());
+    setDeletingFolder(false);
   }, [selectedFolder?.id]);
 
   const changeSort = (next: LibrarySort) => {
@@ -138,18 +149,16 @@ export default function DeckLibrary({
     }
   };
 
-  /** Opens the inline "+ New folder" field. */
+  /** Opens the "New folder" dialog. */
   const startNewFolder = () => {
-    setActionError(null);
     setNewFolderDraft('');
+    setCreateFolderError(null);
     setCreatingFolder(true);
   };
 
-  /** Closes the inline field without creating anything. */
+  /** Closes the dialog without creating anything. */
   const cancelNewFolder = () => {
-    setActionError(null);
     setCreatingFolder(false);
-    setNewFolderDraft('');
   };
 
   /**
@@ -158,22 +167,18 @@ export default function DeckLibrary({
    */
   const submitNewFolder = async () => {
     const cleaned = cleanFolderName(newFolderDraft);
-    if (!cleaned) {
-      cancelNewFolder();
-      return;
-    }
+    if (!cleaned) return;
     try {
-      setActionError(null);
+      setCreateFolderError(null);
       const folder = await createFolder(cleaned);
       setCreatingFolder(false);
-      setNewFolderDraft('');
       // Refreshed first: until the route holds the new folder, its id would
       // not survive parseFolderFilter and the shelf would fall back to All.
       await onLibraryChange();
       onSelectFolder(folder.id);
     } catch (err) {
       console.error('[library] Creating the folder failed:', err);
-      setActionError(folderErrorMessage(err, 'The folder could not be created.'));
+      setCreateFolderError(folderErrorMessage(err, 'The folder could not be created.'));
     }
   };
 
@@ -196,19 +201,29 @@ export default function DeckLibrary({
     }
   };
 
-  /** Deletes the open folder after confirming. Its decks move to Unfiled. */
-  const handleDeleteFolder = async () => {
+  /** Opens the "Delete folder" dialog for the open folder. */
+  const startDeleteFolder = () => {
+    setDeleteFolderError(null);
+    setDeletingFolder(true);
+  };
+
+  /** Closes the dialog without deleting anything. */
+  const cancelDeleteFolder = () => {
+    setDeletingFolder(false);
+  };
+
+  /** Deletes the open folder. Its decks move to Unfiled; left open to retry on failure. */
+  const confirmDeleteFolder = async () => {
     if (!selectedFolder) return;
     try {
-      setActionError(null);
-      const deckCount = counts.get(selectedFolder.id) ?? 0;
-      if (await confirmAndDeleteFolder(selectedFolder.id, selectedFolder.name, deckCount)) {
-        onSelectFolder('all');
-        await onLibraryChange();
-      }
+      setDeleteFolderError(null);
+      await deleteFolder(selectedFolder.id);
+      setDeletingFolder(false);
+      onSelectFolder('all');
+      await onLibraryChange();
     } catch (err) {
       console.error('[library] Deleting the folder failed:', err);
-      setActionError(`The folder "${selectedFolder.name}" could not be deleted.`);
+      setDeleteFolderError(`The folder "${selectedFolder.name}" could not be deleted.`);
     }
   };
 
@@ -349,47 +364,9 @@ export default function DeckLibrary({
               folderChip(folder.id, folder.name, counts.get(folder.id) ?? 0)
             )}
             {folderChip(UNFILED, 'Unfiled', counts.get(UNFILED) ?? 0)}
-            {creatingFolder ? (
-              <form
-                className="folder-chip-form"
-                onSubmit={(e) => {
-                  e.preventDefault();
-                  submitNewFolder();
-                }}
-                onBlur={(e) => {
-                  if (!e.currentTarget.contains(e.relatedTarget as Node | null)) cancelNewFolder();
-                }}
-              >
-                <input
-                  autoFocus
-                  className="folder-chip-input"
-                  aria-label="New folder name"
-                  placeholder="Folder name"
-                  value={newFolderDraft}
-                  onChange={(e) => setNewFolderDraft(e.target.value)}
-                  onKeyDown={(e) => {
-                    if (e.key === 'Escape') {
-                      e.preventDefault();
-                      cancelNewFolder();
-                    }
-                  }}
-                />
-                <button type="submit" className="icon-btn folder-chip-confirm" title="Create folder" aria-label="Create folder">
-                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round">
-                    <path d="M20 6 9 17l-5-5" />
-                  </svg>
-                </button>
-                <button type="button" className="icon-btn" title="Cancel" aria-label="Cancel" onClick={cancelNewFolder}>
-                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
-                    <path d="M18 6 6 18M6 6l12 12" />
-                  </svg>
-                </button>
-              </form>
-            ) : (
-              <button type="button" className="mode-chip folder-chip new-folder" onClick={startNewFolder}>
-                + New folder
-              </button>
-            )}
+            <button type="button" className="mode-chip folder-chip new-folder" onClick={startNewFolder}>
+              + New folder
+            </button>
           </nav>
 
           {selectedFolder && (
@@ -408,7 +385,7 @@ export default function DeckLibrary({
                 <button className="ghost-btn small" onClick={startAddDecks}>
                   + Add decks
                 </button>
-                <button className="ghost-btn small danger-text" onClick={handleDeleteFolder}>
+                <button className="ghost-btn small danger-text" onClick={startDeleteFolder}>
                   Delete folder
                 </button>
               </div>
@@ -544,6 +521,74 @@ export default function DeckLibrary({
           )}
         </>
       )}
+
+      <Modal open={creatingFolder} onClose={cancelNewFolder} labelledBy="create-folder-title">
+        <form
+          onSubmit={(e) => {
+            e.preventDefault();
+            submitNewFolder();
+          }}
+        >
+          <div className="dialog-head">
+            <div className="dialog-title-row">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2Z" />
+              </svg>
+              <h2 id="create-folder-title">New folder</h2>
+            </div>
+            <button type="button" className="icon-btn" title="Cancel" aria-label="Cancel" onClick={cancelNewFolder}>
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
+                <path d="M18 6 6 18M6 6l12 12" />
+              </svg>
+            </button>
+          </div>
+          <label className="field-label" htmlFor="new-folder-name">
+            Folder name
+          </label>
+          <input
+            id="new-folder-name"
+            className="field-input"
+            value={newFolderDraft}
+            onChange={(e) => setNewFolderDraft(e.target.value)}
+            placeholder="e.g. Organic Chemistry"
+            autoComplete="off"
+          />
+          {createFolderError && <p className="field-hint">{createFolderError}</p>}
+          <div className="dialog-actions">
+            <button type="button" className="ghost-btn" onClick={cancelNewFolder}>
+              Cancel
+            </button>
+            <button type="submit" className="primary-btn" disabled={!cleanFolderName(newFolderDraft)}>
+              Create folder
+            </button>
+          </div>
+        </form>
+      </Modal>
+
+      <Modal open={deletingFolder} onClose={cancelDeleteFolder} labelledBy="delete-folder-title" danger>
+        <div className="dialog-head">
+          <div className="dialog-title-row">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2Z" />
+            </svg>
+            <h2 id="delete-folder-title">{deleteFolderCopy?.title}</h2>
+          </div>
+          <button type="button" className="icon-btn" title="Cancel" aria-label="Cancel" onClick={cancelDeleteFolder}>
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
+              <path d="M18 6 6 18M6 6l12 12" />
+            </svg>
+          </button>
+        </div>
+        <p className="body-text">{deleteFolderError ?? deleteFolderCopy?.body}</p>
+        <div className="dialog-actions">
+          <button type="button" className="ghost-btn" onClick={cancelDeleteFolder}>
+            Cancel
+          </button>
+          <button type="button" className="btn-danger-solid" onClick={confirmDeleteFolder}>
+            Delete folder
+          </button>
+        </div>
+      </Modal>
     </div>
   );
 }

@@ -21,6 +21,9 @@
   --warning-soft: rgba(182, 101, 10, 0.08);
 
   --shadow-deep: 0 1px 2px rgba(0, 0, 0, 0.04);
+  /* A dialog needs more separation from what's behind it than an in-flow card. */
+  --shadow-modal: 0 24px 48px -12px rgba(24, 24, 27, 0.28), 0 4px 12px rgba(24, 24, 27, 0.08);
+  --scrim: rgba(24, 24, 27, 0.44);
 
   /* One sans family throughout — UI chrome, headings, and card text alike.
      The monospace stack for code snippets is separate and unaffected. */
@@ -51,6 +54,8 @@
   --warning-soft: rgba(224, 164, 88, 0.14);
 
   --shadow-deep: 0 8px 24px rgba(0, 0, 0, 0.45);
+  --shadow-modal: 0 24px 56px rgba(0, 0, 0, 0.6), 0 4px 12px rgba(0, 0, 0, 0.35);
+  --scrim: rgba(0, 0, 0, 0.66);
 
   color-scheme: dark;
 }
@@ -455,50 +460,147 @@ p {
   border-style: dashed;
 }
 
-/* Replaces the dashed chip while a name is being typed, at the same height
-   and corner radius so the row never jumps — only widens to make room. */
-.folder-chip-form {
-  flex-shrink: 0;
-  display: inline-flex;
+/* ---------- Dialogs (create/delete folder) ---------- */
+
+.scrim {
+  position: fixed;
+  inset: 0;
+  background: var(--scrim);
+  backdrop-filter: blur(2px);
+  display: flex;
   align-items: center;
-  gap: 0.15rem;
-  padding: 0.45rem 0.3rem 0.45rem 0.75rem;
-  border: 1px solid var(--accent);
-  border-radius: 100px;
-  background: var(--accent-soft);
+  justify-content: center;
+  padding: 1.25rem;
+  opacity: 0;
+  transition: opacity 140ms ease-out;
+  z-index: 50;
 }
 
-.folder-chip-input {
-  font-family: var(--font-ui);
-  font-size: 0.85rem;
-  width: 9.5em;
-  min-width: 0;
-  background: transparent;
-  border: none;
-  color: var(--text-primary);
+.scrim.open {
+  opacity: 1;
 }
 
-.folder-chip-input:focus {
-  outline: none;
+.dialog {
+  width: 100%;
+  max-width: 400px;
+  background: var(--surface);
+  border-radius: 12px;
+  box-shadow: var(--shadow-modal);
+  padding: 1.5rem 1.5rem 1.35rem;
+  transform: scale(0.96) translateY(6px);
+  opacity: 0;
+  transition:
+    transform 160ms cubic-bezier(0.2, 0.8, 0.2, 1),
+    opacity 160ms ease-out;
 }
 
-.folder-chip-input::placeholder {
+.scrim.open .dialog {
+  transform: scale(1) translateY(0);
+  opacity: 1;
+}
+
+.dialog-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 0.75rem;
+  margin-bottom: 0.6rem;
+}
+
+.dialog-title-row {
+  display: flex;
+  align-items: center;
+  gap: 0.55rem;
+}
+
+.dialog-title-row svg {
+  flex-shrink: 0;
   color: var(--text-faint);
 }
 
-.folder-chip-form .icon-btn {
-  width: 22px;
-  height: 22px;
-  flex-shrink: 0;
+.dialog.danger .dialog-title-row svg {
+  color: var(--warning);
 }
 
-.folder-chip-confirm {
-  color: var(--accent);
+.dialog h2 {
+  margin: 0;
+  font-size: 1.08rem;
+  font-weight: 600;
+  letter-spacing: -0.005em;
 }
 
-.folder-chip-confirm:hover {
-  background: var(--accent);
-  color: var(--accent-contrast);
+.dialog .body-text {
+  margin: 0 0 1.3rem;
+  color: var(--text-secondary);
+  font-size: 0.88rem;
+  line-height: 1.55;
+}
+
+.field-label {
+  display: block;
+  font-size: 0.82rem;
+  font-weight: 500;
+  color: var(--text-primary);
+  margin-bottom: 0.4rem;
+}
+
+.field-input {
+  display: block;
+  width: 100%;
+  font-family: var(--font-ui);
+  font-size: 0.92rem;
+  padding: 0.6rem 0.75rem;
+  border-radius: 8px;
+  border: 1px solid var(--border-strong);
+  background: var(--bg);
+  color: var(--text-primary);
+  margin-bottom: 1.3rem;
+}
+
+.field-input:focus {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+  border-color: var(--accent);
+}
+
+/* Sits closer to the input above it than the actions row below needs, so a
+   validation message reads as attached to the field it describes. */
+.field-hint {
+  margin: -0.75rem 0 1.1rem;
+  font-size: 0.78rem;
+  color: var(--warning);
+}
+
+.dialog-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.6rem;
+}
+
+.btn-danger-solid {
+  font-family: var(--font-ui);
+  background: var(--warning);
+  color: var(--bg);
+  border: none;
+  border-radius: 8px;
+  padding: 0.6rem 1.1rem;
+  font-size: 0.88rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.btn-danger-solid:hover {
+  filter: brightness(1.06);
+}
+
+@media (max-width: 480px) {
+  .dialog-actions {
+    flex-direction: column-reverse;
+  }
+
+  .dialog-actions button {
+    width: 100%;
+  }
 }
 
 .folder-toolbar {
@@ -1945,5 +2047,10 @@ textarea:focus-visible {
 
   .chalk-spinner {
     animation-duration: 2s;
+  }
+
+  .scrim,
+  .dialog {
+    transition: none;
   }
 }

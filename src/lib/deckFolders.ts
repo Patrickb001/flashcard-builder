@@ -62,20 +62,31 @@ export function folderErrorMessage(err: unknown, fallback: string): string {
   return err instanceof DuplicateFolderNameError ? err.message : fallback;
 }
 
+/** The title and body of the delete-folder dialog. */
+export interface DeleteFolderCopy {
+  title: string;
+  body: string;
+}
+
 /**
- * The confirmation question for deleting a folder.
+ * The copy for the delete-folder dialog: a title naming the folder, and a
+ * body saying where its decks go.
  *
- * Says where the decks go, because "delete folder" beside a count of decks
- * reads as though the decks go with it — and they do not. Kept as a pure
- * function, separate from the `confirm()` call itself, so its three wording
+ * The body says where the decks go, because "delete folder" beside a count of
+ * decks reads as though the decks go with it — and they do not. Kept as a
+ * pure function, separate from the dialog itself, so its three wording
  * branches can be checked without a browser (see tools/test-folders.mjs) —
  * this is the copy that stops someone believing a folder delete wipes their
  * decks, so a regression here should be caught by a test, not a screenshot.
  */
-export function deleteFolderConfirmMessage(name: string, deckCount: number): string {
-  return deckCount === 0
-    ? `Delete the empty folder "${name}"?`
-    : `Delete the folder "${name}"? Its ${deckCount} deck${deckCount === 1 ? '' : 's'} will move to Unfiled. No decks are deleted.`;
+export function deleteFolderModalCopy(name: string, deckCount: number): DeleteFolderCopy {
+  return {
+    title: `Delete "${name}"?`,
+    body:
+      deckCount === 0
+        ? 'This folder is empty — there is nothing to move.'
+        : `Its ${deckCount} deck${deckCount === 1 ? '' : 's'} will move to Unfiled. No decks are deleted.`,
+  };
 }
 
 /**

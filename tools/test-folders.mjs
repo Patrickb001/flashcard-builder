@@ -3,7 +3,7 @@ import {
   UNFILED,
   cleanFolderName,
   countDecksByFolder,
-  deleteFolderConfirmMessage,
+  deleteFolderModalCopy,
   filterDecks,
   folderOf,
   isDuplicateFolderName,
@@ -84,21 +84,21 @@ check('unfiled is unfiled', parseFolderFilter('unfiled', folders), UNFILED);
 check('a real folder id is kept', parseFolderFilter('f-bio', folders), 'f-bio');
 check('an unknown id falls back to all', parseFolderFilter('f-gone', folders), 'all');
 
-console.log('\nDELETE-FOLDER WORDING');
+console.log('\nDELETE-FOLDER MODAL COPY');
 check(
-  'an empty folder is offered a plain question',
-  deleteFolderConfirmMessage('Chem', 0),
-  'Delete the empty folder "Chem"?'
+  'an empty folder says there is nothing to move',
+  deleteFolderModalCopy('Chem', 0),
+  { title: 'Delete "Chem"?', body: 'This folder is empty — there is nothing to move.' }
 );
 check(
   'one deck reads as singular',
-  deleteFolderConfirmMessage('Chem', 1),
-  'Delete the folder "Chem"? Its 1 deck will move to Unfiled. No decks are deleted.'
+  deleteFolderModalCopy('Chem', 1),
+  { title: 'Delete "Chem"?', body: 'Its 1 deck will move to Unfiled. No decks are deleted.' }
 );
 check(
   'more than one deck reads as plural',
-  deleteFolderConfirmMessage('Chem', 3),
-  'Delete the folder "Chem"? Its 3 decks will move to Unfiled. No decks are deleted.'
+  deleteFolderModalCopy('Chem', 3),
+  { title: 'Delete "Chem"?', body: 'Its 3 decks will move to Unfiled. No decks are deleted.' }
 );
 
 console.log('\nNAMES');
