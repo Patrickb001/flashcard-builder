@@ -2211,3 +2211,96 @@ textarea:focus-visible {
     grid-template-columns: 1fr;
   }
 }
+
+/* ---------- Infographic: List ---------- */
+
+.infographic-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+  gap: 1rem;
+}
+
+.infographic-card {
+  border: 1px solid var(--border-soft);
+  border-radius: 10px;
+  padding: 1rem 1.1rem;
+  background: var(--surface);
+}
+
+.infographic-card-top {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  margin-bottom: 0.6rem;
+}
+
+.detail-tag {
+  font-size: 0.68rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  border-radius: 100px;
+  padding: 0.15rem 0.55rem;
+  border: 1px solid var(--accent);
+  color: var(--accent);
+}
+
+.infographic-card h4 {
+  margin: 0 0 0.3rem;
+  font-size: 1rem;
+}
+
+.infographic-card .meta {
+  font-size: 0.78rem;
+  color: var(--text-secondary);
+  margin: 0 0 0.9rem;
+}
+
+.infographic-card-actions {
+  display: flex;
+  gap: 0.5rem;
+}
+
+.infographic-card-actions button {
+  font-family: var(--font-ui);
+  font-weight: 600;
+  font-size: 0.82rem;
+  border-radius: 7px;
+  padding: 0.45rem 0.75rem;
+  cursor: pointer;
+  border: 1px solid transparent;
+}
+
+.btn-view {
+  background: var(--accent);
+  color: var(--accent-contrast);
+}
+
+.btn-delete {
+  background: transparent;
+  color: var(--danger);
+}
+
+.btn-delete:hover {
+  background: var(--danger-soft);
+}
+
+.new-infographic-card {
+  font-family: var(--font-ui);
+  border: 1.5px dashed var(--border-strong);
+  border-radius: 10px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--text-secondary);
+  font-weight: 600;
+  font-size: 0.9rem;
+  cursor: pointer;
+  min-height: 118px;
+  background: transparent;
+}
+
+.new-infographic-card:hover {
+  border-color: var(--accent);
+  color: var(--accent);
+}
