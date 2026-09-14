@@ -2304,3 +2304,96 @@ textarea:focus-visible {
   border-color: var(--accent);
   color: var(--accent);
 }
+
+/* ---------- Infographic: View ---------- */
+
+.infographic-doc {
+  max-width: 640px;
+  margin: 0 auto;
+  background: var(--surface);
+}
+
+.infographic-doc-header {
+  text-align: center;
+  margin-bottom: 1.75rem;
+}
+
+.infographic-doc-header .deck-eyebrow {
+  font-size: 0.75rem;
+  color: var(--text-secondary);
+  margin: 0 0 0.3rem;
+}
+
+.infographic-doc-header h2 {
+  font-size: 1.55rem;
+  margin: 0;
+}
+
+.infographic-sections {
+  display: flex;
+  flex-direction: column;
+  gap: 0.9rem;
+}
+
+.infographic-section {
+  border: 1px solid var(--border-soft);
+  border-radius: 12px;
+  padding: 1.1rem 1.25rem;
+  display: flex;
+  gap: 0.9rem;
+}
+
+.infographic-section-icon {
+  flex: none;
+  width: 38px;
+  height: 38px;
+  border-radius: 9px;
+  background: var(--accent-soft);
+  color: var(--accent);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.infographic-section-body h4 {
+  margin: 0 0 0.5rem;
+  font-size: 0.98rem;
+}
+
+.infographic-section-body ul {
+  margin: 0;
+  padding-left: 1.1rem;
+  font-size: 0.86rem;
+  color: var(--text-secondary);
+  line-height: 1.55;
+}
+
+.infographic-section-body li + li {
+  margin-top: 0.15rem;
+}
+
+.page-break {
+  display: flex;
+  align-items: center;
+  gap: 0.7rem;
+  margin: 0.4rem 0;
+  color: var(--text-faint);
+  font-size: 0.72rem;
+  font-weight: 600;
+}
+
+.page-break::before,
+.page-break::after {
+  content: "";
+  flex: 1;
+  border-top: 1px dashed var(--border-strong);
+}
+
+.view-actions {
+  display: flex;
+  justify-content: space-between;
+  margin-top: 2rem;
+  max-width: 640px;
+  margin-left: auto;
+  margin-right: auto;
+}
