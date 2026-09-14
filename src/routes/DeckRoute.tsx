@@ -11,6 +11,7 @@ export default function DeckRoute() {
       deckId={deckId}
       onStudy={(id) => navigate(`/deck/${id}/study`)}
       onTest={(id) => navigate(`/deck/${id}/test`)}
+      onInfographic={(id) => navigate(`/deck/${id}/infographic`)}
       // Replace: the deck is gone, so Back must not return to its page.
       onDeckDeleted={() => navigate("/", { replace: true })}
     />
