@@ -2106,3 +2106,108 @@ textarea:focus-visible {
     transition: none;
   }
 }
+
+/* ---------- Infographic: Setup ---------- */
+
+.infographic-setup {
+  max-width: 640px;
+  margin: 0 auto;
+}
+
+.infographic-setup-title {
+  font-size: 1.4rem;
+  margin: 0 0 1.5rem;
+}
+
+.infographic-setup .field-group {
+  margin-bottom: 1.5rem;
+}
+
+.infographic-setup .field-group h3 {
+  font-size: 0.86rem;
+  margin: 0 0 0.6rem;
+  color: var(--text-primary);
+}
+
+.infographic-setup .field-hint {
+  font-size: 0.8rem;
+  color: var(--text-secondary);
+  margin: 0.3rem 0 0;
+}
+
+.detail-options {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 0.75rem;
+}
+
+.detail-card {
+  font-family: var(--font-ui);
+  text-align: left;
+  border: 1.5px solid var(--border-soft);
+  border-radius: 10px;
+  padding: 0.9rem 1rem;
+  cursor: pointer;
+  background: var(--surface);
+}
+
+.detail-card.active {
+  border-color: var(--accent);
+  background: var(--accent-soft);
+}
+
+.detail-card h4 {
+  margin: 0 0 0.25rem;
+  font-size: 0.92rem;
+}
+
+.detail-card p {
+  margin: 0;
+  font-size: 0.78rem;
+  color: var(--text-secondary);
+  line-height: 1.45;
+}
+
+.detail-card .page-est {
+  display: inline-block;
+  margin-top: 0.5rem;
+  font-size: 0.72rem;
+  font-weight: 600;
+  color: var(--accent);
+  background: var(--surface);
+  border: 1px solid var(--border-soft);
+  border-radius: 100px;
+  padding: 0.15rem 0.55rem;
+}
+
+.infographic-setup .segmented {
+  display: inline-flex;
+  border: 1px solid var(--border-soft);
+  border-radius: 10px;
+  padding: 0.2rem;
+  gap: 0.2rem;
+}
+
+.infographic-setup .segmented button {
+  font-family: var(--font-ui);
+  font-weight: 600;
+  font-size: 0.86rem;
+  cursor: pointer;
+  border: 1px solid transparent;
+  background: transparent;
+  color: var(--text-secondary);
+  border-radius: 7px;
+  padding: 0.55rem 1rem;
+}
+
+.infographic-setup .segmented button.active {
+  background: var(--surface-raised);
+  color: var(--text-primary);
+  border-color: var(--border-strong);
+}
+
+@media (max-width: 620px) {
+  .detail-options {
+    grid-template-columns: 1fr;
+  }
+}
