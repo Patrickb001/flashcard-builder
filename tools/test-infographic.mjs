@@ -88,6 +88,31 @@ const tooManyPoints = JSON.stringify({
   check('detailed (ceiling 6 points) keeps 6 of 7', result.sections[0].points, ['p1', 'p2', 'p3', 'p4', 'p5', 'p6']);
 }
 
+console.log('\nempty points are dropped, and a section left with none is dropped too');
+const emptyPoints = JSON.stringify({
+  title: 'Deck',
+  sections: [
+    { heading: 'Has real points', icon: 'book', points: ['  ', 'A real point.', ''] },
+    { heading: 'All blank', icon: 'list', points: ['', '   '] },
+  ],
+});
+{
+  const result = parseInfographicResponse(emptyPoints, 'Deck', 'standard');
+  check('blank points are dropped, real ones kept', result.sections.length, 1);
+  check('the surviving section is the one with a real point', result.sections[0].heading, 'Has real points');
+  check('its points array has only the real point', result.sections[0].points, ['A real point.']);
+}
+
+const allSectionsBlank = JSON.stringify({
+  title: 'Deck',
+  sections: [{ heading: '   ', icon: 'book', points: ['A point.'] }],
+});
+check(
+  'a whitespace-only heading drops the section, and with nothing left the whole response is null',
+  parseInfographicResponse(allSectionsBlank, 'Deck', 'standard'),
+  null
+);
+
 console.log('\nfallbacks');
 const badIcon = JSON.stringify({
   title: 'Deck',

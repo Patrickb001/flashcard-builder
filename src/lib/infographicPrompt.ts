@@ -120,6 +120,12 @@ export function parseInfographicResponse(
         !!item &&
         typeof item === 'object' &&
         typeof (item as { heading?: unknown }).heading === 'string' &&
+        // Checked here, before the ceiling slice below, rather than as a
+        // trailing filter after it — a trailing filter would drop a
+        // whitespace-only-heading section AFTER it had already used up a
+        // slot in the ceiling, silently crowding out a good section that
+        // came right after it in the model's reply.
+        (item as { heading: string }).heading.trim().length > 0 &&
         typeof (item as { icon?: unknown }).icon === 'string' &&
         Array.isArray((item as { points?: unknown }).points) &&
         (item as { points: unknown[] }).points.every((p) => typeof p === 'string')
@@ -128,12 +134,16 @@ export function parseInfographicResponse(
     .map((section) => ({
       heading: section.heading.trim(),
       icon: (ICONS as string[]).includes(section.icon) ? (section.icon as InfographicIcon) : ('list' as const),
-      points: section.points.slice(0, ceiling.points).map((p) => p.trim()),
+      // Trimmed and stripped of anything that trims to nothing — a bullet
+      // that's blank once trimmed would otherwise render as an empty <li>.
+      points: section.points
+        .slice(0, ceiling.points)
+        .map((p) => p.trim())
+        .filter((p) => p.length > 0),
     }))
-    // A heading that trimmed to nothing isn't a usable section — dropped
-    // here rather than defaulted, since (unlike the deck-level title) there
-    // is no sensible per-section fallback to invent one from.
-    .filter((section) => section.heading.length > 0);
+    // A section that lost every point to the filter above (all-whitespace
+    // points, or none survived) isn't a usable section either.
+    .filter((section) => section.points.length > 0);
 
   if (sections.length === 0) return null;
 

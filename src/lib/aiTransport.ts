@@ -74,7 +74,7 @@ const MAX_TOKENS: Record<AiTask, number> = {
   ocr: 16000,
   'infographic-basic': 4000,
   'infographic-standard': 4000,
-  'infographic-detailed': 4000,
+  'infographic-detailed': 8000,
 };
 
 /**

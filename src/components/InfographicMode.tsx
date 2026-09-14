@@ -23,10 +23,8 @@ type Phase = "list" | "setup" | "generating" | "view" | "error";
  * dumb and just call back up.
  *
  * List/Setup/Generating/View/Error are all component state, not separate
- * routes — moving between them never calls navigate(), only the entry from
- * Deck Manager and the exit back to it are real navigations. See the spec's
- * note on why the top bar's history-based Back button can't help with
- * these in-component transitions.
+ * routes — moving between them never calls navigate(). Entering from Deck
+ * Manager is the one real navigation this feature has.
  */
 export default function InfographicMode({ deckId }: Props) {
   const { deck, cards, loading, error } = useDeck(deckId);
@@ -39,12 +37,25 @@ export default function InfographicMode({ deckId }: Props) {
 
   useEffect(() => {
     let cancelled = false;
-    getInfographicsForDeck(deckId).then((list) => {
-      if (cancelled) return;
-      setInfographics(list);
-      setPhase(list.length > 0 ? "list" : "setup");
-      setInfographicsLoaded(true);
-    });
+    getInfographicsForDeck(deckId)
+      .then((list) => {
+        if (cancelled) return;
+        setInfographics(list);
+        setPhase(list.length > 0 ? "list" : "setup");
+        setInfographicsLoaded(true);
+      })
+      .catch((err) => {
+        if (cancelled) return;
+        // Without this catch, a rejected read (a storage error, another tab
+        // holding a blocked v3->v4 upgrade open) left this screen on
+        // "Loading infographics..." forever with nothing in view and no way
+        // forward — the same failure useDeckQuiz.ts already guards against
+        // on its own mount read.
+        console.error("[infographic] Could not read saved infographics:", err);
+        setGenerationError("Your saved infographics could not be read from the browser database.");
+        setInfographicsLoaded(true);
+        setPhase("error");
+      });
     return () => {
       cancelled = true;
     };
@@ -64,16 +75,28 @@ export default function InfographicMode({ deckId }: Props) {
       setPhase("view");
     } catch (err) {
       console.error("[infographic] Could not generate the infographic:", err);
-      setGenerationError("The infographic could not be generated. Try again.");
+      // The thrown error's own message names the actual cause (no API key,
+      // the dev server not running, a reply cut off mid-JSON, the payload
+      // too large) — discarding it in favour of one generic line left every
+      // failure mode looking identical and equally unactionable.
+      setGenerationError(
+        `The infographic could not be generated. ${err instanceof Error ? err.message : ""}`.trim()
+      );
       setPhase("error");
     }
   };
 
   const handleDelete = async (id: string) => {
-    await deleteInfographic(id);
-    await refreshList();
-    setViewing(null);
-    setPhase("list");
+    try {
+      await deleteInfographic(id);
+      await refreshList();
+      setViewing(null);
+      setPhase("list");
+    } catch (err) {
+      console.error("[infographic] Could not delete the infographic:", err);
+      setGenerationError("This infographic could not be deleted. Try again.");
+      setPhase("error");
+    }
   };
 
   if (loading || !deck) return <DeckGate loading={loading} error={error} deck={deck} />;
