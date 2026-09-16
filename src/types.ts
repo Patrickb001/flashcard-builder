@@ -71,11 +71,90 @@ export type InfographicIcon =
  */
 export type InfographicDetail = 'basic' | 'standard' | 'detailed';
 
-export interface InfographicSection {
-  heading: string;
+/**
+ * One piece of a generated infographic. Eight shapes, one for each way the
+ * model can present an idea — a plain bullet list is still the default, but
+ * a table, a stat, a compare, or a pulled quote are now real options too.
+ *
+ * `bullets` and `timeline` carry a model-chosen `icon` from the fixed
+ * InfographicIcon enum below. The other six don't — each gets one icon
+ * fixed in code (src/components/infographic/blocks.tsx), because none of
+ * them ever had a reason to vary: a table always reads as a table.
+ */
+export interface BulletsBlock {
+  type: 'bullets';
   icon: InfographicIcon;
+  heading: string;
   points: string[];
 }
+
+export interface TimelineBlock {
+  type: 'timeline';
+  icon: InfographicIcon;
+  heading: string;
+  steps: { label: string }[];
+  caption: string;
+}
+
+export interface TableBlock {
+  type: 'table';
+  heading: string;
+  columns: string[];
+  rows: string[][];
+}
+
+export interface CalloutBlock {
+  type: 'callout';
+  tone: 'warning' | 'info';
+  text: string;
+}
+
+export interface StatBlock {
+  type: 'stat';
+  heading: string;
+  value: string;
+  unit?: string;
+  caption: string;
+}
+
+export interface CompareColumn {
+  label: string;
+  points: string[];
+}
+
+export interface CompareBlock {
+  type: 'compare';
+  heading: string;
+  left: CompareColumn;
+  right: CompareColumn;
+}
+
+export interface StepsBlock {
+  type: 'steps';
+  heading: string;
+  items: string[];
+}
+
+/**
+ * One idea pulled from a single card. Accurate, not verbatim — the model
+ * may reword for brevity as long as it stays true to what the card says;
+ * nothing here checks the wording against the source card (see
+ * infographicPrompt.ts's clamping, which only bounds length).
+ */
+export interface QuoteBlock {
+  type: 'quote';
+  text: string;
+}
+
+export type InfographicBlock =
+  | BulletsBlock
+  | TimelineBlock
+  | TableBlock
+  | CalloutBlock
+  | StatBlock
+  | CompareBlock
+  | StepsBlock
+  | QuoteBlock;
 
 /**
  * One saved infographic. A deck can have any number of these — different
@@ -87,21 +166,21 @@ export interface Infographic {
   deckId: string;
   title: string;
   detail: InfographicDetail;
-  sections: InfographicSection[];
+  blocks: InfographicBlock[];
   /** Which cards this one was built from, for the list screen's "N cards" line. */
   cardIds: string[];
   createdAt: number;
 }
 
 /**
- * What the model's response actually contains — title and sections only.
+ * What the model's response actually contains — title and blocks only.
  * `Infographic` adds `id`, `deckId`, `detail`, `cardIds` and `createdAt`,
  * none of which are in the model's own reply. Same split `LlmCard`
  * (cardPrompt.ts) already keeps from the stored `Flashcard`.
  */
 export interface LlmInfographic {
   title: string;
-  sections: InfographicSection[];
+  blocks: InfographicBlock[];
 }
 
 /** Which kind of document a deck was built from. */

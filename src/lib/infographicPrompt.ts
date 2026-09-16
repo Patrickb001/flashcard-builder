@@ -1,5 +1,14 @@
 import { stripJsonFence } from './textUtils';
-import type { InfographicDetail, InfographicIcon, LlmInfographic } from '../types';
+import type {
+  BulletsBlock,
+  CalloutBlock,
+  InfographicBlock,
+  InfographicDetail,
+  InfographicIcon,
+  LlmInfographic,
+  QuoteBlock,
+  StatBlock,
+} from '../types';
 
 /**
  * Turns a deck's flashcards into one infographic — a title plus a handful of
@@ -25,17 +34,16 @@ const ICONS: InfographicIcon[] = [
   'question',
 ];
 
-/**
- * Clamp ceilings per level — enforced by the parser below on whatever the
- * model actually returns. Distinct from the *targets* embedded in each
- * level's own prompt text below: never told to the model as a hard limit
- * the way these ceilings are enforced here.
- */
-const CEILINGS: Record<InfographicDetail, { sections: number; points: number }> = {
-  basic: { sections: 5, points: 4 },
-  standard: { sections: 8, points: 5 },
-  detailed: { sections: 14, points: 6 },
-};
+/** The per-level ceiling on total blocks, and the level-independent ceiling
+ * shared by every "list of short strings" field (bullets' points, steps'
+ * items, a compare column's points) — the same numbers the old per-section
+ * points ceiling used, now spent per-list rather than per-section. */
+const TOTAL_BLOCKS_CEILING: Record<InfographicDetail, number> = { basic: 3, standard: 6, detailed: 10 };
+const POINTS_CEILING: Record<InfographicDetail, number> = { basic: 4, standard: 5, detailed: 6 };
+
+/** At most this many of each "dense" block type, regardless of level —
+ * keeps Detailed from turning into ten tables back to back. */
+const DENSE_TYPE_CEILING: Record<'stat' | 'compare' | 'table', number> = { stat: 1, compare: 1, table: 2 };
 
 /** Per-level target guidance, folded into each level's own prompt text below. */
 const TARGET_GUIDANCE: Record<InfographicDetail, string> = {
@@ -83,14 +91,103 @@ export const INFOGRAPHIC_SYSTEM_PROMPTS: Record<InfographicDetail, string> = {
   detailed: buildInfographicPrompt('detailed'),
 };
 
+function isNonEmptyString(value: unknown): value is string {
+  return typeof value === 'string' && value.trim().length > 0;
+}
+
+/** Trims and clamps to `max` chars with a trailing ellipsis; null if nothing survives. */
+function clampText(value: unknown, max: number): string | null {
+  if (typeof value !== 'string') return null;
+  const trimmed = value.trim();
+  if (!trimmed) return null;
+  return trimmed.length <= max ? trimmed : `${trimmed.slice(0, max)}…`;
+}
+
+function validateBullets(raw: Record<string, unknown>, detail: InfographicDetail): BulletsBlock | null {
+  if (!isNonEmptyString(raw.heading)) return null;
+  if (!Array.isArray(raw.points)) return null;
+  const points = raw.points
+    .filter((p): p is string => typeof p === 'string')
+    .slice(0, POINTS_CEILING[detail])
+    .map((p) => p.trim())
+    .filter((p) => p.length > 0);
+  if (points.length === 0) return null;
+  const icon = typeof raw.icon === 'string' && (ICONS as string[]).includes(raw.icon) ? (raw.icon as InfographicIcon) : ('list' as const);
+  return { type: 'bullets', icon, heading: (raw.heading as string).trim(), points };
+}
+
+function validateCallout(raw: Record<string, unknown>): CalloutBlock | null {
+  const text = clampText(raw.text, 220);
+  if (!text) return null;
+  const tone = raw.tone === 'info' ? 'info' : ('warning' as const);
+  return { type: 'callout', tone, text };
+}
+
+function validateStat(raw: Record<string, unknown>): StatBlock | null {
+  if (!isNonEmptyString(raw.heading)) return null;
+  const value = clampText(raw.value, 12);
+  if (!value) return null;
+  const caption = clampText(raw.caption, 140) ?? '';
+  const unit = typeof raw.unit === 'string' && raw.unit.trim() ? raw.unit.trim() : undefined;
+  return { type: 'stat', heading: (raw.heading as string).trim(), value, ...(unit ? { unit } : {}), caption };
+}
+
+function validateQuote(raw: Record<string, unknown>): QuoteBlock | null {
+  const text = clampText(raw.text, 200);
+  if (!text) return null;
+  return { type: 'quote', text };
+}
+
+/**
+ * One switch per block type — unrecognized types (including the four not
+ * yet implemented as of this task: timeline/table/compare/steps) fall
+ * through to `default` and are dropped, the same treatment an unrecognized
+ * `icon` already gets.
+ */
+function validateBlock(raw: unknown, detail: InfographicDetail): InfographicBlock | null {
+  if (!raw || typeof raw !== 'object') return null;
+  const item = raw as Record<string, unknown>;
+  switch (item.type) {
+    case 'bullets':
+      return validateBullets(item, detail);
+    case 'callout':
+      return validateCallout(item);
+    case 'stat':
+      return validateStat(item);
+    case 'quote':
+      return validateQuote(item);
+    default:
+      return null;
+  }
+}
+
+/** Applies the total-block ceiling and the dense-type combined cap, in
+ * order — a dense block that's over its own cap is skipped without
+ * consuming a slot in the total ceiling, so a later non-dense block can
+ * still take its place. */
+function applyBlockCeilings(blocks: InfographicBlock[], detail: InfographicDetail): InfographicBlock[] {
+  const denseUsed: Record<'stat' | 'compare' | 'table', number> = { stat: 0, compare: 0, table: 0 };
+  const kept: InfographicBlock[] = [];
+  for (const block of blocks) {
+    if (kept.length >= TOTAL_BLOCKS_CEILING[detail]) break;
+    if (block.type === 'stat' || block.type === 'compare' || block.type === 'table') {
+      if (denseUsed[block.type] >= DENSE_TYPE_CEILING[block.type]) continue;
+      denseUsed[block.type] += 1;
+    }
+    kept.push(block);
+  }
+  return kept;
+}
+
 /**
  * Reads the model's reply as one JSON object, tolerating a markdown fence,
- * then clamps its sections/points to the given level's ceiling. Clamps
- * rather than rejects, so a reply that ran a little long or a little short
- * of its target is still stored rather than thrown away.
+ * then validates and clamps each block, then applies the total/dense-type
+ * ceilings above. Clamps rather than rejects a single block, so one
+ * malformed block among several good ones doesn't throw the whole reply
+ * away.
  *
  * Returns null only when nothing usable could be read at all: the reply
- * isn't a JSON object, or it parses but has zero sections.
+ * isn't a JSON object, or it parses but zero blocks survive.
  */
 export function parseInfographicResponse(
   text: string,
@@ -110,44 +207,17 @@ export function parseInfographicResponse(
   }
   if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) return null;
 
-  const raw = parsed as { title?: unknown; sections?: unknown };
-  if (!Array.isArray(raw.sections)) return null;
+  const raw = parsed as { title?: unknown; blocks?: unknown };
+  if (!Array.isArray(raw.blocks)) return null;
 
-  const ceiling = CEILINGS[detail];
-  const sections = raw.sections
-    .filter(
-      (item): item is { heading: string; icon: string; points: string[] } =>
-        !!item &&
-        typeof item === 'object' &&
-        typeof (item as { heading?: unknown }).heading === 'string' &&
-        // Checked here, before the ceiling slice below, rather than as a
-        // trailing filter after it — a trailing filter would drop a
-        // whitespace-only-heading section AFTER it had already used up a
-        // slot in the ceiling, silently crowding out a good section that
-        // came right after it in the model's reply.
-        (item as { heading: string }).heading.trim().length > 0 &&
-        typeof (item as { icon?: unknown }).icon === 'string' &&
-        Array.isArray((item as { points?: unknown }).points) &&
-        (item as { points: unknown[] }).points.every((p) => typeof p === 'string')
-    )
-    .slice(0, ceiling.sections)
-    .map((section) => ({
-      heading: section.heading.trim(),
-      icon: (ICONS as string[]).includes(section.icon) ? (section.icon as InfographicIcon) : ('list' as const),
-      // Trimmed and stripped of anything that trims to nothing — a bullet
-      // that's blank once trimmed would otherwise render as an empty <li>.
-      points: section.points
-        .slice(0, ceiling.points)
-        .map((p) => p.trim())
-        .filter((p) => p.length > 0),
-    }))
-    // A section that lost every point to the filter above (all-whitespace
-    // points, or none survived) isn't a usable section either.
-    .filter((section) => section.points.length > 0);
+  const validated = raw.blocks
+    .map((item) => validateBlock(item, detail))
+    .filter((block): block is InfographicBlock => block !== null);
 
-  if (sections.length === 0) return null;
+  const blocks = applyBlockCeilings(validated, detail);
+  if (blocks.length === 0) return null;
 
   const title = typeof raw.title === 'string' && raw.title.trim() ? raw.title.trim() : deckName;
 
-  return { title, sections };
+  return { title, blocks };
 }
