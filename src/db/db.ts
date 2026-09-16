@@ -530,11 +530,26 @@ export async function moveDeckToFolder(deckId: string, folderId: string | null):
 // Infographics
 // ---------------------------------------------------------------------------
 
-/** Every infographic saved for a deck, newest first. */
+/**
+ * Every infographic saved for a deck, newest first.
+ *
+ * Also the one place a straggler from before this shape existed would turn
+ * up — nothing has ever written one, so this is a safety net, not a
+ * migration: a row with no valid `blocks` array is deleted on the spot
+ * rather than handed to a screen that expects one.
+ */
 export async function getInfographicsForDeck(deckId: string): Promise<Infographic[]> {
   const db = await getDB();
   const infographics = await db.getAllFromIndex('infographics', 'by-deckId', deckId);
-  return infographics.sort((a, b) => b.createdAt - a.createdAt);
+  const valid: Infographic[] = [];
+  for (const infographic of infographics) {
+    if (Array.isArray((infographic as Infographic).blocks)) {
+      valid.push(infographic);
+    } else {
+      await db.delete('infographics', infographic.id);
+    }
+  }
+  return valid.sort((a, b) => b.createdAt - a.createdAt);
 }
 
 /** Stores one infographic. Always a new row — infographics are never overwritten by id. */
