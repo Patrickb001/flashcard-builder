@@ -1,8 +1,9 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import type { AiSettings } from "../lib/aiGenerator";
 import { loadAiSettings } from "../lib/aiGenerator";
 import { deleteInfographic, getInfographicsForDeck, saveInfographic } from "../db/db";
 import { generateInfographic } from "../lib/infographicGenerator";
+import type { InfographicStage } from "../lib/infographicGenerator";
 import type { Flashcard, Infographic, InfographicDetail } from "../types";
 import { useDeck } from "./useDeck";
 import DeckGate from "./ui/DeckGate";
@@ -34,6 +35,8 @@ export default function InfographicMode({ deckId }: Props) {
   const [viewing, setViewing] = useState<Infographic | null>(null);
   const [generationError, setGenerationError] = useState<string | null>(null);
   const [ai, setAi] = useState<AiSettings>(() => loadAiSettings());
+  const [stage, setStage] = useState<InfographicStage | null>(null);
+  const abortRef = useRef<AbortController | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -67,13 +70,35 @@ export default function InfographicMode({ deckId }: Props) {
 
   const handleGenerate = async (detail: InfographicDetail, chosenCards: Flashcard[]) => {
     setPhase("generating");
+    setStage(null);
+    const controller = new AbortController();
+    abortRef.current = controller;
     try {
-      const infographic = await generateInfographic(deckId, deck!.name, chosenCards, detail, ai);
+      const infographic = await generateInfographic(
+        deckId,
+        deck!.name,
+        chosenCards,
+        detail,
+        ai,
+        controller.signal,
+        setStage
+      );
       await saveInfographic(infographic);
       await refreshList();
       setViewing(infographic);
       setPhase("view");
     } catch (err) {
+      // Stopping is a choice, not a failure — the same distinction
+      // useDeckQuiz.ts's own abort handling makes. Nothing partial is kept
+      // here (unlike quiz's per-batch saves): both calls in
+      // generateInfographic are cheap enough, and neither produces
+      // anything worth persisting on its own, that redoing the whole run
+      // on the next attempt is the right cost, not a shortcut being
+      // skipped.
+      if (controller.signal.aborted) {
+        setPhase("setup");
+        return;
+      }
       console.error("[infographic] Could not generate the infographic:", err);
       // The thrown error's own message names the actual cause (no API key,
       // the dev server not running, a reply cut off mid-JSON, the payload
@@ -83,8 +108,12 @@ export default function InfographicMode({ deckId }: Props) {
         `The infographic could not be generated. ${err instanceof Error ? err.message : ""}`.trim()
       );
       setPhase("error");
+    } finally {
+      abortRef.current = null;
     }
   };
+
+  const stopGenerating = () => abortRef.current?.abort();
 
   const handleDelete = async (id: string) => {
     try {
@@ -133,7 +162,14 @@ export default function InfographicMode({ deckId }: Props) {
     return (
       <div className="infographic-generating">
         <span className="chalk-spinner" aria-hidden="true" />
-        <p className="muted small">Writing the infographic…</p>
+        <p className="muted small">
+          {stage === "designing" ? "Designing the page…" : "Reading the cards…"}
+        </p>
+        <div className="form-actions">
+          <button type="button" className="ghost-btn" onClick={stopGenerating}>
+            Stop
+          </button>
+        </div>
       </div>
     );
   }
