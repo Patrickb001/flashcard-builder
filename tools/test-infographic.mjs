@@ -191,5 +191,89 @@ check(
 );
 check("the body always warns it can't be undone", deleteInfographicModalCopy('Anything').body, "This can't be undone.");
 
+console.log('\ndesign — a script inside a <template> does not survive');
+const templatedScript = '<!DOCTYPE html><html><body><template><script>alert(1)</script></template><p>Keep</p></body></html>';
+const cleanedTemplate = parseDesignResponse(templatedScript);
+check('no <script survives', cleanedTemplate.toLowerCase().includes('<script'), false);
+check('no <template survives', cleanedTemplate.toLowerCase().includes('<template'), false);
+check('sibling content survives', cleanedTemplate.includes('<p>Keep</p>'), true);
+
+console.log('\ndesign — javascript: is stripped from action and formaction');
+const formVectors = '<!DOCTYPE html><html><body><form action="javascript:alert(1)"><button formaction="javascript:alert(2)">x</button></form></body></html>';
+const cleanedForm = parseDesignResponse(formVectors);
+check('neither attribute keeps a javascript: URI', cleanedForm.toLowerCase().includes('javascript:'), false);
+check('the elements themselves survive', cleanedForm.includes('<form') && cleanedForm.includes('<button'), true);
+
+console.log('\ncomparisons are validated and clamped to 6');
+const manyComparisons = JSON.stringify({
+  title: 'Comparisons',
+  items: [{ label: 'A', detail: 'A detail.' }],
+  comparisons: [
+    ...Array.from({ length: 7 }, (_, i) => ({ name: `Name ${i + 1}`, value: `Value ${i + 1}` })),
+    { name: 'No value' },
+  ],
+  keyTakeaway: 'Seven valid, one malformed.',
+});
+const clampedComparisons = parseExtractionResponse(manyComparisons, 'Comparisons', 'detailed');
+check('keeps exactly 6 comparisons', clampedComparisons.comparisons.length, 6);
+check('keeps the first 6, dropping from the tail', clampedComparisons.comparisons[5].name, 'Name 6');
+check('drops a comparison missing its value', JSON.stringify(clampedComparisons.comparisons).includes('No value'), false);
+
+console.log('\ncomparisons is omitted entirely when none survive');
+const noValidComparisons = JSON.stringify({
+  title: 'None',
+  items: [{ label: 'A', detail: 'A detail.' }],
+  comparisons: [{ name: 'Only a name' }],
+  keyTakeaway: 'Nothing usable.',
+});
+check(
+  'the field is absent rather than an empty array',
+  'comparisons' in parseExtractionResponse(noValidComparisons, 'None', 'detailed'),
+  false
+);
+
+import { MAX_TOKENS as CLIENT_TOKENS } from '../src/lib/aiTransport.ts';
+import { MAX_TOKENS as SERVER_TOKENS } from '../src/server/generateHandler.ts';
+
+console.log('\nMAX_TOKENS stays in step between client and server');
+for (const key of ['infographic-extract-basic', 'infographic-extract-standard', 'infographic-extract-detailed', 'infographic-design']) {
+  check(`${key} matches`, CLIENT_TOKENS[key], SERVER_TOKENS[key]);
+}
+
+import fs from 'node:fs';
+
+console.log('\ndesign prompt color tokens match src/index.css');
+const css = fs.readFileSync('src/index.css', 'utf8');
+const rootBlock = css.slice(css.indexOf(':root {'), css.indexOf('\n}\n', css.indexOf(':root {')));
+const darkBlock = css.slice(
+  css.indexOf(':root[data-theme="dark"]'),
+  css.indexOf('\n}\n', css.indexOf(':root[data-theme="dark"]'))
+);
+
+// Only the tokens the design prompt actually mirrors — --shadow-*, --scrim,
+// --font-ui, etc. are this app's own UI chrome and were never meant to be
+// copied into the infographic's palette (see Task 3's prompt text).
+const MIRRORED_TOKENS = [
+  'bg', 'surface', 'surface-raised', 'border-soft', 'border-strong',
+  'text-primary', 'text-secondary', 'text-faint',
+  'accent', 'accent-soft', 'accent-contrast',
+  'success', 'success-soft', 'warning', 'warning-soft', 'danger', 'danger-soft',
+];
+
+function tokenValue(block, name) {
+  const match = block.match(new RegExp(`--${name}:\\s*([^;]+);`));
+  return match ? match[1].replace(/\s+/g, '') : null;
+}
+
+const promptNoSpace = INFOGRAPHIC_DESIGN_PROMPT.replace(/\s+/g, '');
+for (const name of MIRRORED_TOKENS) {
+  const lightValue = tokenValue(rootBlock, name);
+  const darkValue = tokenValue(darkBlock, name);
+  check(`--${name} (light) exists in index.css`, lightValue !== null, true);
+  check(`--${name} (dark) exists in index.css`, darkValue !== null, true);
+  check(`--${name} (light) value is in the design prompt`, lightValue !== null && promptNoSpace.includes(lightValue), true);
+  check(`--${name} (dark) value is in the design prompt`, darkValue !== null && promptNoSpace.includes(darkValue), true);
+}
+
 console.log(failures === 0 ? '\nAll passed.' : `\n${failures} failed.`);
 process.exit(failures === 0 ? 0 : 1);
