@@ -73,7 +73,11 @@ export default function InfographicBlockCard({ block }: { block: InfographicBloc
 
     case "stat":
       return (
-        <div className="infographic-section" aria-label={`${block.value}${block.unit ?? ""}: ${block.caption}`}>
+        <div
+          className="infographic-section"
+          role="group"
+          aria-label={`${block.value}${block.unit ? ` ${block.unit}` : ""}: ${block.caption}`}
+        >
           <div className="infographic-section-icon">{STAT_ICON}</div>
           <div className="infographic-section-body">
             <h4>{block.heading}</h4>

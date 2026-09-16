@@ -370,6 +370,24 @@ console.log("\ndense-type combined cap (stat + compare + table)");
     ['First', 'Bullets after']
   );
 }
+{
+  // table's cap is 2, not 1 like stat/compare — the one case where an
+  // off-by-one in the cap comparison (`>=` vs `>`) wouldn't be caught by
+  // the stat test above.
+  const threeTables = [
+    { type: 'table', heading: 'First', columns: ['a'], rows: [['1']] },
+    { type: 'table', heading: 'Second', columns: ['a'], rows: [['2']] },
+    { type: 'table', heading: 'Third', columns: ['a'], rows: [['3']] },
+    { type: 'bullets', heading: 'Bullets after', icon: 'book', points: ['p'] },
+  ];
+  const result = parseInfographicResponse(JSON.stringify({ title: 'Deck', blocks: threeTables }), 'Deck', 'detailed');
+  check('only the first two tables are kept', result.blocks.filter((b) => b.type === 'table').length, 2);
+  check(
+    "the third table is skipped without consuming the bullets block's slot in the total ceiling",
+    result.blocks.map((b) => b.heading),
+    ['First', 'Second', 'Bullets after']
+  );
+}
 
 // ---------- unusable replies ----------
 

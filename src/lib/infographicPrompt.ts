@@ -16,12 +16,14 @@ import type {
 } from '../types';
 
 /**
- * Turns a deck's flashcards into one infographic — a title plus a handful of
- * icon-and-bullet sections. Shared between the browser (bring-your-own-key
- * mode) and the serverless function, exactly as the card and quiz prompts
- * are. This module must import nothing at runtime beyond other such
- * modules — the Netlify function imports it, and a stray reference to the
- * DOM or to localStorage would follow it into the server bundle.
+ * Turns a deck's flashcards into one infographic — a title plus a set of
+ * typed blocks (bullets, timeline, table, callout, stat, compare, steps,
+ * quote), not just icon-and-bullet sections. Shared between the browser
+ * (bring-your-own-key mode) and the serverless function, exactly as the
+ * card and quiz prompts are. This module must import nothing at runtime
+ * beyond other such modules — the Netlify function imports it, and a stray
+ * reference to the DOM or to localStorage would follow it into the server
+ * bundle.
  */
 
 const ICONS: InfographicIcon[] = [
@@ -143,14 +145,22 @@ function clampText(value: unknown, max: number): string | null {
   return trimmed.length <= max ? trimmed : `${trimmed.slice(0, max)}…`;
 }
 
+/**
+ * Filter-then-slice, never slice-then-filter, for every "list of short
+ * strings" field clamped below (bullets' points, a compare column's
+ * points, steps' items) and for table's rows. A blank entry has to be
+ * dropped before the ceiling slice runs, not after — a trailing filter
+ * would let a blank consume a slot in the slice and silently crowd out a
+ * good entry that came right after it in the model's reply.
+ */
 function validateBullets(raw: Record<string, unknown>, detail: InfographicDetail): BulletsBlock | null {
   if (!isNonEmptyString(raw.heading)) return null;
   if (!Array.isArray(raw.points)) return null;
   const points = raw.points
     .filter((p): p is string => typeof p === 'string')
-    .slice(0, POINTS_CEILING[detail])
     .map((p) => p.trim())
-    .filter((p) => p.length > 0);
+    .filter((p) => p.length > 0)
+    .slice(0, POINTS_CEILING[detail]);
   if (points.length === 0) return null;
   const icon = typeof raw.icon === 'string' && (ICONS as string[]).includes(raw.icon) ? (raw.icon as InfographicIcon) : ('list' as const);
   return { type: 'bullets', icon, heading: (raw.heading as string).trim(), points };
@@ -206,10 +216,15 @@ function validateTable(raw: Record<string, unknown>): TableBlock | null {
     .map((c) => clampText(c, TABLE_CELL_CHARS) as string);
   if (columns.length === 0) return null;
   const rows = raw.rows
-    .filter((r): r is unknown[] => Array.isArray(r))
+    .filter((r): r is unknown[] => Array.isArray(r) && r.length > 0)
     .slice(0, TABLE_MAX_ROWS)
-    .map((r) => r.slice(0, columns.length).map((cell) => clampText(cell, TABLE_CELL_CHARS) ?? ''))
-    .filter((r) => r.length > 0);
+    .map((r) => {
+      const cells = r.slice(0, columns.length).map((cell) => clampText(cell, TABLE_CELL_CHARS) ?? '');
+      // Pad a row shorter than the kept column count so every row has
+      // exactly as many cells as there are headers.
+      while (cells.length < columns.length) cells.push('');
+      return cells;
+    });
   if (rows.length === 0) return null;
   return { type: 'table', heading: (raw.heading as string).trim(), columns, rows };
 }
@@ -220,9 +235,9 @@ function validateCompareColumn(raw: unknown, detail: InfographicDetail): Compare
   if (!isNonEmptyString(col.label) || !Array.isArray(col.points)) return null;
   const points = col.points
     .filter((p): p is string => typeof p === 'string')
-    .slice(0, POINTS_CEILING[detail])
     .map((p) => p.trim())
-    .filter((p) => p.length > 0);
+    .filter((p) => p.length > 0)
+    .slice(0, POINTS_CEILING[detail]);
   if (points.length === 0) return null;
   return { label: col.label.trim(), points };
 }
@@ -240,18 +255,17 @@ function validateSteps(raw: Record<string, unknown>, detail: InfographicDetail):
   if (!Array.isArray(raw.items)) return null;
   const items = raw.items
     .filter((i): i is string => typeof i === 'string')
-    .slice(0, POINTS_CEILING[detail])
     .map((i) => i.trim())
-    .filter((i) => i.length > 0);
+    .filter((i) => i.length > 0)
+    .slice(0, POINTS_CEILING[detail]);
   if (items.length === 0) return null;
   return { type: 'steps', heading: (raw.heading as string).trim(), items };
 }
 
 /**
- * One switch per block type — unrecognized types (including the four not
- * yet implemented as of this task: timeline/table/compare/steps) fall
- * through to `default` and are dropped, the same treatment an unrecognized
- * `icon` already gets.
+ * One switch per block type, covering all 8 block types by name. Only a
+ * genuinely unrecognized `type` string falls through to `default` and is
+ * dropped, the same treatment an unrecognized `icon` already gets.
  */
 function validateBlock(raw: unknown, detail: InfographicDetail): InfographicBlock | null {
   if (!raw || typeof raw !== 'object') return null;

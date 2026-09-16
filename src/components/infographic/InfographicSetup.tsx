@@ -13,9 +13,9 @@ interface Props {
 }
 
 const DETAIL_OPTIONS: { id: InfographicDetail; name: string; blurb: string; pageEstimate: string }[] = [
-  { id: "basic", name: "Basic", blurb: "The core ideas only — a handful of sections, a few points each.", pageEstimate: "~1 page" },
-  { id: "standard", name: "Standard", blurb: "A fuller pass — most of the deck's key ideas, grouped and explained.", pageEstimate: "~2 pages" },
-  { id: "detailed", name: "Detailed", blurb: "Thorough coverage across the deck, for a deeper study reference.", pageEstimate: "up to 5 pages" },
+  { id: "basic", name: "Basic", blurb: "The core ideas only — a couple of blocks, a few points each.", pageEstimate: "~1 page" },
+  { id: "standard", name: "Standard", blurb: "A fuller pass — most of the deck's key ideas, grouped and explained.", pageEstimate: "~1-2 pages" },
+  { id: "detailed", name: "Detailed", blurb: "Thorough coverage across the deck, for a deeper study reference.", pageEstimate: "~3 pages" },
 ];
 
 /**
@@ -80,7 +80,7 @@ export default function InfographicSetup({
           ))}
         </div>
         <p className="field-hint">
-          A guide, not a hard limit — the model may return more or fewer sections depending on how much the
+          A guide, not a hard limit — the model may return more or fewer blocks depending on how much the
           deck actually covers.
         </p>
       </div>

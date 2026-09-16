@@ -546,7 +546,9 @@ export async function getInfographicsForDeck(deckId: string): Promise<Infographi
     if (Array.isArray((infographic as Infographic).blocks)) {
       valid.push(infographic);
     } else {
-      await db.delete('infographics', infographic.id);
+      await db.delete('infographics', infographic.id).catch((err) => {
+        console.error('[infographic] Could not clean up an invalid infographic row:', err);
+      });
     }
   }
   return valid.sort((a, b) => b.createdAt - a.createdAt);

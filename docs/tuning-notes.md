@@ -172,7 +172,7 @@ thread immediately after drafting, while someone waits to see their cards.
 | `vignette-audit` | 1000 |
 | `ocr` | 16000 |
 | `infographic-basic` | 4000 |
-| `infographic-standard` | 4000 |
+| `infographic-standard` | 6000 |
 | `infographic-detailed` | 8000 |
 
 **Quiz — why not 4000.** A quiz question costs about five strings where a card costs
@@ -194,7 +194,7 @@ tokens a recall question costs.
 **Why the headroom is close to free.** The ceiling is a limit, not a reservation. An
 ordinary batch still generates and bills only a couple of thousand tokens.
 
-**Infographic — why 4000 for Basic/Standard, 8000 for Detailed.** The response is compact structured JSON (a title plus a handful of icon-and-bullet sections), not prose, so even Detailed's ceiling of 14 sections x 6 points is only a few thousand characters. Detailed got its own higher ceiling rather than sharing Basic/Standard's 4000 because it is the same "many short strings per item" shape this section's Quiz entry above already flagged as needing headroom past 4000 — at roughly 3x Basic's section/point counts, sharing the smaller ceiling risked the identical mid-JSON truncation.
+**Infographic — why 4000 for Basic, 6000 for Standard, 8000 for Detailed.** The response is compact structured JSON — a title plus a set of typed blocks (bullets, timeline, table, callout, stat, compare, steps, quote), not prose — but the richer block types cost more JSON per block than a plain bullets section did: a table's nested row arrays and a compare block's two point lists are each several short strings where a bullets block is one. Standard was raised from 4000 to 6000 because it can carry up to 6 blocks of any type, including the denser ones, and was hitting the same mid-JSON truncation this section's Quiz entry above already flagged. Detailed didn't need to move off 8000: its total-block ceiling of 10 is actually *lower* than the old 14-section ceiling it replaced, and that drop offsets the added per-block verbosity.
 
 **Vignette-audit — why 1000.** The audit call returns one verdict object per question in
 the batch — an id and a boolean — never prose, so it costs a small fraction of what

@@ -2496,6 +2496,12 @@ textarea:focus-visible {
 
 .infographic-table-wrap {
   overflow-x: auto;
+  /* This is also .infographic-section-body, a flex item inside
+     .infographic-section. Flex items default to min-width: auto, which
+     would let a wide table push the whole card wider instead of
+     scrolling inside it — this lets the item actually shrink so the
+     overflow-x above can do its job. */
+  min-width: 0;
 }
 
 .infographic-table-wrap table {
