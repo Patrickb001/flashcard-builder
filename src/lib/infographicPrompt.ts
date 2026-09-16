@@ -1,136 +1,89 @@
 import { stripJsonFence } from './textUtils';
-import type {
-  BulletsBlock,
-  CalloutBlock,
-  CompareBlock,
-  CompareColumn,
-  InfographicBlock,
-  InfographicDetail,
-  InfographicIcon,
-  LlmInfographic,
-  QuoteBlock,
-  StatBlock,
-  StepsBlock,
-  TableBlock,
-  TimelineBlock,
-} from '../types';
+import type { InfographicDetail } from '../types';
 
 /**
- * Turns a deck's flashcards into one infographic — a title plus a set of
- * typed blocks (bullets, timeline, table, callout, stat, compare, steps,
- * quote), not just icon-and-bullet sections. Shared between the browser
+ * The infographic pipeline: an extraction call (a deck's flashcards in,
+ * structured JSON out) followed by a design call (that JSON in, one
+ * self-contained HTML document out). Shared between the browser
  * (bring-your-own-key mode) and the serverless function, exactly as the
  * card and quiz prompts are. This module must import nothing at runtime
  * beyond other such modules — the Netlify function imports it, and a stray
  * reference to the DOM or to localStorage would follow it into the server
- * bundle.
+ * bundle. (Task 3's `linkedom` import is the one exception, and is safe for
+ * this reason: it is a pure-JS DOM implementation with no `window`.)
  */
 
-const ICONS: InfographicIcon[] = [
-  'book',
-  'lightbulb',
-  'brain',
-  'chart',
-  'list',
-  'arrows',
-  'target',
-  'clock',
-  'check',
-  'warning',
-  'network',
-  'question',
-];
+// ---------------------------------------------------------------------------
+// Stage 1: extraction
+// ---------------------------------------------------------------------------
 
-/** The per-level ceiling on total blocks, and the level-independent ceiling
- * shared by every "list of short strings" field (bullets' points, steps'
- * items, a compare column's points) — the same numbers the old per-section
- * points ceiling used, now spent per-list rather than per-section. */
-const TOTAL_BLOCKS_CEILING: Record<InfographicDetail, number> = { basic: 3, standard: 6, detailed: 10 };
-const POINTS_CEILING: Record<InfographicDetail, number> = { basic: 4, standard: 5, detailed: 6 };
+export interface ExtractedInfographicItem {
+  label: string;
+  detail: string;
+  meta?: string;
+}
 
-/** At most this many of each "dense" block type, regardless of level —
- * keeps Detailed from turning into ten tables back to back. */
-const DENSE_TYPE_CEILING: Record<'stat' | 'compare' | 'table', number> = { stat: 1, compare: 1, table: 2 };
+export interface ExtractedInfographicComparison {
+  name: string;
+  value: string;
+}
+
+/** What the extraction call returns, and what the design call is given as its whole input. */
+export interface ExtractedInfographicContent {
+  title: string;
+  lede: string;
+  /** The single biggest idea, as 2-4 short pairs. Absent when nothing in the material forms one. */
+  coreConcept?: Record<string, string>;
+  items: ExtractedInfographicItem[];
+  /** Present only when the material has 2+ things worth weighing on shared criteria. */
+  comparisons?: ExtractedInfographicComparison[];
+  keyTakeaway: string;
+}
 
 /** Per-level target guidance, folded into each level's own prompt text below. */
-const TARGET_GUIDANCE: Record<InfographicDetail, string> = {
-  basic: 'roughly 2-3 blocks',
-  standard: 'roughly 4-6 blocks',
-  detailed: 'roughly 7-10 blocks',
+const ITEM_TARGET: Record<InfographicDetail, string> = {
+  basic: '4-5 items',
+  standard: '6-8 items',
+  detailed: '8-10 items',
 };
 
-/** Basic keeps this short deliberately — with only 2-3 blocks, there's rarely
- * room for more than the default type plus maybe one standout number. */
-const BLOCK_RUBRIC_BASIC = `Stick mostly to "bullets"; reach for "stat" only if one number is genuinely worth calling out on its own.`;
+/** Parse-time ceilings — a wider safety net than the target above, clamped rather than rejected. */
+const ITEM_CEILING: Record<InfographicDetail, number> = { basic: 6, standard: 9, detailed: 12 };
+const CORE_CONCEPT_CEILING = 4;
+const COMPARISONS_CEILING = 6;
 
-const BLOCK_RUBRIC_FULL = `Pick whichever block best fits each idea — do not default to "bullets" for everything:
-- bullets — a short list of related points under one heading. The default when nothing more specific applies.
-- timeline — steps that each have a real time or interval label (e.g. "1 day", "3 days"). Use "steps" instead when the sequence has no time attached.
-- table — data that reads naturally as rows and columns (e.g. options and their effects).
-- callout — one important warning or note that deserves visual emphasis, not another bullet.
-- stat — one standout number worth calling out on its own, not a list of several numbers.
-- compare — exactly two things being weighed against each other, never more than two.
-- steps — an ordered process or sequence with no time labels attached.
-- quote — one idea pulled from a single card. Light rewording for clarity or brevity is fine, but never add a claim the card didn't make.`;
+function buildExtractionPrompt(detail: InfographicDetail): string {
+  return `You extract the key teachable content from a set of flashcards, so it can be redesigned as a visual infographic in a later step. You are given some flashcards from one deck (front, back, and sometimes a topic).
 
-const BLOCK_FIELDS_BASIC = `Each block type's own fields:
-- bullets: icon, heading, points (array of short strings)
-- stat: heading, value (a short number or figure), unit (optional, e.g. "days"), caption (one sentence)`;
-
-const BLOCK_FIELDS_FULL = `Each block type's own fields:
-- bullets: icon, heading, points (array of short strings)
-- timeline: icon, heading, steps (array of { "label": "a short time label" }), caption (one sentence)
-- table: heading, columns (array of short column names), rows (array of arrays of short cell strings, one array per row)
-- callout: tone ("warning" or "info"), text (one to two sentences)
-- stat: heading, value (a short number or figure), unit (optional, e.g. "days"), caption (one sentence)
-- compare: heading, left and right (each { "label": "a short column name", "points": ["a short point", ...] })
-- steps: heading, items (array of short strings, one per step)
-- quote: text (one idea from a single card, one to two sentences)`;
-
-function buildInfographicPrompt(detail: InfographicDetail): string {
-  const rubric = detail === 'basic' ? BLOCK_RUBRIC_BASIC : BLOCK_RUBRIC_FULL;
-  const fields = detail === 'basic' ? BLOCK_FIELDS_BASIC : BLOCK_FIELDS_FULL;
-  return `You turn a student's flashcards into a single-page-style infographic they can use to review the material at a glance.
-
-You are given some flashcards from one deck (front, back, and sometimes a topic). Write ${TARGET_GUIDANCE[detail]} — aim for that range, but it is a guide, not a hard limit; write what the material actually supports.
-
-${rubric}
-
-Reply with ONLY a JSON object, no prose before or after, shaped exactly like this:
+Do not summarize in prose. Reply with ONLY a JSON object, no prose before or after, shaped exactly like this:
 
 {
   "title": "A short title for the whole infographic",
-  "blocks": [
-    { "type": "bullets", "icon": "one of the icon names below", "heading": "A short heading", "points": ["A short point.", "Another short point."] },
-    { "type": "stat", "heading": "A short heading", "value": "62", "unit": "days", "caption": "One sentence of context." }
-  ]
+  "lede": "One sentence, under 25 words, framing what this covers",
+  "coreConcept": { "A short label": "a short value", "...": "..." },
+  "items": [
+    { "label": "A short name", "detail": "One sentence explaining it", "meta": "optional short tag" }
+  ],
+  "comparisons": [ { "name": "A short name", "value": "What it is on this criterion" } ],
+  "keyTakeaway": "One sentence: the single thing to remember"
 }
 
-${fields}
+Write ${ITEM_TARGET[detail]} — aim for that range, but it is a guide, not a hard limit; write what the cards actually support.
 
 Rules:
-1. SYNTHESIZE, DON'T TRANSCRIBE — a point should read as a distilled idea, not a card's back pasted in verbatim. Group related cards into one block rather than writing one block per card.
-2. icon (on "bullets" and "timeline" blocks only — no other block type takes an icon) MUST be exactly one of: ${ICONS.join(', ')}. Pick whichever reads best for that block's topic; never invent a name outside this list.
-3. Keep headings, points, and captions short — this is read at a glance, not studied line by line.
-4. Every block needs whatever its own fields require above; never return an empty blocks array.`;
+1. GROUNDED — use only facts present in the flashcards. Never add outside knowledge, never invent data, numbers, or examples.
+2. SYNTHESIZE, DON'T TRANSCRIBE — an item should read as a distilled idea, not a card's back pasted in verbatim.
+3. "coreConcept" is the single biggest idea the material has, as 2-4 short key/value pairs. Omit the field entirely (do not send an empty object) if nothing in the cards forms one central idea.
+4. "comparisons" only applies when the cards describe 2 or more things being weighed on the same criteria. Omit the field entirely otherwise.
+5. "meta" on an item is optional — a short tag like a number, a category, or a time label. Omit it when nothing short like that applies; never pad it with a made-up value.
+6. Keep every string short — this feeds a glance-able visual, not a document.`;
 }
 
-/**
- * One prompt per detail level — not one shared prompt with the level named
- * in the payload. Two reasons: it matches how this file's neighbor,
- * quizPrompt.ts, already splits "vignette" from "vignette-audit" as
- * separate tasks rather than one task with a mode field; and more
- * concretely, the server's request validator (generateHandler.ts) requires
- * every task's payload to be a plain array ("Expected a non-empty
- * 'sections' array") — an object payload carrying `{ detail, cards }`
- * would be rejected by hosted mode before ever reaching the model. So
- * `detail` travels as *which task* gets called (see TASK_BY_DETAIL in
- * infographicGenerator.ts), never as extra payload content.
- */
-export const INFOGRAPHIC_SYSTEM_PROMPTS: Record<InfographicDetail, string> = {
-  basic: buildInfographicPrompt('basic'),
-  standard: buildInfographicPrompt('standard'),
-  detailed: buildInfographicPrompt('detailed'),
+/** One prompt per detail level — the level controls how much content the extraction call asks for. */
+export const INFOGRAPHIC_EXTRACT_PROMPTS: Record<InfographicDetail, string> = {
+  basic: buildExtractionPrompt('basic'),
+  standard: buildExtractionPrompt('standard'),
+  detailed: buildExtractionPrompt('detailed'),
 };
 
 function isNonEmptyString(value: unknown): value is string {
@@ -145,186 +98,54 @@ function clampText(value: unknown, max: number): string | null {
   return trimmed.length <= max ? trimmed : `${trimmed.slice(0, max)}…`;
 }
 
-/**
- * Filter-then-slice, never slice-then-filter, for every "list of short
- * strings" field clamped below (bullets' points, a compare column's
- * points, steps' items) and for table's rows. A blank entry has to be
- * dropped before the ceiling slice runs, not after — a trailing filter
- * would let a blank consume a slot in the slice and silently crowd out a
- * good entry that came right after it in the model's reply.
- */
-function validateBullets(raw: Record<string, unknown>, detail: InfographicDetail): BulletsBlock | null {
-  if (!isNonEmptyString(raw.heading)) return null;
-  if (!Array.isArray(raw.points)) return null;
-  const points = raw.points
-    .filter((p): p is string => typeof p === 'string')
-    .map((p) => p.trim())
-    .filter((p) => p.length > 0)
-    .slice(0, POINTS_CEILING[detail]);
-  if (points.length === 0) return null;
-  const icon = typeof raw.icon === 'string' && (ICONS as string[]).includes(raw.icon) ? (raw.icon as InfographicIcon) : ('list' as const);
-  return { type: 'bullets', icon, heading: (raw.heading as string).trim(), points };
-}
-
-function validateCallout(raw: Record<string, unknown>): CalloutBlock | null {
-  const text = clampText(raw.text, 220);
-  if (!text) return null;
-  const tone = raw.tone === 'info' ? 'info' : ('warning' as const);
-  return { type: 'callout', tone, text };
-}
-
-function validateStat(raw: Record<string, unknown>): StatBlock | null {
-  if (!isNonEmptyString(raw.heading)) return null;
-  const value = clampText(raw.value, 12);
-  if (!value) return null;
-  const caption = clampText(raw.caption, 140) ?? '';
-  const unit = typeof raw.unit === 'string' && raw.unit.trim() ? raw.unit.trim() : undefined;
-  return { type: 'stat', heading: (raw.heading as string).trim(), value, ...(unit ? { unit } : {}), caption };
-}
-
-function validateQuote(raw: Record<string, unknown>): QuoteBlock | null {
-  const text = clampText(raw.text, 200);
-  if (!text) return null;
-  return { type: 'quote', text };
-}
-
-const TIMELINE_STEPS_CEILING = 6;
-const TABLE_MAX_COLUMNS = 4;
-const TABLE_MAX_ROWS = 6;
-const TABLE_CELL_CHARS = 60;
-
-function validateTimeline(raw: Record<string, unknown>): TimelineBlock | null {
-  if (!isNonEmptyString(raw.heading)) return null;
-  if (!Array.isArray(raw.steps)) return null;
-  const steps = raw.steps
-    .map((s) => (s && typeof s === 'object' ? (s as { label?: unknown }).label : undefined))
-    .filter(isNonEmptyString)
-    .slice(0, TIMELINE_STEPS_CEILING)
-    .map((label) => ({ label: label.trim() }));
-  if (steps.length === 0) return null;
-  const icon = typeof raw.icon === 'string' && (ICONS as string[]).includes(raw.icon) ? (raw.icon as InfographicIcon) : ('clock' as const);
-  const caption = clampText(raw.caption, 140) ?? '';
-  return { type: 'timeline', icon, heading: (raw.heading as string).trim(), steps, caption };
-}
-
-function validateTable(raw: Record<string, unknown>): TableBlock | null {
-  if (!isNonEmptyString(raw.heading)) return null;
-  if (!Array.isArray(raw.columns) || !Array.isArray(raw.rows)) return null;
-  const columns = raw.columns
-    .filter(isNonEmptyString)
-    .slice(0, TABLE_MAX_COLUMNS)
-    .map((c) => clampText(c, TABLE_CELL_CHARS) as string);
-  if (columns.length === 0) return null;
-  const rows = raw.rows
-    .filter((r): r is unknown[] => Array.isArray(r) && r.length > 0)
-    .slice(0, TABLE_MAX_ROWS)
-    .map((r) => {
-      const cells = r.slice(0, columns.length).map((cell) => clampText(cell, TABLE_CELL_CHARS) ?? '');
-      // Pad a row shorter than the kept column count so every row has
-      // exactly as many cells as there are headers.
-      while (cells.length < columns.length) cells.push('');
-      return cells;
-    });
-  if (rows.length === 0) return null;
-  return { type: 'table', heading: (raw.heading as string).trim(), columns, rows };
-}
-
-function validateCompareColumn(raw: unknown, detail: InfographicDetail): CompareColumn | null {
-  if (!raw || typeof raw !== 'object') return null;
-  const col = raw as { label?: unknown; points?: unknown };
-  if (!isNonEmptyString(col.label) || !Array.isArray(col.points)) return null;
-  const points = col.points
-    .filter((p): p is string => typeof p === 'string')
-    .map((p) => p.trim())
-    .filter((p) => p.length > 0)
-    .slice(0, POINTS_CEILING[detail]);
-  if (points.length === 0) return null;
-  return { label: col.label.trim(), points };
-}
-
-function validateCompare(raw: Record<string, unknown>, detail: InfographicDetail): CompareBlock | null {
-  if (!isNonEmptyString(raw.heading)) return null;
-  const left = validateCompareColumn(raw.left, detail);
-  const right = validateCompareColumn(raw.right, detail);
-  if (!left || !right) return null;
-  return { type: 'compare', heading: (raw.heading as string).trim(), left, right };
-}
-
-function validateSteps(raw: Record<string, unknown>, detail: InfographicDetail): StepsBlock | null {
-  if (!isNonEmptyString(raw.heading)) return null;
-  if (!Array.isArray(raw.items)) return null;
-  const items = raw.items
-    .filter((i): i is string => typeof i === 'string')
-    .map((i) => i.trim())
-    .filter((i) => i.length > 0)
-    .slice(0, POINTS_CEILING[detail]);
-  if (items.length === 0) return null;
-  return { type: 'steps', heading: (raw.heading as string).trim(), items };
-}
-
-/**
- * One switch per block type, covering all 8 block types by name. Only a
- * genuinely unrecognized `type` string falls through to `default` and is
- * dropped, the same treatment an unrecognized `icon` already gets.
- */
-function validateBlock(raw: unknown, detail: InfographicDetail): InfographicBlock | null {
+function validateItem(raw: unknown): ExtractedInfographicItem | null {
   if (!raw || typeof raw !== 'object') return null;
   const item = raw as Record<string, unknown>;
-  switch (item.type) {
-    case 'bullets':
-      return validateBullets(item, detail);
-    case 'callout':
-      return validateCallout(item);
-    case 'stat':
-      return validateStat(item);
-    case 'quote':
-      return validateQuote(item);
-    case 'timeline':
-      return validateTimeline(item);
-    case 'table':
-      return validateTable(item);
-    case 'compare':
-      return validateCompare(item, detail);
-    case 'steps':
-      return validateSteps(item, detail);
-    default:
-      return null;
-  }
+  const label = clampText(item.label, 60);
+  const detail = clampText(item.detail, 200);
+  if (!label || !detail) return null;
+  const meta = clampText(item.meta, 40);
+  return meta ? { label, detail, meta } : { label, detail };
 }
 
-/** Applies the total-block ceiling and the dense-type combined cap, in
- * order — a dense block that's over its own cap is skipped without
- * consuming a slot in the total ceiling, so a later non-dense block can
- * still take its place. */
-function applyBlockCeilings(blocks: InfographicBlock[], detail: InfographicDetail): InfographicBlock[] {
-  const denseUsed: Record<'stat' | 'compare' | 'table', number> = { stat: 0, compare: 0, table: 0 };
-  const kept: InfographicBlock[] = [];
-  for (const block of blocks) {
-    if (kept.length >= TOTAL_BLOCKS_CEILING[detail]) break;
-    if (block.type === 'stat' || block.type === 'compare' || block.type === 'table') {
-      if (denseUsed[block.type] >= DENSE_TYPE_CEILING[block.type]) continue;
-      denseUsed[block.type] += 1;
-    }
-    kept.push(block);
-  }
-  return kept;
+function validateComparison(raw: unknown): ExtractedInfographicComparison | null {
+  if (!raw || typeof raw !== 'object') return null;
+  const comparison = raw as Record<string, unknown>;
+  const name = clampText(comparison.name, 60);
+  const value = clampText(comparison.value, 60);
+  if (!name || !value) return null;
+  return { name, value };
+}
+
+function validateCoreConcept(raw: unknown): Record<string, string> | undefined {
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return undefined;
+  const entries = Object.entries(raw as Record<string, unknown>)
+    .map((entry): [string, string] | null => {
+      const key = clampText(entry[0], 40);
+      const value = clampText(entry[1], 80);
+      return key && value ? [key, value] : null;
+    })
+    .filter((entry): entry is [string, string] => entry !== null)
+    .slice(0, CORE_CONCEPT_CEILING);
+  return entries.length > 0 ? Object.fromEntries(entries) : undefined;
 }
 
 /**
  * Reads the model's reply as one JSON object, tolerating a markdown fence,
- * then validates and clamps each block, then applies the total/dense-type
- * ceilings above. Clamps rather than rejects a single block, so one
- * malformed block among several good ones doesn't throw the whole reply
- * away.
+ * then validates and clamps each field. Clamps rather than rejects a single
+ * item, so one malformed item among several good ones doesn't throw the
+ * whole reply away.
  *
  * Returns null only when nothing usable could be read at all: the reply
- * isn't a JSON object, or it parses but zero blocks survive.
+ * isn't a JSON object, or it parses but zero items survive — items are the
+ * substantive content the design call is built around, so a reply with none
+ * has nothing worth designing a page from.
  */
-export function parseInfographicResponse(
+export function parseExtractionResponse(
   text: string,
   deckName: string,
   detail: InfographicDetail
-): LlmInfographic | null {
+): ExtractedInfographicContent | null {
   const cleaned = stripJsonFence(text);
   const start = cleaned.indexOf('{');
   const end = cleaned.lastIndexOf('}');
@@ -338,17 +159,33 @@ export function parseInfographicResponse(
   }
   if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) return null;
 
-  const raw = parsed as { title?: unknown; blocks?: unknown };
-  if (!Array.isArray(raw.blocks)) return null;
+  const raw = parsed as Record<string, unknown>;
 
-  const validated = raw.blocks
-    .map((item) => validateBlock(item, detail))
-    .filter((block): block is InfographicBlock => block !== null);
+  const items = Array.isArray(raw.items)
+    ? raw.items
+        .map(validateItem)
+        .filter((item): item is ExtractedInfographicItem => item !== null)
+        .slice(0, ITEM_CEILING[detail])
+    : [];
+  if (items.length === 0) return null;
 
-  const blocks = applyBlockCeilings(validated, detail);
-  if (blocks.length === 0) return null;
+  const title = clampText(raw.title, 80) ?? deckName;
+  const lede = clampText(raw.lede, 220) ?? '';
+  const keyTakeaway = clampText(raw.keyTakeaway, 220) ?? '';
+  const coreConcept = validateCoreConcept(raw.coreConcept);
+  const comparisons = Array.isArray(raw.comparisons)
+    ? raw.comparisons
+        .map(validateComparison)
+        .filter((c): c is ExtractedInfographicComparison => c !== null)
+        .slice(0, COMPARISONS_CEILING)
+    : undefined;
 
-  const title = typeof raw.title === 'string' && raw.title.trim() ? raw.title.trim() : deckName;
-
-  return { title, blocks };
+  return {
+    title,
+    lede,
+    ...(coreConcept ? { coreConcept } : {}),
+    items,
+    ...(comparisons && comparisons.length > 0 ? { comparisons } : {}),
+    keyTakeaway,
+  };
 }
