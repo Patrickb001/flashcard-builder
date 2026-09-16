@@ -86,10 +86,6 @@ export const INFOGRAPHIC_EXTRACT_PROMPTS: Record<InfographicDetail, string> = {
   detailed: buildExtractionPrompt('detailed'),
 };
 
-function isNonEmptyString(value: unknown): value is string {
-  return typeof value === 'string' && value.trim().length > 0;
-}
-
 /** Trims and clamps to `max` chars with a trailing ellipsis; null if nothing survives. */
 function clampText(value: unknown, max: number): string | null {
   if (typeof value !== 'string') return null;
