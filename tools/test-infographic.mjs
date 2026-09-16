@@ -1,4 +1,5 @@
 import { parseInfographicResponse, INFOGRAPHIC_SYSTEM_PROMPTS } from '../src/lib/infographicPrompt.ts';
+import { deleteInfographicModalCopy } from '../src/lib/infographicCopy.ts';
 
 /**
  * The infographic response parser: JSON-object extraction and per-block clamping.
@@ -395,6 +396,16 @@ for (const type of ['bullets', 'timeline', 'table', 'callout', 'stat', 'compare'
   check(`detailed prompt mentions "${type}"`, INFOGRAPHIC_SYSTEM_PROMPTS.detailed.includes(type), true);
 }
 check('every level still names "blocks" as the reply key, not "sections"', INFOGRAPHIC_SYSTEM_PROMPTS.standard.includes('"blocks"'), true);
+
+// ---------- deleteInfographicModalCopy ----------
+
+console.log('\ndeleteInfographicModalCopy');
+check(
+  'names the infographic in the title',
+  deleteInfographicModalCopy('Why Your Reviews Get Farther Apart').title,
+  'Delete "Why Your Reviews Get Farther Apart"?'
+);
+check("the body always warns it can't be undone", deleteInfographicModalCopy('Anything').body, "This can't be undone.");
 
 console.log(failures === 0 ? '\nAll passed.' : `\n${failures} failed.`);
 process.exit(failures === 0 ? 0 : 1);
