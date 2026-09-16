@@ -138,6 +138,11 @@ console.log('\ndesign — neutralizes a javascript: URI');
 const withJsUri = '<!DOCTYPE html><html><body><a href="javascript:alert(1)">Click</a></body></html>';
 check('javascript: is gone from the link', parseDesignResponse(withJsUri).toLowerCase().includes('javascript:'), false);
 
+console.log('\ndesign — whitespace inside the scheme does not smuggle javascript:');
+const tabbedScheme = '<!DOCTYPE html><html><body><a href="java&#9;script:alert(1)">c</a></body></html>';
+const cleanedTabbed = parseDesignResponse(tabbedScheme).replace(/[\x00-\x20]/g, '');
+check('the href does not survive as a javascript: URI', cleanedTabbed.toLowerCase().includes('javascript:'), false);
+
 console.log('\ndesign — strips a meta-refresh and a base tag');
 const withMetaBase =
   '<!DOCTYPE html><html><head><meta http-equiv="refresh" content="0;url=https://evil.example">' +
@@ -146,6 +151,19 @@ const cleanedMetaBase = parseDesignResponse(withMetaBase);
 check('meta-refresh is gone', cleanedMetaBase.toLowerCase().includes('refresh'), false);
 check('base tag is gone', cleanedMetaBase.toLowerCase().includes('<base'), false);
 check('surrounding content survives', cleanedMetaBase.includes('<p>Content</p>'), true);
+
+console.log('\ndesign — meta-refresh removal is case-insensitive');
+const upperRefresh =
+  '<!DOCTYPE html><html><head><meta http-equiv="REFRESH" content="0;url=https://evil.example"></head>' +
+  '<body><p>Content</p></body></html>';
+check('an uppercase http-equiv is still removed', parseDesignResponse(upperRefresh).toLowerCase().includes('refresh'), false);
+
+console.log('\ndesign — a doctype-less document gets one prepended');
+check(
+  'quirks-mode rendering is prevented',
+  sanitizeInfographicHtml('<html><body><p>x</p></body></html>').toLowerCase().startsWith('<!doctype html'),
+  true
+);
 
 console.log('\ndesign — no <html> tag at all returns null');
 check('pure prose with no document returns null', parseDesignResponse('I cannot generate that.'), null);

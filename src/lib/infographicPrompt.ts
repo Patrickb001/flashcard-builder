@@ -201,7 +201,7 @@ export function parseExtractionResponse(
  * (:root and :root[data-theme="dark"]) — see the Global Constraints note in
  * this feature's plan for why they can't be imported instead.
  */
-export const INFOGRAPHIC_DESIGN_PROMPT = `Design an educational infographic as ONE self-contained HTML document with inline SVG diagrams, from the structured content you're given. The document must be static: no external stylesheets, no external images, no JavaScript of any kind — no <script>, no inline event-handler attributes (onclick, onload, etc.), no javascript: links. Set <html lang="..."> to the actual language of the content you were given — default to "en" only if that content is itself in English.
+export const INFOGRAPHIC_DESIGN_PROMPT = `Design an educational infographic as ONE self-contained HTML document with inline SVG diagrams, from the structured content you're given. The document must be static: no external images, no JavaScript of any kind — no <script>, no inline event-handler attributes (onclick, onload, etc.), no javascript: links. The ONLY external resource permitted is the Google Fonts <link> described under TYPE below; all other CSS must be inline in a <style> block. Set <html lang="..."> to the actual language of the content you were given — default to "en" only if that content is itself in English.
 
 The user message is a JSON array holding exactly one object: the extracted content. Its fields:
 - title: the infographic's title
@@ -253,9 +253,12 @@ Before finalizing, check your own HTML/SVG for overlapping text, clipped labels,
 
 Reply with ONLY the finished HTML document — starting with <!DOCTYPE html> and ending with </html>. No explanation, no markdown code fence, nothing outside the document.`;
 
-const REMOVABLE_SELECTOR = 'script, iframe, object, embed, meta[http-equiv="refresh"], base';
-const DANGEROUS_URI_ATTRS = new Set(['href', 'src', 'xlink:href']);
-const DANGEROUS_URI_RE = /^\s*(javascript|data):/i;
+const REMOVABLE_SELECTOR =
+  'script, iframe, object, embed, meta[http-equiv="refresh"], base, template';
+const DANGEROUS_URI_ATTRS = new Set(['href', 'src', 'xlink:href', 'action', 'formaction']);
+const DANGEROUS_URI_RE = /^(javascript|data):/i;
+/** Every C0 control plus space (U+0000-U+0020) — what a browser's URL parser strips before resolving a scheme. */
+const URI_SCHEME_NOISE_RE = /[\x00-\x20]/g;
 
 /**
  * Defense-in-depth, not the primary control — the primary control is that
@@ -282,7 +285,12 @@ export function sanitizeInfographicHtml(html: string): string {
     for (const attr of Array.from(el.attributes)) {
       const name = attr.name.toLowerCase();
       const isEventHandler = name.startsWith('on');
-      const isDangerousUri = DANGEROUS_URI_ATTRS.has(name) && DANGEROUS_URI_RE.test(attr.value);
+      // Strip ASCII whitespace and C0 controls before testing the scheme,
+      // mirroring what a browser's URL parser does: `java&#9;script:alert(1)`
+      // parses to a tab inside the scheme, which a leading-anchored \s* never
+      // sees, but which the browser removes before resolving the URL.
+      const normalized = attr.value.replace(URI_SCHEME_NOISE_RE, '');
+      const isDangerousUri = DANGEROUS_URI_ATTRS.has(name) && DANGEROUS_URI_RE.test(normalized);
       if (isEventHandler || isDangerousUri) el.removeAttribute(attr.name);
     }
   });
