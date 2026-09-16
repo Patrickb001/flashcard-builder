@@ -2,7 +2,7 @@ import type { AiSettings } from './aiGenerator';
 import { CARD_SYSTEM_PROMPT } from './cardPrompt';
 import { QUIZ_SYSTEM_PROMPT, VIGNETTE_SYSTEM_PROMPT, VIGNETTE_AUDIT_SYSTEM_PROMPT } from './quizPrompt';
 import { OCR_SYSTEM_PROMPT } from './ocrPrompt';
-import { INFOGRAPHIC_SYSTEM_PROMPTS } from './infographicPrompt';
+import { INFOGRAPHIC_EXTRACT_PROMPTS, INFOGRAPHIC_DESIGN_PROMPT } from './infographicPrompt';
 
 /**
  * Getting a payload to the model, by whichever route is available.
@@ -33,9 +33,10 @@ export type AiTask =
   | 'vignette'
   | 'vignette-audit'
   | 'ocr'
-  | 'infographic-basic'
-  | 'infographic-standard'
-  | 'infographic-detailed';
+  | 'infographic-extract-basic'
+  | 'infographic-extract-standard'
+  | 'infographic-extract-detailed'
+  | 'infographic-design';
 
 /** The prompts, for the direct-from-browser route which has no server to ask. */
 const PROMPTS: Record<AiTask, string> = {
@@ -44,9 +45,10 @@ const PROMPTS: Record<AiTask, string> = {
   vignette: VIGNETTE_SYSTEM_PROMPT,
   'vignette-audit': VIGNETTE_AUDIT_SYSTEM_PROMPT,
   ocr: OCR_SYSTEM_PROMPT,
-  'infographic-basic': INFOGRAPHIC_SYSTEM_PROMPTS.basic,
-  'infographic-standard': INFOGRAPHIC_SYSTEM_PROMPTS.standard,
-  'infographic-detailed': INFOGRAPHIC_SYSTEM_PROMPTS.detailed,
+  'infographic-extract-basic': INFOGRAPHIC_EXTRACT_PROMPTS.basic,
+  'infographic-extract-standard': INFOGRAPHIC_EXTRACT_PROMPTS.standard,
+  'infographic-extract-detailed': INFOGRAPHIC_EXTRACT_PROMPTS.detailed,
+  'infographic-design': INFOGRAPHIC_DESIGN_PROMPT,
 };
 
 const MODEL = 'claude-sonnet-5';
@@ -62,7 +64,7 @@ const MODEL = 'claude-sonnet-5';
  * The server keeps its own copy in generateHandler; they must stay in step. See
  * "Model response ceilings" in docs/tuning-notes.md for what each value fixed.
  */
-const MAX_TOKENS: Record<AiTask, number> = {
+export const MAX_TOKENS: Record<AiTask, number> = {
   cards: 16000,
   quiz: 8000,
   vignette: 16000,
@@ -72,14 +74,19 @@ const MAX_TOKENS: Record<AiTask, number> = {
   // A transcribed page can be as dense as a card-drafting batch; same
   // ceiling as `cards` until real batches say otherwise (docs/tuning-notes.md).
   ocr: 16000,
-  'infographic-basic': 4000,
-  // Raised from 4000: a table or compare block's nested arrays cost more
-  // JSON per block than a bullets section did, and Standard can now carry
-  // up to 6 of them. Detailed stays at 8000 — its total-block ceiling (10)
-  // is lower than the old sections ceiling (14) it replaced, which offsets
-  // the added per-block verbosity.
-  'infographic-standard': 6000,
-  'infographic-detailed': 8000,
+  // The extraction reply is a small JSON object (a title, a handful of
+  // short items) — these ceilings are generous relative to what a real
+  // reply needs, "close to free" the same way this file's other ceilings
+  // are (see the comment above this table).
+  'infographic-extract-basic': 2000,
+  'infographic-extract-standard': 3000,
+  'infographic-extract-detailed': 4000,
+  // A full self-contained HTML document (inline CSS, inline SVG diagrams)
+  // runs far longer than a JSON reply ever did — this stays flat across
+  // detail levels rather than scaling with the extraction ceilings above,
+  // since layout/CSS boilerplate dominates the length more than item count
+  // does.
+  'infographic-design': 16000,
 };
 
 /**
