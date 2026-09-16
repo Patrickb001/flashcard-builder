@@ -15,6 +15,25 @@ const STAT_ICON = (
   </svg>
 );
 
+const TABLE_ICON = (
+  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <rect x="3.5" y="4.5" width="17" height="15" rx="2" />
+    <path d="M3.5 10h17M9.5 4.5v15" />
+  </svg>
+);
+
+const COMPARE_ICON = (
+  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <path d="M8 3v18M16 3v18M4 8h4M16 8h4M4 16h4M16 16h4" />
+  </svg>
+);
+
+const STEPS_ICON = (
+  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <path d="M5 6h14M5 12h14M5 18h9" />
+  </svg>
+);
+
 /**
  * One block, dispatched by its `type`. Every case is a typed props object
  * into typed JSX — nothing here ever touches the model's own markup,
@@ -77,7 +96,93 @@ export default function InfographicBlockCard({ block }: { block: InfographicBloc
         </div>
       );
 
-    // timeline / table / compare / steps: added in the next task.
+    case "timeline":
+      return (
+        <div className="infographic-section">
+          <div className="infographic-section-icon">{INFOGRAPHIC_ICONS[block.icon]}</div>
+          <div className="infographic-section-body">
+            <h4>{block.heading}</h4>
+            <div className="infographic-timeline-track">
+              {block.steps.map((step, i) => (
+                <div className="infographic-timeline-step" key={i}>
+                  <div className="infographic-timeline-dot" />
+                  <b>{step.label}</b>
+                </div>
+              ))}
+            </div>
+            <p className="infographic-timeline-caption">{block.caption}</p>
+          </div>
+        </div>
+      );
+
+    case "table":
+      return (
+        <div className="infographic-section">
+          <div className="infographic-section-icon">{TABLE_ICON}</div>
+          <div className="infographic-section-body infographic-table-wrap">
+            <h4>{block.heading}</h4>
+            <table>
+              <caption>{block.heading}</caption>
+              <thead>
+                <tr>
+                  {block.columns.map((col, i) => (
+                    <th key={i} scope="col">
+                      {col}
+                    </th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {block.rows.map((row, i) => (
+                  <tr key={i}>
+                    {row.map((cell, j) => (
+                      <td key={j}>{cell}</td>
+                    ))}
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      );
+
+    case "compare":
+      return (
+        <div className="infographic-section">
+          <div className="infographic-section-icon">{COMPARE_ICON}</div>
+          <div className="infographic-section-body">
+            <h4>{block.heading}</h4>
+            <div className="infographic-compare-body">
+              {[block.left, block.right].map((col, i) => (
+                <div className="infographic-compare-col" key={i}>
+                  <h5>{col.label}</h5>
+                  <ul aria-label={col.label}>
+                    {col.points.map((point, j) => (
+                      <li key={j}>{point}</li>
+                    ))}
+                  </ul>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      );
+
+    case "steps":
+      return (
+        <div className="infographic-section">
+          <div className="infographic-section-icon">{STEPS_ICON}</div>
+          <div className="infographic-section-body">
+            <h4>{block.heading}</h4>
+            <ol className="infographic-steps-list">
+              {block.items.map((item, i) => (
+                <li key={i}>{item}</li>
+              ))}
+            </ol>
+          </div>
+        </div>
+      );
+
     default:
       return null;
   }
