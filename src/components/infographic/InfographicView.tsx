@@ -1,5 +1,5 @@
 import type { Infographic } from "../../types";
-import { INFOGRAPHIC_ICONS } from "./icons";
+import InfographicBlockCard from "./blocks";
 
 interface Props {
   infographic: Infographic;
@@ -44,22 +44,12 @@ export default function InfographicView({ infographic, totalCardCount, onBack, o
         </div>
 
         <div className="infographic-sections">
-          {infographic.sections.map((section, index) => (
+          {infographic.blocks.map((block, index) => (
             <div key={index}>
               {index > 0 && index % 3 === 0 && (
                 <div className="page-break">Page {Math.floor(index / 3) + 1}</div>
               )}
-              <div className="infographic-section">
-                <div className="infographic-section-icon">{INFOGRAPHIC_ICONS[section.icon]}</div>
-                <div className="infographic-section-body">
-                  <h4>{section.heading}</h4>
-                  <ul>
-                    {section.points.map((point, i) => (
-                      <li key={i}>{point}</li>
-                    ))}
-                  </ul>
-                </div>
-              </div>
+              <InfographicBlockCard block={block} />
             </div>
           ))}
         </div>
