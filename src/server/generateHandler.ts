@@ -35,7 +35,7 @@ const MAX_TOKENS: Record<string, number> = {
   'vignette-audit': 1000,
   ocr: 16000,
   'infographic-basic': 4000,
-  'infographic-standard': 4000,
+  'infographic-standard': 6000,
   'infographic-detailed': 8000,
 };
 

@@ -73,7 +73,12 @@ const MAX_TOKENS: Record<AiTask, number> = {
   // ceiling as `cards` until real batches say otherwise (docs/tuning-notes.md).
   ocr: 16000,
   'infographic-basic': 4000,
-  'infographic-standard': 4000,
+  // Raised from 4000: a table or compare block's nested arrays cost more
+  // JSON per block than a bullets section did, and Standard can now carry
+  // up to 6 of them. Detailed stays at 8000 — its total-block ceiling (10)
+  // is lower than the old sections ceiling (14) it replaced, which offsets
+  // the added per-block verbosity.
+  'infographic-standard': 6000,
   'infographic-detailed': 8000,
 };
 

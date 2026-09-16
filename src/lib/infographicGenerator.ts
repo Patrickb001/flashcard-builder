@@ -69,7 +69,7 @@ export async function generateInfographic(
     deckId,
     title: parsed.title,
     detail,
-    sections: parsed.sections,
+    blocks: parsed.blocks,
     cardIds: cards.map((card) => card.id),
     createdAt: Date.now(),
   };
