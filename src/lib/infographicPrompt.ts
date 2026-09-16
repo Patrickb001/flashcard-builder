@@ -2,12 +2,17 @@ import { stripJsonFence } from './textUtils';
 import type {
   BulletsBlock,
   CalloutBlock,
+  CompareBlock,
+  CompareColumn,
   InfographicBlock,
   InfographicDetail,
   InfographicIcon,
   LlmInfographic,
   QuoteBlock,
   StatBlock,
+  StepsBlock,
+  TableBlock,
+  TimelineBlock,
 } from '../types';
 
 /**
@@ -138,6 +143,75 @@ function validateQuote(raw: Record<string, unknown>): QuoteBlock | null {
   return { type: 'quote', text };
 }
 
+const TIMELINE_STEPS_CEILING = 6;
+const TABLE_MAX_COLUMNS = 4;
+const TABLE_MAX_ROWS = 6;
+const TABLE_CELL_CHARS = 60;
+
+function validateTimeline(raw: Record<string, unknown>): TimelineBlock | null {
+  if (!isNonEmptyString(raw.heading)) return null;
+  if (!Array.isArray(raw.steps)) return null;
+  const steps = raw.steps
+    .map((s) => (s && typeof s === 'object' ? (s as { label?: unknown }).label : undefined))
+    .filter(isNonEmptyString)
+    .slice(0, TIMELINE_STEPS_CEILING)
+    .map((label) => ({ label: label.trim() }));
+  if (steps.length === 0) return null;
+  const icon = typeof raw.icon === 'string' && (ICONS as string[]).includes(raw.icon) ? (raw.icon as InfographicIcon) : ('clock' as const);
+  const caption = clampText(raw.caption, 140) ?? '';
+  return { type: 'timeline', icon, heading: (raw.heading as string).trim(), steps, caption };
+}
+
+function validateTable(raw: Record<string, unknown>): TableBlock | null {
+  if (!isNonEmptyString(raw.heading)) return null;
+  if (!Array.isArray(raw.columns) || !Array.isArray(raw.rows)) return null;
+  const columns = raw.columns
+    .filter(isNonEmptyString)
+    .slice(0, TABLE_MAX_COLUMNS)
+    .map((c) => clampText(c, TABLE_CELL_CHARS) as string);
+  if (columns.length === 0) return null;
+  const rows = raw.rows
+    .filter((r): r is unknown[] => Array.isArray(r))
+    .slice(0, TABLE_MAX_ROWS)
+    .map((r) => r.slice(0, columns.length).map((cell) => clampText(cell, TABLE_CELL_CHARS) ?? ''))
+    .filter((r) => r.length > 0);
+  if (rows.length === 0) return null;
+  return { type: 'table', heading: (raw.heading as string).trim(), columns, rows };
+}
+
+function validateCompareColumn(raw: unknown, detail: InfographicDetail): CompareColumn | null {
+  if (!raw || typeof raw !== 'object') return null;
+  const col = raw as { label?: unknown; points?: unknown };
+  if (!isNonEmptyString(col.label) || !Array.isArray(col.points)) return null;
+  const points = col.points
+    .filter((p): p is string => typeof p === 'string')
+    .slice(0, POINTS_CEILING[detail])
+    .map((p) => p.trim())
+    .filter((p) => p.length > 0);
+  if (points.length === 0) return null;
+  return { label: col.label.trim(), points };
+}
+
+function validateCompare(raw: Record<string, unknown>, detail: InfographicDetail): CompareBlock | null {
+  if (!isNonEmptyString(raw.heading)) return null;
+  const left = validateCompareColumn(raw.left, detail);
+  const right = validateCompareColumn(raw.right, detail);
+  if (!left || !right) return null;
+  return { type: 'compare', heading: (raw.heading as string).trim(), left, right };
+}
+
+function validateSteps(raw: Record<string, unknown>, detail: InfographicDetail): StepsBlock | null {
+  if (!isNonEmptyString(raw.heading)) return null;
+  if (!Array.isArray(raw.items)) return null;
+  const items = raw.items
+    .filter((i): i is string => typeof i === 'string')
+    .slice(0, POINTS_CEILING[detail])
+    .map((i) => i.trim())
+    .filter((i) => i.length > 0);
+  if (items.length === 0) return null;
+  return { type: 'steps', heading: (raw.heading as string).trim(), items };
+}
+
 /**
  * One switch per block type — unrecognized types (including the four not
  * yet implemented as of this task: timeline/table/compare/steps) fall
@@ -156,6 +230,14 @@ function validateBlock(raw: unknown, detail: InfographicDetail): InfographicBloc
       return validateStat(item);
     case 'quote':
       return validateQuote(item);
+    case 'timeline':
+      return validateTimeline(item);
+    case 'table':
+      return validateTable(item);
+    case 'compare':
+      return validateCompare(item, detail);
+    case 'steps':
+      return validateSteps(item, detail);
     default:
       return null;
   }

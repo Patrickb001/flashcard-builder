@@ -222,6 +222,121 @@ check(
 
 // ---------- total block count + dense-type ceilings ----------
 
+// ---------- timeline ----------
+
+console.log('\ntimeline');
+check(
+  'a well-formed timeline keeps its steps and caption',
+  parseInfographicResponse(
+    JSON.stringify({ title: 'Deck', blocks: [{ type: 'timeline', heading: 'Growth', icon: 'chart', steps: [{ label: '1d' }, { label: '3d' }], caption: 'Grows each time.' }] }),
+    'Deck',
+    'standard'
+  ).blocks[0],
+  { type: 'timeline', icon: 'chart', heading: 'Growth', steps: [{ label: '1d' }, { label: '3d' }], caption: 'Grows each time.' }
+);
+{
+  const manySteps = Array.from({ length: 9 }, (_, i) => ({ label: `s${i}` }));
+  const result = parseInfographicResponse(
+    JSON.stringify({ title: 'Deck', blocks: [{ type: 'timeline', heading: 'H', icon: 'clock', steps: manySteps, caption: 'c' }] }),
+    'Deck',
+    'detailed'
+  );
+  check('timeline steps are clamped to 6 regardless of level', result.blocks[0].steps.length, 6);
+}
+check(
+  'an icon outside the enum falls back to clock',
+  parseInfographicResponse(
+    JSON.stringify({ title: 'Deck', blocks: [{ type: 'timeline', heading: 'H', icon: 'nope', steps: [{ label: 's' }], caption: 'c' }] }),
+    'Deck',
+    'standard'
+  ).blocks[0].icon,
+  'clock'
+);
+check(
+  'a timeline with zero usable steps is dropped',
+  parseInfographicResponse(JSON.stringify({ title: 'Deck', blocks: [{ type: 'timeline', heading: 'H', icon: 'clock', steps: [], caption: 'c' }] }), 'Deck', 'standard'),
+  null
+);
+
+// ---------- table ----------
+
+console.log('\ntable');
+check(
+  'a well-formed table keeps its columns and rows',
+  parseInfographicResponse(
+    JSON.stringify({ title: 'Deck', blocks: [{ type: 'table', heading: 'Grades', columns: ['Grade', 'Ease'], rows: [['Again', '-0.20'], ['Good', '+0.00']] }] }),
+    'Deck',
+    'standard'
+  ).blocks[0],
+  { type: 'table', heading: 'Grades', columns: ['Grade', 'Ease'], rows: [['Again', '-0.20'], ['Good', '+0.00']] }
+);
+{
+  const columns = ['a', 'b', 'c', 'd', 'e'];
+  const rows = Array.from({ length: 8 }, (_, i) => columns.map((c) => `${c}${i}`));
+  const result = parseInfographicResponse(JSON.stringify({ title: 'Deck', blocks: [{ type: 'table', heading: 'H', columns, rows }] }), 'Deck', 'detailed');
+  check('columns are clamped to 4', result.blocks[0].columns.length, 4);
+  check('rows are clamped to 6', result.blocks[0].rows.length, 6);
+  check('each row is clamped to the kept column count', result.blocks[0].rows[0].length, 4);
+}
+check(
+  'a table with no columns is dropped',
+  parseInfographicResponse(JSON.stringify({ title: 'Deck', blocks: [{ type: 'table', heading: 'H', columns: [], rows: [['x']] }] }), 'Deck', 'standard'),
+  null
+);
+
+// ---------- compare ----------
+
+console.log('\ncompare');
+check(
+  'a well-formed compare keeps both columns',
+  parseInfographicResponse(
+    JSON.stringify({
+      title: 'Deck',
+      blocks: [{ type: 'compare', heading: 'Timing', left: { label: 'Too early', points: ['Wastes a review'] }, right: { label: 'Too late', points: ['Already forgotten'] } }],
+    }),
+    'Deck',
+    'standard'
+  ).blocks[0],
+  { type: 'compare', heading: 'Timing', left: { label: 'Too early', points: ['Wastes a review'] }, right: { label: 'Too late', points: ['Already forgotten'] } }
+);
+check(
+  'a compare missing its right column is dropped',
+  parseInfographicResponse(JSON.stringify({ title: 'Deck', blocks: [{ type: 'compare', heading: 'H', left: { label: 'A', points: ['p'] } }] }), 'Deck', 'standard'),
+  null
+);
+{
+  const manyPoints = Array.from({ length: 7 }, (_, i) => `p${i}`);
+  const result = parseInfographicResponse(
+    JSON.stringify({ title: 'Deck', blocks: [{ type: 'compare', heading: 'H', left: { label: 'L', points: manyPoints }, right: { label: 'R', points: ['p'] } }] }),
+    'Deck',
+    'basic'
+  );
+  check("a column's points are clamped to the level ceiling (basic: 4)", result.blocks[0].left.points.length, 4);
+}
+
+// ---------- steps ----------
+
+console.log('\nsteps');
+check(
+  'a well-formed steps block keeps its items',
+  parseInfographicResponse(
+    JSON.stringify({ title: 'Deck', blocks: [{ type: 'steps', heading: 'How grading works', items: ['See the card', 'Rate it'] }] }),
+    'Deck',
+    'standard'
+  ).blocks[0],
+  { type: 'steps', heading: 'How grading works', items: ['See the card', 'Rate it'] }
+);
+{
+  const manyItems = Array.from({ length: 9 }, (_, i) => `i${i}`);
+  const result = parseInfographicResponse(JSON.stringify({ title: 'Deck', blocks: [{ type: 'steps', heading: 'H', items: manyItems }] }), 'Deck', 'detailed');
+  check('items are clamped to the level ceiling (detailed: 6)', result.blocks[0].items.length, 6);
+}
+check(
+  'a steps block with zero usable items is dropped',
+  parseInfographicResponse(JSON.stringify({ title: 'Deck', blocks: [{ type: 'steps', heading: 'H', items: ['   ', ''] }] }), 'Deck', 'standard'),
+  null
+);
+
 console.log('\ntotal block count ceiling');
 const manyBullets = (n) =>
   Array.from({ length: n }, (_, i) => ({ type: 'bullets', heading: `H${i}`, icon: 'book', points: ['p'] }));
