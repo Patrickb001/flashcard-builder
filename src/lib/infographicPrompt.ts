@@ -52,30 +52,65 @@ const DENSE_TYPE_CEILING: Record<'stat' | 'compare' | 'table', number> = { stat:
 
 /** Per-level target guidance, folded into each level's own prompt text below. */
 const TARGET_GUIDANCE: Record<InfographicDetail, string> = {
-  basic: 'roughly 3-4 sections, 2-3 points each',
-  standard: 'roughly 5-7 sections, 3-4 points each',
-  detailed: 'roughly 8-12 sections, 3-5 points each',
+  basic: 'roughly 2-3 blocks',
+  standard: 'roughly 4-6 blocks',
+  detailed: 'roughly 7-10 blocks',
 };
 
+/** Basic keeps this short deliberately — with only 2-3 blocks, there's rarely
+ * room for more than the default type plus maybe one standout number. */
+const BLOCK_RUBRIC_BASIC = `Stick mostly to "bullets"; reach for "stat" only if one number is genuinely worth calling out on its own.`;
+
+const BLOCK_RUBRIC_FULL = `Pick whichever block best fits each idea — do not default to "bullets" for everything:
+- bullets — a short list of related points under one heading. The default when nothing more specific applies.
+- timeline — steps that each have a real time or interval label (e.g. "1 day", "3 days"). Use "steps" instead when the sequence has no time attached.
+- table — data that reads naturally as rows and columns (e.g. options and their effects).
+- callout — one important warning or note that deserves visual emphasis, not another bullet.
+- stat — one standout number worth calling out on its own, not a list of several numbers.
+- compare — exactly two things being weighed against each other, never more than two.
+- steps — an ordered process or sequence with no time labels attached.
+- quote — one idea pulled from a single card. Light rewording for clarity or brevity is fine, but never add a claim the card didn't make.`;
+
+const BLOCK_FIELDS_BASIC = `Each block type's own fields:
+- bullets: icon, heading, points (array of short strings)
+- stat: heading, value (a short number or figure), unit (optional, e.g. "days"), caption (one sentence)`;
+
+const BLOCK_FIELDS_FULL = `Each block type's own fields:
+- bullets: icon, heading, points (array of short strings)
+- timeline: icon, heading, steps (array of { "label": "a short time label" }), caption (one sentence)
+- table: heading, columns (array of short column names), rows (array of arrays of short cell strings, one array per row)
+- callout: tone ("warning" or "info"), text (one to two sentences)
+- stat: heading, value (a short number or figure), unit (optional, e.g. "days"), caption (one sentence)
+- compare: heading, left and right (each { "label": "a short column name", "points": ["a short point", ...] })
+- steps: heading, items (array of short strings, one per step)
+- quote: text (one idea from a single card, one to two sentences)`;
+
 function buildInfographicPrompt(detail: InfographicDetail): string {
+  const rubric = detail === 'basic' ? BLOCK_RUBRIC_BASIC : BLOCK_RUBRIC_FULL;
+  const fields = detail === 'basic' ? BLOCK_FIELDS_BASIC : BLOCK_FIELDS_FULL;
   return `You turn a student's flashcards into a single-page-style infographic they can use to review the material at a glance.
 
 You are given some flashcards from one deck (front, back, and sometimes a topic). Write ${TARGET_GUIDANCE[detail]} — aim for that range, but it is a guide, not a hard limit; write what the material actually supports.
+
+${rubric}
 
 Reply with ONLY a JSON object, no prose before or after, shaped exactly like this:
 
 {
   "title": "A short title for the whole infographic",
-  "sections": [
-    { "heading": "A short section heading", "icon": "one of the icon names below", "points": ["A short point.", "Another short point."] }
+  "blocks": [
+    { "type": "bullets", "icon": "one of the icon names below", "heading": "A short heading", "points": ["A short point.", "Another short point."] },
+    { "type": "stat", "heading": "A short heading", "value": "62", "unit": "days", "caption": "One sentence of context." }
   ]
 }
 
+${fields}
+
 Rules:
-1. SYNTHESIZE, DON'T TRANSCRIBE — a point should read as a distilled idea, not a card's back pasted in verbatim. Group related cards into one section rather than writing one section per card.
-2. icon MUST be exactly one of: ${ICONS.join(', ')}. Pick whichever reads best for that section's topic; never invent a name outside this list.
-3. Keep headings and points short — this is read at a glance, not studied line by line.
-4. Every section needs at least one point and a heading; never return an empty sections array.`;
+1. SYNTHESIZE, DON'T TRANSCRIBE — a point should read as a distilled idea, not a card's back pasted in verbatim. Group related cards into one block rather than writing one block per card.
+2. icon (on "bullets" and "timeline" blocks only — no other block type takes an icon) MUST be exactly one of: ${ICONS.join(', ')}. Pick whichever reads best for that block's topic; never invent a name outside this list.
+3. Keep headings, points, and captions short — this is read at a glance, not studied line by line.
+4. Every block needs whatever its own fields require above; never return an empty blocks array.`;
 }
 
 /**

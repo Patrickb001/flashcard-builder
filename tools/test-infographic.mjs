@@ -1,4 +1,4 @@
-import { parseInfographicResponse } from '../src/lib/infographicPrompt.ts';
+import { parseInfographicResponse, INFOGRAPHIC_SYSTEM_PROMPTS } from '../src/lib/infographicPrompt.ts';
 
 /**
  * The infographic response parser: JSON-object extraction and per-block clamping.
@@ -383,6 +383,18 @@ check(
   parseInfographicResponse(noTitle, 'Fallback Deck Name', 'standard').title,
   'Fallback Deck Name'
 );
+
+// ---------- prompt rubric coverage ----------
+
+console.log('\nprompt rubric coverage');
+check('basic prompt mentions bullets', INFOGRAPHIC_SYSTEM_PROMPTS.basic.includes('bullets'), true);
+check('basic prompt mentions stat', INFOGRAPHIC_SYSTEM_PROMPTS.basic.includes('stat'), true);
+check("basic prompt keeps its rubric short (doesn't spell out every type)", INFOGRAPHIC_SYSTEM_PROMPTS.basic.includes('compare'), false);
+for (const type of ['bullets', 'timeline', 'table', 'callout', 'stat', 'compare', 'steps', 'quote']) {
+  check(`standard prompt mentions "${type}"`, INFOGRAPHIC_SYSTEM_PROMPTS.standard.includes(type), true);
+  check(`detailed prompt mentions "${type}"`, INFOGRAPHIC_SYSTEM_PROMPTS.detailed.includes(type), true);
+}
+check('every level still names "blocks" as the reply key, not "sections"', INFOGRAPHIC_SYSTEM_PROMPTS.standard.includes('"blocks"'), true);
 
 console.log(failures === 0 ? '\nAll passed.' : `\n${failures} failed.`);
 process.exit(failures === 0 ? 0 : 1);
