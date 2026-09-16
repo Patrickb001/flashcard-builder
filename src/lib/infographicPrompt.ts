@@ -1,3 +1,4 @@
+import { parseHTML } from 'linkedom';
 import { stripJsonFence } from './textUtils';
 import type { InfographicDetail } from '../types';
 
@@ -184,4 +185,128 @@ export function parseExtractionResponse(
     ...(comparisons && comparisons.length > 0 ? { comparisons } : {}),
     keyTakeaway,
   };
+}
+
+// ---------------------------------------------------------------------------
+// Stage 2: design
+// ---------------------------------------------------------------------------
+
+/**
+ * The design call's system prompt. Unlike extraction, this is not split by
+ * detail level — it's the same layout/color/typography instructions
+ * regardless of how much content it's handed; the extraction call already
+ * did the level-scaling.
+ *
+ * The color tokens below are copied by hand from this app's src/index.css
+ * (:root and :root[data-theme="dark"]) — see the Global Constraints note in
+ * this feature's plan for why they can't be imported instead.
+ */
+export const INFOGRAPHIC_DESIGN_PROMPT = `Design an educational infographic as ONE self-contained HTML document with inline SVG diagrams, from the structured content you're given. The document must be static: no external stylesheets, no external images, no JavaScript of any kind — no <script>, no inline event-handler attributes (onclick, onload, etc.), no javascript: links. Set <html lang="..."> to the actual language of the content you were given — default to "en" only if that content is itself in English.
+
+The user message is a JSON array holding exactly one object: the extracted content. Its fields:
+- title: the infographic's title
+- lede: a one-sentence framing line
+- coreConcept (optional): 2-4 key/value pairs describing the single biggest idea, if there is one
+- items: the main entries — each has a "label", a "detail" sentence, and an optional short "meta" tag
+- comparisons (optional): pairs of { name, value } worth setting side by side
+- keyTakeaway: the one sentence to leave the reader with
+
+Use only what's in that object. Never invent facts, numbers, or examples beyond it.
+
+LAYOUT — pick ONE pattern that matches the content's actual shape, and commit to it:
+- If "items" reads as an ordered sequence or process → a horizontal or vertical chain/timeline diagram, boxes connected by SVG arrows.
+- If "comparisons" is present, or "items" splits naturally into two groups being weighed against each other → side-by-side comparison cards, or a data table for more than a few rows.
+- If "items" are parts of one whole → an "anatomy" diagram: one labeled structure broken into its fields, with pointer lines to each item.
+- If "items" are a flat set of categories or facts with no inherent order → a hub-and-spoke diagram, or a clean grid of cards.
+Do not default to generic hero-plus-cards if the content doesn't call for it.
+
+COLOR — Use exactly these CSS variables on :root (this app's own palette, so the page matches it), and this exact dark override:
+
+:root {
+  --bg:#fafafa; --surface:#ffffff; --surface-raised:#f4f4f5;
+  --border-soft:#e4e4e7; --border-strong:#d4d4d8;
+  --text-primary:#18181b; --text-secondary:#71717a; --text-faint:#a1a1aa;
+  --accent:#5b52d6; --accent-soft:rgba(91,82,214,0.08); --accent-contrast:#ffffff;
+  --success:#1a8f5e; --success-soft:rgba(26,143,94,0.08);
+  --warning:#b6650a; --warning-soft:rgba(182,101,10,0.08);
+  --danger:#c0392b; --danger-soft:rgba(192,57,43,0.08);
+  color-scheme: light;
+}
+:root[data-theme="dark"] {
+  --bg:#0a0a0c; --surface:#18181b; --surface-raised:#212126;
+  --border-soft:#2a2a30; --border-strong:#3f3f46;
+  --text-primary:#f4f4f5; --text-secondary:#a1a1aa; --text-faint:#71717a;
+  --accent:#8b87f0; --accent-soft:rgba(139,135,240,0.16); --accent-contrast:#0a0a0c;
+  --success:#6bc79b; --success-soft:rgba(107,199,155,0.14);
+  --warning:#e0a458; --warning-soft:rgba(224,164,88,0.14);
+  --danger:#f2897c; --danger-soft:rgba(242,137,124,0.16);
+  color-scheme: dark;
+}
+
+Copy those two blocks into the document verbatim (the app sets data-theme on the page itself; do not add a prefers-color-scheme media query, it would fight with that). Build every rule on top of var(--bg), var(--surface), var(--text-primary), etc. — never a hardcoded hex outside these two blocks. --accent is this app's one brand color; --success/--warning/--danger already carry the right hue for "good/caution/bad" semantics if the content needs them. Only if the content has some OTHER binary or ordinal property that doesn't map to good/caution/bad (e.g. two named categories, "before" vs "after") may you add ONE extra pair of your own hex values (a light one and a matching dark one) for that specific encoding — never more than one pair, and never in place of the tokens above.
+
+TYPE — two Google Font families max, loaded via <link>, with real fallback stacks: one distinctive display/heading face with some personality (not Inter/Roboto/Arial — this app's own UI already uses Inter, so the infographic should read as a distinct designed page, not another app screen), one clean body face. Add a monospace face only for genuinely code-like or numeric-table tokens.
+
+SVG — every diagram uses viewBox (never fixed pixel width/height) so it scales with its container. Give each <svg> diagram a <title> element naming what it shows, for screen readers. Keep captions under 25 words and body text under about 80 characters per line.
+
+Before finalizing, check your own HTML/SVG for overlapping text, clipped labels, or elements that overflow their container, and for anything that would overflow at a narrow (400px) viewport width. Fix anything you find.
+
+Reply with ONLY the finished HTML document — starting with <!DOCTYPE html> and ending with </html>. No explanation, no markdown code fence, nothing outside the document.`;
+
+const REMOVABLE_SELECTOR = 'script, iframe, object, embed, meta[http-equiv="refresh"], base';
+const DANGEROUS_URI_ATTRS = new Set(['href', 'src', 'xlink:href']);
+const DANGEROUS_URI_RE = /^\s*(javascript|data):/i;
+
+/**
+ * Defense-in-depth, not the primary control — the primary control is that
+ * this HTML is only ever rendered through a sandboxed iframe with no
+ * allow-scripts (InfographicView.tsx), which cannot execute any of this
+ * regardless. Parses the reply into a real DOM (linkedom — a pure-JS
+ * implementation, so this stays safe to import into the Netlify function's
+ * server bundle) and removes dangerous nodes/attributes structurally,
+ * rather than pattern-matching strings, which a malformed or unusually
+ * nested tag can evade.
+ *
+ * Not guaranteed to return its input unchanged even when the input was
+ * already clean — see this plan's Global Constraints note on why tests
+ * against this function assert on content survival, not byte equality.
+ * The doctype is checked and restored explicitly, because losing it would
+ * drop the rendered iframe into quirks mode.
+ */
+export function sanitizeInfographicHtml(html: string): string {
+  const { document } = parseHTML(html);
+
+  document.querySelectorAll(REMOVABLE_SELECTOR).forEach((el) => el.remove());
+
+  document.querySelectorAll('*').forEach((el) => {
+    for (const attr of Array.from(el.attributes)) {
+      const name = attr.name.toLowerCase();
+      const isEventHandler = name.startsWith('on');
+      const isDangerousUri = DANGEROUS_URI_ATTRS.has(name) && DANGEROUS_URI_RE.test(attr.value);
+      if (isEventHandler || isDangerousUri) el.removeAttribute(attr.name);
+    }
+  });
+
+  const serialized = document.toString();
+  return /^\s*<!doctype html/i.test(serialized) ? serialized : `<!DOCTYPE html>${serialized}`;
+}
+
+/**
+ * Slices the model's reply down to just the HTML document, tolerating a
+ * markdown fence and prose either side of it, then sanitizes it.
+ *
+ * Returns null when no document is found at all — a reply that is pure
+ * prose (a refusal, an apology) has nothing to render.
+ */
+export function parseDesignResponse(text: string): string | null {
+  const cleaned = stripJsonFence(text);
+  const lower = cleaned.toLowerCase();
+  const doctypeIndex = lower.indexOf('<!doctype html');
+  const htmlTagIndex = lower.indexOf('<html');
+  const start = doctypeIndex !== -1 ? doctypeIndex : htmlTagIndex;
+  const end = lower.lastIndexOf('</html>');
+  if (start === -1 || end === -1 || end <= start) return null;
+
+  const sliced = cleaned.slice(start, end + '</html>'.length);
+  return sanitizeInfographicHtml(sliced);
 }

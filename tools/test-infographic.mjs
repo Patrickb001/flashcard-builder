@@ -1,4 +1,10 @@
-import { parseExtractionResponse, INFOGRAPHIC_EXTRACT_PROMPTS } from '../src/lib/infographicPrompt.ts';
+import {
+  parseExtractionResponse,
+  INFOGRAPHIC_EXTRACT_PROMPTS,
+  parseDesignResponse,
+  sanitizeInfographicHtml,
+  INFOGRAPHIC_DESIGN_PROMPT,
+} from '../src/lib/infographicPrompt.ts';
 import { deleteInfographicModalCopy } from '../src/lib/infographicCopy.ts';
 
 /**
@@ -105,6 +111,57 @@ check(
   Object.keys(INFOGRAPHIC_EXTRACT_PROMPTS).sort(),
   ['basic', 'detailed', 'standard']
 );
+
+// ---------- design: well-formed reply ----------
+
+console.log('\ndesign — strips a <script> tag and an inline event handler');
+const dirtyHtml =
+  '<!DOCTYPE html><html><head><style>body{color:red}</style><script>alert(1)</script></head>' +
+  '<body onclick="alert(2)"><h1>Title</h1></body></html>';
+const cleaned = parseDesignResponse(dirtyHtml);
+check('no <script survives', cleaned.includes('<script'), false);
+check('no onclick= attribute survives', cleaned.toLowerCase().includes('onclick='), false);
+check('the real content survives', cleaned.includes('<h1>Title</h1>'), true);
+check('the doctype is preserved for standards-mode rendering', cleaned.toLowerCase().startsWith('<!doctype html'), true);
+
+console.log('\ndesign — strips a markdown fence and surrounding prose');
+const fencedHtml = 'Here you go:\n```html\n' + dirtyHtml + '\n```\nHope that helps!';
+check('extracts and cleans the same document', parseDesignResponse(fencedHtml), cleaned);
+
+console.log('\ndesign — strips an embedded iframe');
+const withIframe = '<!DOCTYPE html><html><body><iframe src="https://example.com"></iframe><p>Content</p></body></html>';
+const cleanedIframe = parseDesignResponse(withIframe);
+check('no <iframe survives', cleanedIframe.includes('<iframe'), false);
+check('surrounding content survives', cleanedIframe.includes('<p>Content</p>'), true);
+
+console.log('\ndesign — neutralizes a javascript: URI');
+const withJsUri = '<!DOCTYPE html><html><body><a href="javascript:alert(1)">Click</a></body></html>';
+check('javascript: is gone from the link', parseDesignResponse(withJsUri).toLowerCase().includes('javascript:'), false);
+
+console.log('\ndesign — strips a meta-refresh and a base tag');
+const withMetaBase =
+  '<!DOCTYPE html><html><head><meta http-equiv="refresh" content="0;url=https://evil.example">' +
+  '<base href="https://evil.example/"></head><body><p>Content</p></body></html>';
+const cleanedMetaBase = parseDesignResponse(withMetaBase);
+check('meta-refresh is gone', cleanedMetaBase.toLowerCase().includes('refresh'), false);
+check('base tag is gone', cleanedMetaBase.toLowerCase().includes('<base'), false);
+check('surrounding content survives', cleanedMetaBase.includes('<p>Content</p>'), true);
+
+console.log('\ndesign — no <html> tag at all returns null');
+check('pure prose with no document returns null', parseDesignResponse('I cannot generate that.'), null);
+
+console.log('\ndesign — sanitizing clean input does not remove any real content');
+const alreadyClean = '<!DOCTYPE html><html><body><h1>Fine</h1></body></html>';
+const sanitizedClean = sanitizeInfographicHtml(alreadyClean);
+check('the content survives', sanitizedClean.includes('<h1>Fine</h1>'), true);
+check('the doctype is preserved', sanitizedClean.toLowerCase().startsWith('<!doctype html'), true);
+
+console.log('\ndesign prompt exists and names every color token');
+check('mentions --bg', INFOGRAPHIC_DESIGN_PROMPT.includes('--bg'), true);
+check('mentions --accent', INFOGRAPHIC_DESIGN_PROMPT.includes('--accent'), true);
+check('mentions data-theme', INFOGRAPHIC_DESIGN_PROMPT.includes('data-theme'), true);
+check('asks for an SVG <title> for screen readers', INFOGRAPHIC_DESIGN_PROMPT.toLowerCase().includes('<title>'), true);
+check('asks for a matching lang attribute', INFOGRAPHIC_DESIGN_PROMPT.includes('lang='), true);
 
 // ---------- deleteInfographicModalCopy ----------
 
