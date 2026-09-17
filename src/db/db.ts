@@ -535,7 +535,7 @@ export async function moveDeckToFolder(deckId: string, folderId: string | null):
  *
  * Also the one place a straggler from before this shape existed would turn
  * up — nothing has ever written one, so this is a safety net, not a
- * migration: a row with no valid `blocks` array is deleted on the spot
+ * migration: a row with no usable `html` string is deleted on the spot
  * rather than handed to a screen that expects one.
  */
 export async function getInfographicsForDeck(deckId: string): Promise<Infographic[]> {
@@ -543,7 +543,7 @@ export async function getInfographicsForDeck(deckId: string): Promise<Infographi
   const infographics = await db.getAllFromIndex('infographics', 'by-deckId', deckId);
   const valid: Infographic[] = [];
   for (const infographic of infographics) {
-    if (Array.isArray((infographic as Infographic).blocks)) {
+    if (typeof (infographic as Infographic).html === 'string' && (infographic as Infographic).html.length > 0) {
       valid.push(infographic);
     } else {
       await db.delete('infographics', infographic.id).catch((err) => {
