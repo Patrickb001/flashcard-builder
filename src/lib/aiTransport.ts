@@ -2,6 +2,7 @@ import type { AiSettings } from './aiGenerator';
 import { CARD_SYSTEM_PROMPT } from './cardPrompt';
 import { QUIZ_SYSTEM_PROMPT, VIGNETTE_SYSTEM_PROMPT, VIGNETTE_AUDIT_SYSTEM_PROMPT } from './quizPrompt';
 import { OCR_SYSTEM_PROMPT } from './ocrPrompt';
+import { INFOGRAPHIC_EXTRACT_PROMPTS, INFOGRAPHIC_DESIGN_PROMPT } from './infographicPrompt';
 
 /**
  * Getting a payload to the model, by whichever route is available.
@@ -26,7 +27,16 @@ import { OCR_SYSTEM_PROMPT } from './ocrPrompt';
  * and looks it up — see the lookup in netlify/functions/generate.mts for why
  * that boundary matters.
  */
-export type AiTask = 'cards' | 'quiz' | 'vignette' | 'vignette-audit' | 'ocr';
+export type AiTask =
+  | 'cards'
+  | 'quiz'
+  | 'vignette'
+  | 'vignette-audit'
+  | 'ocr'
+  | 'infographic-extract-basic'
+  | 'infographic-extract-standard'
+  | 'infographic-extract-detailed'
+  | 'infographic-design';
 
 /** The prompts, for the direct-from-browser route which has no server to ask. */
 const PROMPTS: Record<AiTask, string> = {
@@ -35,6 +45,10 @@ const PROMPTS: Record<AiTask, string> = {
   vignette: VIGNETTE_SYSTEM_PROMPT,
   'vignette-audit': VIGNETTE_AUDIT_SYSTEM_PROMPT,
   ocr: OCR_SYSTEM_PROMPT,
+  'infographic-extract-basic': INFOGRAPHIC_EXTRACT_PROMPTS.basic,
+  'infographic-extract-standard': INFOGRAPHIC_EXTRACT_PROMPTS.standard,
+  'infographic-extract-detailed': INFOGRAPHIC_EXTRACT_PROMPTS.detailed,
+  'infographic-design': INFOGRAPHIC_DESIGN_PROMPT,
 };
 
 const MODEL = 'claude-sonnet-5';
@@ -50,7 +64,7 @@ const MODEL = 'claude-sonnet-5';
  * The server keeps its own copy in generateHandler; they must stay in step. See
  * "Model response ceilings" in docs/tuning-notes.md for what each value fixed.
  */
-const MAX_TOKENS: Record<AiTask, number> = {
+export const MAX_TOKENS: Record<AiTask, number> = {
   cards: 16000,
   quiz: 8000,
   vignette: 16000,
@@ -60,6 +74,19 @@ const MAX_TOKENS: Record<AiTask, number> = {
   // A transcribed page can be as dense as a card-drafting batch; same
   // ceiling as `cards` until real batches say otherwise (docs/tuning-notes.md).
   ocr: 16000,
+  // The extraction reply is a small JSON object (a title, a handful of
+  // short items) — these ceilings are generous relative to what a real
+  // reply needs, "close to free" the same way this file's other ceilings
+  // are (see the comment above this table).
+  'infographic-extract-basic': 2000,
+  'infographic-extract-standard': 3000,
+  'infographic-extract-detailed': 4000,
+  // A full self-contained HTML document (inline CSS, inline SVG diagrams)
+  // runs far longer than a JSON reply ever did — this stays flat across
+  // detail levels rather than scaling with the extraction ceilings above,
+  // since layout/CSS boilerplate dominates the length more than item count
+  // does.
+  'infographic-design': 24000,
 };
 
 /**
@@ -74,6 +101,38 @@ const MAX_TOKENS: Record<AiTask, number> = {
 const REQUEST_TIMEOUT_MS = 120_000;
 
 /**
+ * Tasks that need longer than the default, because their own token ceiling
+ * permits a response the default would abort.
+ *
+ * Measured 2026-09-16 against a 24-card deck: `infographic-design` returns
+ * 7,600-11,100 output tokens in 65-95 seconds — a steady ~120 tokens/second.
+ * Its 16,000-token ceiling therefore implies roughly 133 seconds of
+ * generation, which the 120-second default forbids: a perfectly good page was
+ * being aborted as "the drafting request timed out" purely because the two
+ * constants disagreed with each other. This value covers the full ceiling at a
+ * conservative ~70 tokens/second, for a connection slower than the one
+ * measured.
+ *
+ * The other 16,000-token tasks (`cards`, `vignette`, `ocr`) deliberately keep
+ * the default. They send batches whose real output lands far below the
+ * ceiling — for them the ceiling is headroom rather than a target, so the same
+ * arithmetic does not apply and a longer timeout would only slow down how fast
+ * a genuinely stuck request gives up.
+ *
+ * NOTE: this governs the browser's own patience. A hosted deployment also
+ * sits behind the serverless platform's execution limit, which is far shorter
+ * than this — see "Model response ceilings" in docs/tuning-notes.md.
+ */
+const TIMEOUT_OVERRIDES_MS: Partial<Record<AiTask, number>> = {
+  'infographic-design': 360_000,
+};
+
+/** How long `task` may run before it is abandoned. */
+export function requestTimeoutMs(task: AiTask): number {
+  return TIMEOUT_OVERRIDES_MS[task] ?? REQUEST_TIMEOUT_MS;
+}
+
+/**
  * A signal that fires on the caller's abort or on our own timeout.
  *
  * `AbortSignal.any` would say this in one line but is too new to rely on in
@@ -82,18 +141,21 @@ const REQUEST_TIMEOUT_MS = 120_000;
  * timer keeps a reference to the controller for two minutes after the request
  * it was guarding has already answered.
  */
-function withTimeout(signal?: AbortSignal): {
+function withTimeout(task: AiTask, signal?: AbortSignal): {
   signal: AbortSignal;
   /** True when it was the timer, not the caller, that aborted the request. */
   timedOut: () => boolean;
+  /** The budget this guard actually enforced, so the error can name it. */
+  limitMs: number;
   done: () => void;
 } {
   const controller = new AbortController();
+  const limitMs = requestTimeoutMs(task);
   let timedOut = false;
   const timer = setTimeout(() => {
     timedOut = true;
     controller.abort();
-  }, REQUEST_TIMEOUT_MS);
+  }, limitMs);
 
   const onAbort = () => controller.abort();
   if (signal) {
@@ -104,6 +166,7 @@ function withTimeout(signal?: AbortSignal): {
   return {
     signal: controller.signal,
     timedOut: () => timedOut,
+    limitMs,
     done: () => {
       clearTimeout(timer);
       signal?.removeEventListener('abort', onAbort);
@@ -121,10 +184,13 @@ function withTimeout(signal?: AbortSignal): {
  * one slow request look like the user pressing Stop and abandon every batch
  * after it.
  */
-function rethrowAsTimeout(err: unknown, guard: { timedOut: () => boolean }): never {
+function rethrowAsTimeout(
+  err: unknown,
+  guard: { timedOut: () => boolean; limitMs: number }
+): never {
   if (guard.timedOut()) {
     throw new Error(
-      `The drafting request timed out after ${REQUEST_TIMEOUT_MS / 1000} seconds.`
+      `The drafting request timed out after ${Math.round(guard.limitMs / 1000)} seconds.`
     );
   }
   throw err;
@@ -149,7 +215,7 @@ async function callHosted(
   signal?: AbortSignal,
   images?: string[]
 ): Promise<ModelReply> {
-  const guard = withTimeout(signal);
+  const guard = withTimeout(task, signal);
   let res: Response;
   try {
     res = await fetch('/api/generate', {
@@ -197,7 +263,7 @@ async function callDirect(
   signal?: AbortSignal,
   images?: string[]
 ): Promise<ModelReply> {
-  const guard = withTimeout(signal);
+  const guard = withTimeout(task, signal);
   // Multimodal only when there are images to send — every other task keeps
   // today's bare-string content, byte-for-byte.
   const content =

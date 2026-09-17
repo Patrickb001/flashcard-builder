@@ -2106,3 +2106,279 @@ textarea:focus-visible {
     transition: none;
   }
 }
+
+/* ---------- Infographic: Setup ---------- */
+
+.infographic-setup {
+  max-width: 640px;
+  margin: 0 auto;
+}
+
+.infographic-setup-title {
+  font-size: 1.4rem;
+  margin: 0 0 1.5rem;
+}
+
+.infographic-setup .field-group {
+  margin-bottom: 1.5rem;
+}
+
+.infographic-setup .field-group h3 {
+  font-size: 0.86rem;
+  margin: 0 0 0.6rem;
+  color: var(--text-primary);
+}
+
+.infographic-setup .field-hint {
+  font-size: 0.8rem;
+  color: var(--text-secondary);
+  margin: 0.3rem 0 0;
+}
+
+.detail-options {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 0.75rem;
+}
+
+.detail-card {
+  font-family: var(--font-ui);
+  text-align: left;
+  border: 1.5px solid var(--border-soft);
+  border-radius: 10px;
+  padding: 0.9rem 1rem;
+  cursor: pointer;
+  background: var(--surface);
+}
+
+.detail-card.active {
+  border-color: var(--accent);
+  background: var(--accent-soft);
+}
+
+.detail-card h4 {
+  margin: 0 0 0.25rem;
+  font-size: 0.92rem;
+}
+
+.detail-card p {
+  margin: 0;
+  font-size: 0.78rem;
+  color: var(--text-secondary);
+  line-height: 1.45;
+}
+
+.detail-card .page-est {
+  display: inline-block;
+  margin-top: 0.5rem;
+  font-size: 0.72rem;
+  font-weight: 600;
+  color: var(--accent);
+  background: var(--surface);
+  border: 1px solid var(--border-soft);
+  border-radius: 100px;
+  padding: 0.15rem 0.55rem;
+}
+
+.infographic-setup .segmented {
+  display: inline-flex;
+  border: 1px solid var(--border-soft);
+  border-radius: 10px;
+  padding: 0.2rem;
+  gap: 0.2rem;
+}
+
+.infographic-setup .segmented button {
+  font-family: var(--font-ui);
+  font-weight: 600;
+  font-size: 0.86rem;
+  cursor: pointer;
+  border: 1px solid transparent;
+  background: transparent;
+  color: var(--text-secondary);
+  border-radius: 7px;
+  padding: 0.55rem 1rem;
+}
+
+.infographic-setup .segmented button.active {
+  background: var(--surface-raised);
+  color: var(--text-primary);
+  border-color: var(--border-strong);
+}
+
+@media (max-width: 620px) {
+  .detail-options {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* ---------- Infographic: List ---------- */
+
+.infographic-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+  gap: 1rem;
+}
+
+.infographic-card {
+  border: 1px solid var(--border-soft);
+  border-radius: 10px;
+  padding: 1rem 1.1rem;
+  background: var(--surface);
+  /* Containing block for the title button's full-tile overlay below. */
+  position: relative;
+}
+
+.infographic-card:hover {
+  border-color: var(--accent);
+}
+
+/* The whole tile reads as one control, so the focus ring belongs on the tile
+   rather than on the title text the keyboard actually lands on. */
+.infographic-card:focus-within {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+.infographic-card:focus-within .infographic-card-open {
+  outline: none;
+}
+
+.infographic-card-top {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  margin-bottom: 0.6rem;
+}
+
+.detail-tag {
+  font-size: 0.68rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  border-radius: 100px;
+  padding: 0.15rem 0.55rem;
+  border: 1px solid var(--accent);
+  color: var(--accent);
+}
+
+.infographic-card h4 {
+  margin: 0 0 0.3rem;
+  font-size: 1rem;
+}
+
+.infographic-card-open {
+  font: inherit;
+  color: inherit;
+  text-align: left;
+  background: none;
+  border: none;
+  padding: 0;
+  cursor: pointer;
+}
+
+/* Stretches the title button over the entire card, so a click anywhere on the
+   tile opens it. Delete is lifted above this overlay below. */
+.infographic-card-open::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+}
+
+.infographic-card:hover .infographic-card-open {
+  color: var(--accent);
+}
+
+.infographic-card .meta {
+  font-size: 0.78rem;
+  color: var(--text-secondary);
+  margin: 0 0 0.9rem;
+}
+
+.infographic-card-actions {
+  display: flex;
+  gap: 0.5rem;
+  /* Above the title button's overlay, or Delete would open the infographic. */
+  position: relative;
+}
+
+.infographic-card-actions button {
+  font-family: var(--font-ui);
+  font-weight: 600;
+  font-size: 0.82rem;
+  border-radius: 7px;
+  padding: 0.45rem 0.75rem;
+  cursor: pointer;
+  border: 1px solid transparent;
+}
+
+.btn-delete {
+  background: transparent;
+  color: var(--danger);
+}
+
+.btn-delete:hover {
+  background: var(--danger-soft);
+}
+
+.new-infographic-card {
+  font-family: var(--font-ui);
+  border: 1.5px dashed var(--border-strong);
+  border-radius: 10px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--text-secondary);
+  font-weight: 600;
+  font-size: 0.9rem;
+  cursor: pointer;
+  min-height: 118px;
+  background: transparent;
+}
+
+.new-infographic-card:hover {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+/* ---------- Infographic: View ---------- */
+
+.infographic-view-meta {
+  text-align: center;
+  margin: 0 0 0.75rem;
+}
+
+.infographic-frame-wrap {
+  max-width: 900px;
+  margin: 0 auto;
+  border: 1px solid var(--border-soft);
+  border-radius: 12px;
+  overflow: hidden;
+  background: var(--surface);
+}
+
+.infographic-frame {
+  display: block;
+  width: 100%;
+  border: none;
+}
+
+.view-actions {
+  display: flex;
+  justify-content: space-between;
+  margin-top: 2rem;
+  max-width: 640px;
+  margin-left: auto;
+  margin-right: auto;
+}
+
+/* ---------- Infographic: generating ---------- */
+
+.infographic-generating {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 3rem 1rem;
+}

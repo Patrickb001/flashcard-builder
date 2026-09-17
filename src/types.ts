@@ -45,6 +45,34 @@ export interface Folder {
   createdAt: number;
 }
 
+/**
+ * How much content to ask for. A prompt-shaping choice, not a stored render
+ * setting the view screen reads — but it's kept on the record because the
+ * infographics list shows it.
+ */
+export type InfographicDetail = 'basic' | 'standard' | 'detailed';
+
+/**
+ * One saved infographic. A deck can have any number of these — different
+ * detail levels or card subsets are different infographics, not versions of
+ * one, so there is no "the deck's infographic" singular and no overwrite.
+ *
+ * `html` is the model's own self-contained HTML document — inline CSS and
+ * inline SVG, no external JS or images (see infographicPrompt.ts). It is
+ * rendered through a sandboxed iframe (InfographicView.tsx), never through
+ * this app's own DOM.
+ */
+export interface Infographic {
+  id: string;
+  deckId: string;
+  title: string;
+  detail: InfographicDetail;
+  html: string;
+  /** Which cards this one was built from, for the list screen's "N cards" line. */
+  cardIds: string[];
+  createdAt: number;
+}
+
 /** Which kind of document a deck was built from. */
 export type SourceType = 'pdf' | 'pptx' | 'md' | 'html';
 

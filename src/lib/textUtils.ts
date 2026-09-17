@@ -146,7 +146,7 @@ export function hasConflictingNumbers(a: string, b: string): boolean {
  */
 export function stripJsonFence(text: string): string {
   return text
-    .replace(/^\s*```(?:json)?/i, '')
+    .replace(/^\s*```(?:\w+)?/i, '')
     .replace(/```\s*$/, '')
     .trim();
 }

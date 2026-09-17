@@ -26,6 +26,7 @@ interface Props {
   deckId: string;
   onStudy: (deckId: string) => void;
   onTest: (deckId: string) => void;
+  onInfographic: (deckId: string) => void;
   /**
    * Fired after the deck is deleted, so the caller can navigate away. This
    * screen cannot show a deck that no longer exists, so it does not try.
@@ -45,6 +46,7 @@ export default function DeckManager({
   deckId,
   onStudy,
   onTest,
+  onInfographic,
   onDeckDeleted,
 }: Props) {
   const { deck, setDeck, cards, setCards, loading, error, setError, reload } =
@@ -319,6 +321,13 @@ export default function DeckManager({
             disabled={cards.length === 0}
           >
             Test this deck
+          </button>
+          <button
+            className="secondary-btn"
+            onClick={() => onInfographic(deckId)}
+            disabled={cards.length === 0}
+          >
+            Create infographic
           </button>
         </div>
       </div>

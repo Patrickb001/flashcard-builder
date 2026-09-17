@@ -171,6 +171,10 @@ thread immediately after drafting, while someone waits to see their cards.
 | `vignette` | 16000 |
 | `vignette-audit` | 1000 |
 | `ocr` | 16000 |
+| `infographic-extract-basic` | 2000 |
+| `infographic-extract-standard` | 3000 |
+| `infographic-extract-detailed` | 4000 |
+| `infographic-design` | 24000 |
 
 **Quiz — why not 4000.** A quiz question costs about five strings where a card costs
 two, so a quiz batch sits far closer to the ceiling. At 4000 a full batch came back
@@ -190,6 +194,18 @@ tokens a recall question costs.
 
 **Why the headroom is close to free.** The ceiling is a limit, not a reservation. An
 ordinary batch still generates and bills only a couple of thousand tokens.
+
+**Infographic — why 2000/3000/4000 for the extraction stage, and a flat 16000 for design.** The extraction reply is a small JSON object — a title, a lede, a handful of short items — so these ceilings are generous relative to what a real reply costs; they scale with the per-level item target (`ITEM_TARGET` in `infographicPrompt.ts`) the same way the three levels' targets do. The design reply is a full self-contained HTML document with inline CSS and inline SVG, and it stays flat across all three detail levels rather than scaling with them: layout markup and CSS boilerplate dominate the length far more than item count does, so a Basic-detail page and a Detailed-detail page cost roughly the same to generate.
+
+**Request timeouts have to cover the ceiling they sit above.** A real generation failed with "The drafting request timed out after 120 seconds" — not because anything was stuck, but because the two constants disagreed. Measured 2026-09-16 against a 24-card deck, `infographic-design` returns 7,600–11,100 output tokens at a steady ~120 tokens/second, so its 16,000-token ceiling implies roughly 133 seconds of generation, which the single global 120-second timeout forbade. Observed wall-clock for that one call ranged from 42s to 95s across runs, which is why this failed intermittently rather than always. `infographic-design` now has a 360-second budget of its own (`TIMEOUT_OVERRIDES_MS` in `aiTransport.ts`), sized to cover its full ceiling at a conservative ~70 tok/s. The other 16,000-token tasks keep the 120-second default deliberately: they batch, so their real output lands far below the ceiling and the same arithmetic doesn't apply. `tools/test-infographic.mjs` pins the relationship so the ceiling can't be raised again without the timeout following it.
+
+**Raised to 24000 after a dense deck was truncated.** An 84-card Apollo Client deck at Detailed extracted 12 items and 3 comparisons, and rendering that much content as styled HTML with inline SVG ran the design reply into the old 16000 ceiling: `stop_reason: max_tokens`, a document cut off mid-markup, and a page that could not be used. Freed from the ceiling the same content finishes naturally at ~12,500 tokens, so 24000 is real headroom rather than a new target. The timeout moved with it — 24000 at the conservative ~70 tok/s floor implies ~343 seconds, so the budget is now 360. Measured cost: that deck takes ~110 seconds for the design call, on top of ~20 for extraction.
+
+**The wait is the known weakness of this arrangement.** ~130 seconds behind an unchanging spinner is poor, and every increase to the ceiling makes it worse, because tokens and seconds are the same axis. The durable fix is to stream the design call so the timeout can be stall-based rather than wall-clock, and so the screen can show progress; that changes the transport contract shared by every AI feature here, so it was deliberately deferred rather than bolted on.
+
+**Hosted mode and this 360-second budget.** That number is the *browser's* patience and applies to bring-your-own-key and local `npm run dev` runs. A deployed hosted request also passes through the serverless platform's own execution limit, which is far shorter than the ~110 seconds measured here, and no client-side timeout can extend it. The design call as it stands is therefore unlikely to survive a deployed synchronous Netlify function; making hosted mode work needs either streaming, a background function, or a materially lower `infographic-design` ceiling. Unverified against a real deployment — flagged here rather than guessed at.
+
+**Known accepted regression — infographic markup semantics.** The block renderers this feature used to ship guaranteed accessible markup: real `<table>` with `<caption>` and `<th scope="col">`, `<ol>` for ordered content, ARIA labels on stat callouts. Under the HTML pipeline the model authors its own markup and only a prompt clause (`SEMANTICS` in `INFOGRAPHIC_DESIGN_PROMPT`) asks for those. This is a real, accepted downgrade that came with rendering model-authored documents; it is not a bug to be rediscovered. The iframe itself carries a `title`, and its content does reach the accessibility tree.
 
 **Vignette-audit — why 1000.** The audit call returns one verdict object per question in
 the batch — an id and a boolean — never prose, so it costs a small fraction of what

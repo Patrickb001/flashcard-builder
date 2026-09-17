@@ -234,6 +234,44 @@
       await db.deleteFolder(b.id);
     }
 
+    // ---- 8. getInfographicsForDeck deletes a row with no valid blocks array ----
+    {
+      const id = 'probe-infographic';
+      await db.saveDeckWithCards(deck(id), []);
+      await db.saveInfographic({
+        id: 'probe-info-good', deckId: id, title: 'Good', detail: 'basic',
+        blocks: [{ type: 'bullets', icon: 'book', heading: 'H', points: ['p'] }],
+        cardIds: [], createdAt: Date.now(),
+      });
+      // Deliberately the pre-block shape. Nothing in this app writes this
+      // anymore, but a stray row like it should be cleaned up, not shown.
+      await db.saveInfographic({
+        id: 'probe-info-bad', deckId: id, title: 'Bad', detail: 'basic',
+        sections: [{ heading: 'H', icon: 'book', points: ['p'] }],
+        cardIds: [], createdAt: Date.now(),
+      });
+
+      const list = await db.getInfographicsForDeck(id);
+      const listIds = list.map((i) => i.id);
+      check('only the valid row is returned', JSON.stringify(listIds) === JSON.stringify(['probe-info-good']), JSON.stringify(listIds));
+
+      const raw = await new Promise((resolve, reject) => {
+        const req = indexedDB.open('flashcard-forge');
+        req.onsuccess = () => resolve(req.result);
+        req.onerror = () => reject(req.error);
+      });
+      const rawGet = await new Promise((resolve, reject) => {
+        const r = raw.transaction('infographics', 'readonly').objectStore('infographics').get('probe-info-bad');
+        r.onsuccess = () => resolve(r.result);
+        r.onerror = () => reject(r.error);
+      });
+      raw.close();
+      check('the invalid row is actually gone from the store, not just filtered from the list', rawGet === undefined, JSON.stringify(rawGet));
+
+      await db.deleteInfographic('probe-info-good');
+      await db.deleteDeck(id);
+    }
+
     log('');
     log(failures === 0 ? 'RESULT: ALL PASSED' : 'RESULT: ' + failures + ' FAILED');
   } catch (err) {

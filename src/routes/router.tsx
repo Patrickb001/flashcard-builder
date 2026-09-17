@@ -16,6 +16,7 @@ const ReviewRoute = lazy(() => import('./ReviewRoute'));
 const DeckRoute = lazy(() => import('./DeckRoute'));
 const StudyRoute = lazy(() => import('./StudyRoute'));
 const TestRoute = lazy(() => import('./TestRoute'));
+const InfographicRoute = lazy(() => import('./InfographicRoute'));
 
 /**
  * The route table, as a data router.
@@ -36,6 +37,7 @@ export const router = createBrowserRouter([
       { path: 'deck/:deckId', element: <DeckRoute /> },
       { path: 'deck/:deckId/study', element: <StudyRoute /> },
       { path: 'deck/:deckId/test', element: <TestRoute /> },
+      { path: 'deck/:deckId/infographic', element: <InfographicRoute /> },
       // An address that means nothing shows the library, and says so in the bar
       // rather than leaving a URL that never resolved.
       { path: '*', element: <Navigate to="/" replace /> },

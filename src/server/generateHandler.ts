@@ -1,6 +1,7 @@
 import { CARD_SYSTEM_PROMPT } from '../lib/cardPrompt';
 import { QUIZ_SYSTEM_PROMPT, VIGNETTE_SYSTEM_PROMPT, VIGNETTE_AUDIT_SYSTEM_PROMPT } from '../lib/quizPrompt';
 import { OCR_SYSTEM_PROMPT } from '../lib/ocrPrompt';
+import { INFOGRAPHIC_EXTRACT_PROMPTS, INFOGRAPHIC_DESIGN_PROMPT } from '../lib/infographicPrompt';
 import type { HandlerResult } from './endpoint';
 
 /**
@@ -27,12 +28,16 @@ const DEFAULT_MODEL = 'claude-sonnet-5';
  * bring-your-own-key mode draft differently from the same input. See "Model
  * response ceilings" in docs/tuning-notes.md for why each value is what it is.
  */
-const MAX_TOKENS: Record<string, number> = {
+export const MAX_TOKENS: Record<string, number> = {
   cards: 16000,
   quiz: 8000,
   vignette: 16000,
   'vignette-audit': 1000,
   ocr: 16000,
+  'infographic-extract-basic': 2000,
+  'infographic-extract-standard': 3000,
+  'infographic-extract-detailed': 4000,
+  'infographic-design': 24000,
 };
 
 /**
@@ -49,6 +54,10 @@ const PROMPTS = new Map<string, string>([
   ['vignette', VIGNETTE_SYSTEM_PROMPT],
   ['vignette-audit', VIGNETTE_AUDIT_SYSTEM_PROMPT],
   ['ocr', OCR_SYSTEM_PROMPT],
+  ['infographic-extract-basic', INFOGRAPHIC_EXTRACT_PROMPTS.basic],
+  ['infographic-extract-standard', INFOGRAPHIC_EXTRACT_PROMPTS.standard],
+  ['infographic-extract-detailed', INFOGRAPHIC_EXTRACT_PROMPTS.detailed],
+  ['infographic-design', INFOGRAPHIC_DESIGN_PROMPT],
 ]);
 
 /** Anything larger than this is refused before it reaches the model. */
