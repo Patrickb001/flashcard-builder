@@ -47,19 +47,39 @@ export default function InfographicView({ infographic, totalCardCount, onBack, o
       iframe.contentDocument?.documentElement.setAttribute("data-theme", currentTheme());
     };
 
+    // documentElement.scrollHeight is floored at the viewport height, and the
+    // viewport here is the height we ourselves set — so measuring it lets the
+    // frame grow and never shrink. The body's own box is not floored that way.
+    const measure = (doc: Document) => {
+      const body = doc.body;
+      if (!body) return doc.documentElement.scrollHeight;
+      const style = doc.defaultView?.getComputedStyle(body);
+      const margins = style
+        ? parseFloat(style.marginTop || '0') + parseFloat(style.marginBottom || '0')
+        : 0;
+      return Math.ceil(body.getBoundingClientRect().height + margins);
+    };
+
     const syncFrame = () => {
-      const root = iframe.contentDocument?.documentElement;
-      if (!root) return;
+      // A second `load` (the sandbox permits the frame to navigate itself)
+      // would otherwise leave the previous observer pair still running,
+      // orphaned once this function replaces them below.
+      resizeObserver?.disconnect();
+      themeObserver?.disconnect();
+
+      const doc = iframe.contentDocument;
+      const root = doc?.documentElement;
+      if (!doc || !root) return;
 
       applyTheme();
-      iframe.style.height = `${root.scrollHeight}px`;
+      iframe.style.height = `${measure(doc)}px`;
 
       // Fonts loading async, or the content reflowing at a new width, can
       // change the document's height after this first measurement — this
       // keeps the iframe's own height in step with it for as long as it's
       // mounted, rather than only once on load.
       resizeObserver = new ResizeObserver(() => {
-        iframe.style.height = `${root.scrollHeight}px`;
+        iframe.style.height = `${measure(doc)}px`;
       });
       resizeObserver.observe(root);
 
@@ -72,6 +92,9 @@ export default function InfographicView({ infographic, totalCardCount, onBack, o
     };
 
     iframe.addEventListener("load", syncFrame);
+    // The frame can finish loading before this passive effect attaches the
+    // listener; without this the sync would never run at all.
+    if (iframe.contentDocument?.readyState === "complete") syncFrame();
     return () => {
       iframe.removeEventListener("load", syncFrame);
       resizeObserver?.disconnect();
