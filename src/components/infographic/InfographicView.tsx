@@ -47,9 +47,14 @@ export default function InfographicView({ infographic, totalCardCount, onBack, o
       iframe.contentDocument?.documentElement.setAttribute("data-theme", currentTheme());
     };
 
-    // documentElement.scrollHeight is floored at the viewport height, and the
-    // viewport here is the height we ourselves set — so measuring it lets the
-    // frame grow and never shrink. The body's own box is not floored that way.
+    // Measure the BODY, never documentElement: documentElement.scrollHeight is
+    // floored at the viewport height, and the viewport here is the height we
+    // ourselves set — so it can only ever grow. The largest of these three is
+    // used because none alone is sufficient: the bounding box shrinks
+    // correctly but misses out-of-flow overflow (absolutely positioned or
+    // transformed children), while scrollHeight/offsetHeight pick that
+    // overflow up. The frame's wrapper clips at overflow:hidden, so
+    // under-measuring silently truncates the page.
     const measure = (doc: Document) => {
       const body = doc.body;
       if (!body) return doc.documentElement.scrollHeight;
@@ -57,7 +62,13 @@ export default function InfographicView({ infographic, totalCardCount, onBack, o
       const margins = style
         ? parseFloat(style.marginTop || '0') + parseFloat(style.marginBottom || '0')
         : 0;
-      return Math.ceil(body.getBoundingClientRect().height + margins);
+      return Math.ceil(
+        Math.max(
+          body.getBoundingClientRect().height + margins,
+          body.scrollHeight,
+          body.offsetHeight
+        )
+      );
     };
 
     const syncFrame = () => {

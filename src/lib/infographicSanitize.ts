@@ -22,11 +22,11 @@ const URI_SCHEME_NOISE_RE = /[\x00-\x20]/g;
  * Defense-in-depth, not the primary control — the primary control is that
  * this HTML is only ever rendered through a sandboxed iframe with no
  * allow-scripts (InfographicView.tsx), which cannot execute any of this
- * regardless. Parses the reply into a real DOM (linkedom — a pure-JS
- * implementation, so this stays safe to import into the Netlify function's
- * server bundle) and removes dangerous nodes/attributes structurally,
- * rather than pattern-matching strings, which a malformed or unusually
- * nested tag can evade.
+ * regardless. Parses the reply into a real DOM (linkedom, rather than the
+ * browser's own DOMParser, because this code must be testable in Node,
+ * where there is no DOMParser) and removes dangerous nodes/attributes
+ * structurally, rather than pattern-matching strings, which a malformed or
+ * unusually nested tag can evade.
  *
  * Not guaranteed to return its input unchanged even when the input was
  * already clean — see this plan's Global Constraints note on why tests
