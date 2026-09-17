@@ -231,7 +231,7 @@ check(
   false
 );
 
-import { MAX_TOKENS as CLIENT_TOKENS } from '../src/lib/aiTransport.ts';
+import { MAX_TOKENS as CLIENT_TOKENS, requestTimeoutMs } from '../src/lib/aiTransport.ts';
 import { MAX_TOKENS as SERVER_TOKENS } from '../src/server/generateHandler.ts';
 
 console.log('\nMAX_TOKENS stays in step between client and server');
@@ -273,6 +273,34 @@ for (const name of MIRRORED_TOKENS) {
   check(`--${name} (light) value is in the design prompt`, lightValue !== null && promptNoSpace.includes(lightValue), true);
   check(`--${name} (dark) value is in the design prompt`, darkValue !== null && promptNoSpace.includes(darkValue), true);
 }
+
+// ---------- request timeout vs. the token ceiling it has to cover ----------
+
+// A real generation failed with "The drafting request timed out after 120
+// seconds." Measured against a 24-card deck, the design call returns
+// 7,600-11,100 output tokens in 65-95s — a steady ~120 tokens/second — so its
+// 16,000-token ceiling implies ~133s of generation. The single global 120s
+// timeout was therefore shorter than the response its own ceiling permits, and
+// a perfectly good page was aborted as a failure.
+//
+// 70 tok/s below is a deliberately conservative floor for a slower connection
+// than the one measured. This invariant is asserted only for the design task
+// on purpose: `cards`, `vignette` and `ocr` share the 16,000 ceiling but send
+// batches that never approach it (the ceiling is headroom, not a target), so
+// forcing the same rule on them would inflate their timeouts for no reason.
+console.log('\nrequest timeout covers the response the token ceiling permits');
+const SLOW_TOKENS_PER_SECOND = 70;
+const impliedDesignMs = (CLIENT_TOKENS['infographic-design'] / SLOW_TOKENS_PER_SECOND) * 1000;
+check(
+  'the design call may run at least as long as its ceiling implies',
+  requestTimeoutMs('infographic-design') >= impliedDesignMs,
+  true
+);
+check(
+  'the extraction calls keep the default timeout',
+  requestTimeoutMs('infographic-extract-detailed'),
+  requestTimeoutMs('cards')
+);
 
 console.log(failures === 0 ? '\nAll passed.' : `\n${failures} failed.`);
 process.exit(failures === 0 ? 0 : 1);

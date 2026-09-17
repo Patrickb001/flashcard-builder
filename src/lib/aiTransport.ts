@@ -101,6 +101,38 @@ export const MAX_TOKENS: Record<AiTask, number> = {
 const REQUEST_TIMEOUT_MS = 120_000;
 
 /**
+ * Tasks that need longer than the default, because their own token ceiling
+ * permits a response the default would abort.
+ *
+ * Measured 2026-09-16 against a 24-card deck: `infographic-design` returns
+ * 7,600-11,100 output tokens in 65-95 seconds — a steady ~120 tokens/second.
+ * Its 16,000-token ceiling therefore implies roughly 133 seconds of
+ * generation, which the 120-second default forbids: a perfectly good page was
+ * being aborted as "the drafting request timed out" purely because the two
+ * constants disagreed with each other. This value covers the full ceiling at a
+ * conservative ~70 tokens/second, for a connection slower than the one
+ * measured.
+ *
+ * The other 16,000-token tasks (`cards`, `vignette`, `ocr`) deliberately keep
+ * the default. They send batches whose real output lands far below the
+ * ceiling — for them the ceiling is headroom rather than a target, so the same
+ * arithmetic does not apply and a longer timeout would only slow down how fast
+ * a genuinely stuck request gives up.
+ *
+ * NOTE: this governs the browser's own patience. A hosted deployment also
+ * sits behind the serverless platform's execution limit, which is far shorter
+ * than this — see "Model response ceilings" in docs/tuning-notes.md.
+ */
+const TIMEOUT_OVERRIDES_MS: Partial<Record<AiTask, number>> = {
+  'infographic-design': 240_000,
+};
+
+/** How long `task` may run before it is abandoned. */
+export function requestTimeoutMs(task: AiTask): number {
+  return TIMEOUT_OVERRIDES_MS[task] ?? REQUEST_TIMEOUT_MS;
+}
+
+/**
  * A signal that fires on the caller's abort or on our own timeout.
  *
  * `AbortSignal.any` would say this in one line but is too new to rely on in
@@ -109,18 +141,21 @@ const REQUEST_TIMEOUT_MS = 120_000;
  * timer keeps a reference to the controller for two minutes after the request
  * it was guarding has already answered.
  */
-function withTimeout(signal?: AbortSignal): {
+function withTimeout(task: AiTask, signal?: AbortSignal): {
   signal: AbortSignal;
   /** True when it was the timer, not the caller, that aborted the request. */
   timedOut: () => boolean;
+  /** The budget this guard actually enforced, so the error can name it. */
+  limitMs: number;
   done: () => void;
 } {
   const controller = new AbortController();
+  const limitMs = requestTimeoutMs(task);
   let timedOut = false;
   const timer = setTimeout(() => {
     timedOut = true;
     controller.abort();
-  }, REQUEST_TIMEOUT_MS);
+  }, limitMs);
 
   const onAbort = () => controller.abort();
   if (signal) {
@@ -131,6 +166,7 @@ function withTimeout(signal?: AbortSignal): {
   return {
     signal: controller.signal,
     timedOut: () => timedOut,
+    limitMs,
     done: () => {
       clearTimeout(timer);
       signal?.removeEventListener('abort', onAbort);
@@ -148,10 +184,13 @@ function withTimeout(signal?: AbortSignal): {
  * one slow request look like the user pressing Stop and abandon every batch
  * after it.
  */
-function rethrowAsTimeout(err: unknown, guard: { timedOut: () => boolean }): never {
+function rethrowAsTimeout(
+  err: unknown,
+  guard: { timedOut: () => boolean; limitMs: number }
+): never {
   if (guard.timedOut()) {
     throw new Error(
-      `The drafting request timed out after ${REQUEST_TIMEOUT_MS / 1000} seconds.`
+      `The drafting request timed out after ${Math.round(guard.limitMs / 1000)} seconds.`
     );
   }
   throw err;
@@ -176,7 +215,7 @@ async function callHosted(
   signal?: AbortSignal,
   images?: string[]
 ): Promise<ModelReply> {
-  const guard = withTimeout(signal);
+  const guard = withTimeout(task, signal);
   let res: Response;
   try {
     res = await fetch('/api/generate', {
@@ -224,7 +263,7 @@ async function callDirect(
   signal?: AbortSignal,
   images?: string[]
 ): Promise<ModelReply> {
-  const guard = withTimeout(signal);
+  const guard = withTimeout(task, signal);
   // Multimodal only when there are images to send — every other task keeps
   // today's bare-string content, byte-for-byte.
   const content =
