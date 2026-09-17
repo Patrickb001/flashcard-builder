@@ -13,9 +13,9 @@ interface Props {
 }
 
 const DETAIL_OPTIONS: { id: InfographicDetail; name: string; blurb: string; pageEstimate: string }[] = [
-  { id: "basic", name: "Basic", blurb: "The core ideas only — a couple of blocks, a few points each.", pageEstimate: "~1 page" },
-  { id: "standard", name: "Standard", blurb: "A fuller pass — most of the deck's key ideas, grouped and explained.", pageEstimate: "~1-2 pages" },
-  { id: "detailed", name: "Detailed", blurb: "Thorough coverage across the deck, for a deeper study reference.", pageEstimate: "~3 pages" },
+  { id: "basic", name: "Basic", blurb: "The core ideas only — 4-5 key points.", pageEstimate: "~1 page" },
+  { id: "standard", name: "Standard", blurb: "A fuller pass — 6-8 of the deck's key ideas, explained.", pageEstimate: "~1-2 pages" },
+  { id: "detailed", name: "Detailed", blurb: "Thorough coverage — 8-10 points, for a deeper study reference.", pageEstimate: "~3 pages" },
 ];
 
 /**
