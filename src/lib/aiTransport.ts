@@ -86,7 +86,7 @@ export const MAX_TOKENS: Record<AiTask, number> = {
   // detail levels rather than scaling with the extraction ceilings above,
   // since layout/CSS boilerplate dominates the length more than item count
   // does.
-  'infographic-design': 16000,
+  'infographic-design': 24000,
 };
 
 /**
@@ -124,7 +124,7 @@ const REQUEST_TIMEOUT_MS = 120_000;
  * than this — see "Model response ceilings" in docs/tuning-notes.md.
  */
 const TIMEOUT_OVERRIDES_MS: Partial<Record<AiTask, number>> = {
-  'infographic-design': 240_000,
+  'infographic-design': 360_000,
 };
 
 /** How long `task` may run before it is abandoned. */

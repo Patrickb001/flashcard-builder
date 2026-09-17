@@ -37,7 +37,7 @@ export const MAX_TOKENS: Record<string, number> = {
   'infographic-extract-basic': 2000,
   'infographic-extract-standard': 3000,
   'infographic-extract-detailed': 4000,
-  'infographic-design': 16000,
+  'infographic-design': 24000,
 };
 
 /**
