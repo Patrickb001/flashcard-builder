@@ -249,6 +249,10 @@ TYPE — two Google Font families max, loaded via <link>, with real fallback sta
 
 SVG — every diagram uses viewBox (never fixed pixel width/height) so it scales with its container. Give each <svg> diagram a <title> element naming what it shows, for screen readers. Keep captions under 25 words and body text under about 80 characters per line.
 
+SEMANTICS — the page's accessibility comes entirely from the markup you write, so use real elements: a genuine <table> with a <caption> and <th scope="col"> for tabular data, <ol> for anything ordered, <ul> for unordered lists, and headings in a sensible order. Never fake a table with divs.
+
+SIZING — size the page to its content. Never use viewport-relative units (vh, vw, svh, dvh) for heights or min-heights: this document is displayed inside a frame that is resized to fit it, so viewport units and that resizing work against each other.
+
 Before finalizing, check your own HTML/SVG for overlapping text, clipped labels, or elements that overflow their container, and for anything that would overflow at a narrow (400px) viewport width. Fix anything you find.
 
 Reply with ONLY the finished HTML document — starting with <!DOCTYPE html> and ending with </html>. No explanation, no markdown code fence, nothing outside the document.`;
