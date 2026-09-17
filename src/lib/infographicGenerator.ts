@@ -75,7 +75,7 @@ export async function generateInfographic(
   onStage?.('designing');
   const designReply = await callModel('infographic-design', [extracted], settings, signal);
   if (designReply.stopReason === 'max_tokens') {
-    throw new Error('The generated page was cut off before it finished — try Basic or Standard, or choose fewer cards.');
+    throw new Error('The generated page came back longer than the limit allows — try generating it again, or pick Basic for a shorter page.');
   }
   const html = parseDesignResponse(designReply.text);
   if (!html) {

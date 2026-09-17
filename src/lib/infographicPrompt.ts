@@ -251,7 +251,7 @@ SVG — every diagram uses viewBox (never fixed pixel width/height) so it scales
 
 SEMANTICS — the page's accessibility comes entirely from the markup you write, so use real elements: a genuine <table> with a <caption> and <th scope="col"> for tabular data, <ol> for anything ordered, <ul> for unordered lists, and headings in a sensible order. Never fake a table with divs.
 
-SIZING — size the page to its content. Never use viewport-relative units (vh, vw, svh, dvh) for heights or min-heights: this document is displayed inside a frame that is resized to fit it, so viewport units and that resizing work against each other.
+SIZING — size the page to its content. Never use viewport-relative units (vh, vw, svh, dvh) for heights or min-heights, and never set a percentage height on html or body: this document is displayed inside a frame that is resized to fit it, so anything that sizes itself from the frame's height works against that resizing.
 
 Before finalizing, check your own HTML/SVG for overlapping text, clipped labels, or elements that overflow their container, and for anything that would overflow at a narrow (400px) viewport width. Fix anything you find.
 
