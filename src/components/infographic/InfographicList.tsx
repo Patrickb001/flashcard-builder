@@ -35,7 +35,6 @@ export default function InfographicList({ infographics, onView, onDelete, onCrea
           </div>
           <h4>{infographic.title}</h4>
           <p className="meta">
-            {infographic.blocks.length} section{infographic.blocks.length === 1 ? "" : "s"} ·{" "}
             {infographic.cardIds.length} card{infographic.cardIds.length === 1 ? "" : "s"} ·{" "}
             {new Date(infographic.createdAt).toLocaleDateString()}
           </p>
