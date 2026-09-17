@@ -171,9 +171,10 @@ thread immediately after drafting, while someone waits to see their cards.
 | `vignette` | 16000 |
 | `vignette-audit` | 1000 |
 | `ocr` | 16000 |
-| `infographic-basic` | 4000 |
-| `infographic-standard` | 6000 |
-| `infographic-detailed` | 8000 |
+| `infographic-extract-basic` | 2000 |
+| `infographic-extract-standard` | 3000 |
+| `infographic-extract-detailed` | 4000 |
+| `infographic-design` | 16000 |
 
 **Quiz — why not 4000.** A quiz question costs about five strings where a card costs
 two, so a quiz batch sits far closer to the ceiling. At 4000 a full batch came back
@@ -194,7 +195,9 @@ tokens a recall question costs.
 **Why the headroom is close to free.** The ceiling is a limit, not a reservation. An
 ordinary batch still generates and bills only a couple of thousand tokens.
 
-**Infographic — why 4000 for Basic, 6000 for Standard, 8000 for Detailed.** The response is compact structured JSON — a title plus a set of typed blocks (bullets, timeline, table, callout, stat, compare, steps, quote), not prose — but the richer block types cost more JSON per block than a plain bullets section did: a table's nested row arrays and a compare block's two point lists are each several short strings where a bullets block is one. Standard was raised from 4000 to 6000 because it can carry up to 6 blocks of any type, including the denser ones, and was hitting the same mid-JSON truncation this section's Quiz entry above already flagged. Detailed didn't need to move off 8000: its total-block ceiling of 10 is actually *lower* than the old 14-section ceiling it replaced, and that drop offsets the added per-block verbosity.
+**Infographic — why 2000/3000/4000 for the extraction stage, and a flat 16000 for design.** The extraction reply is a small JSON object — a title, a lede, a handful of short items — so these ceilings are generous relative to what a real reply costs; they scale with the per-level item target (`ITEM_TARGET` in `infographicPrompt.ts`) the same way the three levels' targets do. The design reply is a full self-contained HTML document with inline CSS and inline SVG, and it stays flat across all three detail levels rather than scaling with them: layout markup and CSS boilerplate dominate the length far more than item count does, so a Basic-detail page and a Detailed-detail page cost roughly the same to generate.
+
+**Known accepted regression — infographic markup semantics.** The block renderers this feature used to ship guaranteed accessible markup: real `<table>` with `<caption>` and `<th scope="col">`, `<ol>` for ordered content, ARIA labels on stat callouts. Under the HTML pipeline the model authors its own markup and only a prompt clause (`SEMANTICS` in `INFOGRAPHIC_DESIGN_PROMPT`) asks for those. This is a real, accepted downgrade that came with rendering model-authored documents; it is not a bug to be rediscovered. The iframe itself carries a `title`, and its content does reach the accessibility tree.
 
 **Vignette-audit — why 1000.** The audit call returns one verdict object per question in
 the batch — an id and a boolean — never prose, so it costs a small fraction of what

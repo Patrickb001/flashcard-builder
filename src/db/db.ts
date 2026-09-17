@@ -533,10 +533,14 @@ export async function moveDeckToFolder(deckId: string, folderId: string | null):
 /**
  * Every infographic saved for a deck, newest first.
  *
- * Also the one place a straggler from before this shape existed would turn
- * up — nothing has ever written one, so this is a safety net, not a
- * migration: a row with no usable `html` string is deleted on the spot
- * rather than handed to a screen that expects one.
+ * Rows that don't match the current shape are deleted on read rather than
+ * migrated. Two earlier shapes existed during this feature's development on
+ * this branch (`sections`, then a `blocks` union); neither ever reached
+ * `main`, so no released user has data here — but a developer who tried the
+ * feature before the HTML rewrite will silently lose those rows the first
+ * time this runs. That is the intended trade: an infographic is a
+ * regenerable derivative of its deck, and the renderers for both old shapes
+ * are gone.
  */
 export async function getInfographicsForDeck(deckId: string): Promise<Infographic[]> {
   const db = await getDB();
