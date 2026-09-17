@@ -1,7 +1,8 @@
 import type { AiSettings } from './aiGenerator';
 import type { AiTask } from './aiTransport';
 import { callModel } from './aiTransport';
-import { parseDesignResponse, parseExtractionResponse } from './infographicPrompt';
+import { parseExtractionResponse } from './infographicPrompt';
+import { parseDesignResponse } from './infographicSanitize';
 import type { Flashcard, Infographic, InfographicDetail } from '../types';
 
 /** Which AiTask a given detail level's extraction call uses. The design call has no per-level variant. */

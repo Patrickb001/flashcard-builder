@@ -1,10 +1,9 @@
 import {
   parseExtractionResponse,
   INFOGRAPHIC_EXTRACT_PROMPTS,
-  parseDesignResponse,
-  sanitizeInfographicHtml,
   INFOGRAPHIC_DESIGN_PROMPT,
 } from '../src/lib/infographicPrompt.ts';
+import { parseDesignResponse, sanitizeInfographicHtml } from '../src/lib/infographicSanitize.ts';
 import { deleteInfographicModalCopy } from '../src/lib/infographicCopy.ts';
 
 /**
