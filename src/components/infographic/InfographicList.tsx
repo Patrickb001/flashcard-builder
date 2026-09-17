@@ -33,15 +33,23 @@ export default function InfographicList({ infographics, onView, onDelete, onCrea
           <div className="infographic-card-top">
             <span className="detail-tag">{DETAIL_LABEL[infographic.detail]}</span>
           </div>
-          <h4>{infographic.title}</h4>
+          <h4>
+            {/*
+              A real button, stretched over the whole tile by its ::after in
+              index.css, so the card is clickable anywhere while staying one
+              focusable control with an accessible name. Wrapping the card
+              itself in a button would nest Delete inside it, which is invalid
+              markup; a click handler on the div would lose keyboard access.
+            */}
+            <button type="button" className="infographic-card-open" onClick={() => onView(infographic)}>
+              {infographic.title}
+            </button>
+          </h4>
           <p className="meta">
             {infographic.cardIds.length} card{infographic.cardIds.length === 1 ? "" : "s"} ·{" "}
             {new Date(infographic.createdAt).toLocaleDateString()}
           </p>
           <div className="infographic-card-actions">
-            <button type="button" className="btn-view" onClick={() => onView(infographic)}>
-              View
-            </button>
             <button type="button" className="btn-delete" onClick={() => setDeleting(infographic)}>
               Delete
             </button>
