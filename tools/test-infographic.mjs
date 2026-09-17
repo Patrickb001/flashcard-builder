@@ -274,6 +274,53 @@ for (const name of MIRRORED_TOKENS) {
   check(`--${name} (dark) value is in the design prompt`, darkValue !== null && promptNoSpace.includes(darkValue), true);
 }
 
+// ---------- clamps are runaway protection, not routine editing ----------
+
+// A generated infographic came back with every table cell cut mid-word at
+// exactly 60 characters ("...via address calculati…"). That was not CSS in the
+// model's HTML — it was this parser's own clamp on a comparison's `value`,
+// which sat at 60 while the model naturally writes 50-60 characters for that
+// field. The text was destroyed at extraction time, before the design call
+// ever saw it, so nothing downstream could have offered to expand it.
+console.log('\ncomparison values survive at the length models actually write');
+const realisticValue = 'Contiguous memory; O(1) indexed access via address calculation, but O(n) insertion in the middle because every later element shifts';
+const realisticComparison = JSON.stringify({
+  title: 'Data Structures',
+  items: [{ label: 'Array', detail: 'A contiguous block of memory.' }],
+  comparisons: [{ name: 'Array', value: realisticValue }],
+  keyTakeaway: 'Pick the structure that matches the access pattern.',
+});
+const keptComparison = parseExtractionResponse(realisticComparison, 'Data Structures', 'standard');
+check(
+  'a 130-character comparison value is kept whole',
+  keptComparison.comparisons[0].value,
+  realisticValue
+);
+check('no ellipsis was introduced', keptComparison.comparisons[0].value.includes('…'), false);
+
+console.log('\nwhen a clamp does fire it cuts at a word boundary');
+// Built rather than written out, so it is unambiguously past any budget and
+// every cut point falls on a space.
+const overLong = Array.from({ length: 80 }, (_, i) => `word${i}`).join(' ');
+const clampedTail = parseExtractionResponse(
+  JSON.stringify({
+    title: 'T',
+    items: [{ label: 'A', detail: 'A detail.' }],
+    comparisons: [{ name: 'N', value: overLong }],
+    keyTakeaway: 'K',
+  }),
+  'T',
+  'standard'
+).comparisons[0].value;
+check('it ends with an ellipsis', clampedTail.endsWith('…'), true);
+check(
+  'the character before the ellipsis is not mid-word',
+  // The clamped text, ellipsis removed, must be a prefix of the original that
+  // ends where a word ends — never "calculati".
+  overLong.startsWith(clampedTail.slice(0, -1)) && !/\S$/.test(overLong.charAt(clampedTail.length - 1)),
+  true
+);
+
 // ---------- request timeout vs. the token ceiling it has to cover ----------
 
 // A real generation failed with "The drafting request timed out after 120

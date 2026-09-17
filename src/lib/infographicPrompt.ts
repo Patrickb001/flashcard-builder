@@ -77,7 +77,7 @@ Rules:
 3. "coreConcept" is the single biggest idea the material has, as 2-4 short key/value pairs. Omit the field entirely (do not send an empty object) if nothing in the cards forms one central idea.
 4. "comparisons" only applies when the cards describe 2 or more things being weighed on the same criteria. Omit the field entirely otherwise.
 5. "meta" on an item is optional — a short tag like a number, a category, or a time label. Omit it when nothing short like that applies; never pad it with a made-up value.
-6. Keep every string short — this feeds a glance-able visual, not a document.`;
+6. Keep every string short — this feeds a glance-able visual, not a document. Concretely: names and labels under 80 characters, item details and comparison values under 240, the lede and the takeaway under 240. Write within those rather than relying on being trimmed to them — anything over is cut, and a cut sentence reaches the reader looking broken.`;
 }
 
 /** One prompt per detail level — the level controls how much content the extraction call asks for. */
@@ -87,29 +87,71 @@ export const INFOGRAPHIC_EXTRACT_PROMPTS: Record<InfographicDetail, string> = {
   detailed: buildExtractionPrompt('detailed'),
 };
 
-/** Trims and clamps to `max` chars with a trailing ellipsis; null if nothing survives. */
+/**
+ * Character budgets per field — runaway protection, NOT routine editing.
+ *
+ * These are deliberately well clear of what the model actually writes. A
+ * `comparison.value` budget of 60 used to sit right in the middle of that
+ * field's natural output (the model writes 50-60 characters for it), so the
+ * clamp fired on ordinary replies and every table cell in the finished
+ * infographic ended mid-word: "...via address calculati…". The text was gone
+ * before the design call ever ran, so nothing downstream could offer to
+ * expand it.
+ *
+ * Kept as one table rather than numbers inline at each call site, because a
+ * single badly-calibrated value hiding among the arguments is exactly how
+ * that happened. If a budget here starts firing on ordinary content, it is
+ * the budget that is wrong.
+ */
+const LIMITS = {
+  title: 80,
+  lede: 240,
+  keyTakeaway: 240,
+  itemLabel: 80,
+  itemDetail: 240,
+  itemMeta: 40,
+  comparisonName: 80,
+  comparisonValue: 240,
+  coreConceptKey: 60,
+  coreConceptValue: 160,
+} as const;
+
+/**
+ * Trims and clamps to `max` chars with a trailing ellipsis; null if nothing
+ * survives.
+ *
+ * Cuts at the last word boundary inside the budget, so a clamp that does fire
+ * reads as "…via address…" rather than "…via address calculati…". A single
+ * token longer than most of the budget has no boundary to cut at and falls
+ * back to a hard cut, which is still better than returning a stub.
+ */
 function clampText(value: unknown, max: number): string | null {
   if (typeof value !== 'string') return null;
   const trimmed = value.trim();
   if (!trimmed) return null;
-  return trimmed.length <= max ? trimmed : `${trimmed.slice(0, max)}…`;
+  if (trimmed.length <= max) return trimmed;
+
+  const cut = trimmed.slice(0, max);
+  const lastBoundary = cut.lastIndexOf(' ');
+  const kept = lastBoundary > max * 0.6 ? cut.slice(0, lastBoundary) : cut;
+  return `${kept.trimEnd()}…`;
 }
 
 function validateItem(raw: unknown): ExtractedInfographicItem | null {
   if (!raw || typeof raw !== 'object') return null;
   const item = raw as Record<string, unknown>;
-  const label = clampText(item.label, 60);
-  const detail = clampText(item.detail, 200);
+  const label = clampText(item.label, LIMITS.itemLabel);
+  const detail = clampText(item.detail, LIMITS.itemDetail);
   if (!label || !detail) return null;
-  const meta = clampText(item.meta, 40);
+  const meta = clampText(item.meta, LIMITS.itemMeta);
   return meta ? { label, detail, meta } : { label, detail };
 }
 
 function validateComparison(raw: unknown): ExtractedInfographicComparison | null {
   if (!raw || typeof raw !== 'object') return null;
   const comparison = raw as Record<string, unknown>;
-  const name = clampText(comparison.name, 60);
-  const value = clampText(comparison.value, 60);
+  const name = clampText(comparison.name, LIMITS.comparisonName);
+  const value = clampText(comparison.value, LIMITS.comparisonValue);
   if (!name || !value) return null;
   return { name, value };
 }
@@ -118,8 +160,8 @@ function validateCoreConcept(raw: unknown): Record<string, string> | undefined {
   if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return undefined;
   const entries = Object.entries(raw as Record<string, unknown>)
     .map((entry): [string, string] | null => {
-      const key = clampText(entry[0], 40);
-      const value = clampText(entry[1], 80);
+      const key = clampText(entry[0], LIMITS.coreConceptKey);
+      const value = clampText(entry[1], LIMITS.coreConceptValue);
       return key && value ? [key, value] : null;
     })
     .filter((entry): entry is [string, string] => entry !== null)
@@ -166,9 +208,9 @@ export function parseExtractionResponse(
     : [];
   if (items.length === 0) return null;
 
-  const title = clampText(raw.title, 80) ?? deckName;
-  const lede = clampText(raw.lede, 220) ?? '';
-  const keyTakeaway = clampText(raw.keyTakeaway, 220) ?? '';
+  const title = clampText(raw.title, LIMITS.title) ?? deckName;
+  const lede = clampText(raw.lede, LIMITS.lede) ?? '';
+  const keyTakeaway = clampText(raw.keyTakeaway, LIMITS.keyTakeaway) ?? '';
   const coreConcept = validateCoreConcept(raw.coreConcept);
   const comparisons = Array.isArray(raw.comparisons)
     ? raw.comparisons
