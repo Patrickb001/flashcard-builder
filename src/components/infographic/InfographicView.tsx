@@ -21,14 +21,20 @@ const DETAIL_LABEL: Record<Infographic["detail"], string> = {
  * One saved infographic: the model's own self-contained HTML/SVG document,
  * shown through a sandboxed iframe rather than through this app's own DOM.
  *
- * `sandbox="allow-same-origin"` with no `allow-scripts` is the point: no
- * script the model wrote — a <script> tag, an inline handler, anything
- * inside an SVG — can execute, in this frame or anywhere else. `allow-same-
- * origin` alone is what lets *this* component (running unsandboxed, in the
- * app's own document) still reach into the frame's DOM below to read its
- * height and to mirror the app's current theme onto it; it grants the frame
- * no privilege it could act on, since nothing inside it can run at all.
- * Never dangerouslySetInnerHTML.
+ * The absence of `allow-scripts` is the point: no script the model wrote — a
+ * <script> tag, an inline handler, anything inside an SVG — can execute, in
+ * this frame or anywhere else. The two flags that ARE set grant the frame
+ * nothing it could act on, precisely because nothing inside it runs:
+ *
+ *  - `allow-same-origin` lets *this* component (running unsandboxed, in the
+ *    app's own document) reach into the frame's DOM to read its height and to
+ *    mirror the app's current theme onto it.
+ *  - `allow-modals` lets the parent's own saveAsPdf call print() on the frame.
+ *    Modals are script APIs, so with no scripts the document cannot open one
+ *    itself.
+ *
+ * Both are safe only while `allow-scripts` stays absent; adding it would turn
+ * each of them into a real capability. Never dangerouslySetInnerHTML.
  */
 export default function InfographicView({ infographic, totalCardCount, onBack, onDelete }: Props) {
   const [confirmingDelete, setConfirmingDelete] = useState(false);
@@ -113,6 +119,41 @@ export default function InfographicView({ infographic, totalCardCount, onBack, o
     };
   }, [infographic.html]);
 
+  /**
+   * Hands the frame's own document to the browser's print dialog, where "Save
+   * as PDF" is a destination.
+   *
+   * Printing the frame rather than this page is deliberate: the browser then
+   * treats the infographic as the print root and paginates it natively, where
+   * a print stylesheet on the parent would leave a tall iframe clipped at one
+   * page in some browsers.
+   *
+   * The theme is forced to light for the duration. The frame otherwise prints
+   * in whatever theme the app is showing, and dark mode means a full-bleed
+   * black page. `afterprint` puts the reader's own theme back; if a browser
+   * never fires it the frame simply stays light until it next re-renders,
+   * which is cosmetic rather than broken.
+   */
+  const saveAsPdf = () => {
+    const frame = iframeRef.current;
+    const frameWindow = frame?.contentWindow;
+    const root = frame?.contentDocument?.documentElement;
+    if (!frameWindow || !root) return;
+
+    const previousTheme = root.getAttribute("data-theme");
+    root.setAttribute("data-theme", "light");
+    frameWindow.addEventListener(
+      "afterprint",
+      () => {
+        if (previousTheme) root.setAttribute("data-theme", previousTheme);
+        else root.removeAttribute("data-theme");
+      },
+      { once: true }
+    );
+
+    frameWindow.print();
+  };
+
   return (
     <div>
       <p className="deck-eyebrow infographic-view-meta">
@@ -126,7 +167,13 @@ export default function InfographicView({ infographic, totalCardCount, onBack, o
           className="infographic-frame"
           title={infographic.title}
           srcDoc={infographic.html}
-          sandbox="allow-same-origin"
+          // allow-modals is here ONLY so the parent's own saveAsPdf can call
+          // print() on this frame — sandboxed frames block modal dialogs
+          // otherwise. It grants the document itself nothing: print, alert and
+          // confirm are all script APIs, and without allow-scripts no script
+          // in here runs at all, so nothing in the model's HTML can reach a
+          // modal. allow-scripts must never be added alongside it.
+          sandbox="allow-same-origin allow-modals"
           referrerPolicy="no-referrer"
         />
       </div>
@@ -137,6 +184,12 @@ export default function InfographicView({ infographic, totalCardCount, onBack, o
             <path d="M15 6l-6 6 6 6" />
           </svg>
           Back to infographics
+        </button>
+        <button type="button" className="ghost-btn" onClick={saveAsPdf}>
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M12 3v12M8 11l4 4 4-4M4 19h16" />
+          </svg>
+          Save as PDF
         </button>
         <button type="button" className="ghost-btn" onClick={() => setConfirmingDelete(true)} style={{ color: "var(--danger)" }}>
           Delete this infographic

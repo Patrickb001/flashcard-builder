@@ -253,6 +253,8 @@ SEMANTICS — the page's accessibility comes entirely from the markup you write,
 
 SIZING — size the page to its content. Never use viewport-relative units (vh, vw, svh, dvh) for heights or min-heights, and never set a percentage height on html or body: this document is displayed inside a frame that is resized to fit it, so anything that sizes itself from the frame's height works against that resizing.
 
+PRINT — the reader can save this page as a PDF, so keep it printable. Put "break-inside: avoid" on cards, sections, tables, figures and any SVG diagram, so a page break never splits one down the middle. Avoid position:fixed and position:sticky, which print in the wrong place or not at all.
+
 Before finalizing, check your own HTML/SVG for overlapping text, clipped labels, or elements that overflow their container, and for anything that would overflow at a narrow (400px) viewport width. Fix anything you find.
 
 Reply with ONLY the finished HTML document — starting with <!DOCTYPE html> and ending with </html>. No explanation, no markdown code fence, nothing outside the document.`;
