@@ -28,6 +28,17 @@ const SAME_ANSWER = 0.8;
 const MIN_ANSWER_WORDS = 2;
 
 /**
+ * The most of a test that can go to questions missed last time.
+ *
+ * A miss should come back, but a test made only of misses stops measuring the
+ * rest of the deck — and the no-repeat guarantee below still has to hold for
+ * everything else. 30% of ten is three: enough that a miss reliably returns,
+ * few enough that the test still ranges over the deck. For a sitting of misses
+ * and nothing else, the results screen offers "Retest what I missed".
+ */
+export const MISSED_SHARE = 0.3;
+
+/**
  * Choosing which questions a test asks, and in which order.
  *
  * Pure, and deliberately free of any database or DOM reference, so the whole
@@ -38,12 +49,14 @@ const MIN_ANSWER_WORDS = 2;
  */
 
 /**
- * Picks `n` questions, coldest first.
+ * Picks `n` questions: some recent misses, then the coldest of the rest.
  *
- * Questions are tiered by how many times they have been asked, and a tier is
- * emptied before the next one is touched. That gives the guarantee people
- * actually want from "ask me different questions this time": nothing repeats
- * until everything has been asked once. Within a tier the order is random, so
+ * Questions whose last answer was wrong go first, up to MISSED_SHARE of the
+ * test (rounded up), in random order. The rest of the test is filled from
+ * the remaining questions, tiered by how many times they have been asked, and
+ * a tier is emptied before the next one is touched. That gives the guarantee
+ * people actually want from "ask me different questions this time": apart
+ * from recent misses, nothing repeats until everything has been asked once. Within a tier the order is random, so
  * two tests of the same size over the same pool are not the same test.
  *
  * Tiering rather than sorting on `lastAskedAt` is the point. A sort is
@@ -51,9 +64,16 @@ const MIN_ANSWER_WORDS = 2;
  * every time, which is the opposite of what was asked for. Tiering keeps the
  * strong no-repeat guarantee and leaves genuine randomness inside each tier.
  */
-export function selectQuestions(pool: TestQuestion[], n: number): TestQuestion[] {
+export function selectQuestions(
+  pool: TestQuestion[],
+  n: number,
+  missedShare: number = MISSED_SHARE
+): TestQuestion[] {
   const wanted = Math.max(0, Math.min(n, pool.length));
   if (wanted === 0) return [];
+
+  const missed = pool.filter((question) => question.lastCorrect === false);
+  const missedQuota = Math.min(missed.length, Math.ceil(wanted * missedShare));
 
   const tiers = new Map<number, TestQuestion[]>();
   for (const question of pool) {
@@ -106,10 +126,22 @@ export function selectQuestions(pool: TestQuestion[], n: number): TestQuestion[]
     });
   };
 
+  // Misses first, so they are not crowded out by the tiers; the tier walk
+  // below then skips anything already drawn.
+  const drawn = new Set<string>();
+  for (const question of shuffle(missed)) {
+    if (picked.length >= missedQuota) break;
+    const candidate = weigh(question);
+    if (duplicates(candidate)) continue;
+    picked.push(candidate);
+    drawn.add(question.id);
+  }
+
   for (const timesAsked of [...tiers.keys()].sort((a, b) => a - b)) {
     if (picked.length >= wanted) break;
     for (const question of shuffle(tiers.get(timesAsked)!)) {
       if (picked.length >= wanted) break;
+      if (drawn.has(question.id)) continue;
       const candidate = weigh(question);
       if (duplicates(candidate)) skipped.push(candidate);
       else picked.push(candidate);
