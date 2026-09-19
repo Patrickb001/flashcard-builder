@@ -577,3 +577,50 @@ addressed in `APPLICATION_SYSTEM_PROMPT` and `APPLICATION_AUDIT_SYSTEM_PROMPT`:
 the verdict it should get: 9 apply, 10 skip, 5 either. Running `tools/test-application.mjs` with a
 key and this fixture prints skip and apply agreement and the three known traps (c11, c17, c23).
 Record each run's numbers here.
+
+### Fixture runs, 2026-09-19 (claude-sonnet-5)
+
+**Run 1 — audit ceiling still 1000.** 13 questions, 9 skipped, 2 failed, of 24 cards.
+Skipped as expected 9/10, applied as expected 9/9. Two of the three audit batches came
+back `stopReason=max_tokens` with no verdict for any of their five questions, so both
+batches were dropped whole and retried; the two card failures were the residue. A
+truncated audit is indistinguishable from a unanimous rejection except by the
+`missingVerdict`/`stopReason` reporting added when the audit was written — which is what
+caught it.
+
+**Ceiling raised: `application-audit` 1000 -> 4000** (client and server copies). 1000 was
+borrowed from `vignette-audit` on the reasoning that both replies are verdict lists. It
+no longer holds: six checks reason over more than four did, and the reply runs past 1000
+before it reaches the JSON.
+
+**Run 2 — audit ceiling 4000.** 14 questions, 10 skipped, 0 failed, of 24 cards. All three
+audits ended `end_turn` with every verdict present, flagging 1 of 4, 1 of 3 and 1 of 5 —
+judgement rather than truncation. Skipped as expected 9/10, applied as expected 9/9.
+
+| | run 1 | run 2 | aim |
+|---|---|---|---|
+| skipped as expected | 9/10 | 9/10 | >= 8/10 |
+| applied as expected | 9/9 | 9/9 | >= 8/9 |
+| failed cards | 2 | 0 | 0 |
+| audits truncated | 2 of 3 | 0 of 3 | 0 |
+
+**The traps.** c17 skipped in both runs — the sequence fix holds. c11 came back consistent
+with c10 in both runs: the marked answer is the component whose state updated, and no
+option names the parent and then its child, so nothing defensible is marked wrong.
+
+**Still open after these fixes:**
+
+- **c23 defeats the NEW check.** Run 2 produced "a weather widget re-renders every 5
+  seconds to show the latest temperature in a `<span>`, while a text `<input>` ... sits in
+  the same spot in the JSX". That is the docs' Clock example with the names swapped —
+  clock to weather widget, `<h1>` to `<span>`, time to temperature — which is exactly what
+  the NEW rule and the audit's NEW check forbid. Changing the elements and the subject
+  noun is evidently not read as changing "what the situation is about" when the *shape*
+  (something on a timer beside a text input) is preserved. The next attempt should name
+  the shape, not just the names: forbid re-using the card's arrangement of parts.
+- **c19 is forced in both runs.** "What can you use to find mistakes in your React
+  components?" -> "Strict Mode" is a card whose answer is a name, and both runs wrapped it
+  in an impure-component story ending "which React feature would help the developer notice
+  this bug ... ?". The skip list names "what something is called"; the model appears to
+  treat a feature that *does* something as applicable regardless. Note that the resulting
+  question is not a bad one — it is just recall of a name with scenery.
