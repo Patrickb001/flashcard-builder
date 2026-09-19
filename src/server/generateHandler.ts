@@ -1,5 +1,11 @@
 import { CARD_SYSTEM_PROMPT } from '../lib/cardPrompt';
-import { QUIZ_SYSTEM_PROMPT, VIGNETTE_SYSTEM_PROMPT, VIGNETTE_AUDIT_SYSTEM_PROMPT } from '../lib/quizPrompt';
+import {
+  APPLICATION_AUDIT_SYSTEM_PROMPT,
+  APPLICATION_SYSTEM_PROMPT,
+  QUIZ_SYSTEM_PROMPT,
+  VIGNETTE_AUDIT_SYSTEM_PROMPT,
+  VIGNETTE_SYSTEM_PROMPT,
+} from '../lib/quizPrompt';
 import { OCR_SYSTEM_PROMPT } from '../lib/ocrPrompt';
 import { INFOGRAPHIC_EXTRACT_PROMPTS, INFOGRAPHIC_DESIGN_PROMPT } from '../lib/infographicPrompt';
 import type { HandlerResult } from './endpoint';
@@ -33,6 +39,8 @@ export const MAX_TOKENS: Record<string, number> = {
   quiz: 8000,
   vignette: 16000,
   'vignette-audit': 1000,
+  application: 16000,
+  'application-audit': 1000,
   ocr: 16000,
   'infographic-extract-basic': 2000,
   'infographic-extract-standard': 3000,
@@ -53,6 +61,8 @@ const PROMPTS = new Map<string, string>([
   ['quiz', QUIZ_SYSTEM_PROMPT],
   ['vignette', VIGNETTE_SYSTEM_PROMPT],
   ['vignette-audit', VIGNETTE_AUDIT_SYSTEM_PROMPT],
+  ['application', APPLICATION_SYSTEM_PROMPT],
+  ['application-audit', APPLICATION_AUDIT_SYSTEM_PROMPT],
   ['ocr', OCR_SYSTEM_PROMPT],
   ['infographic-extract-basic', INFOGRAPHIC_EXTRACT_PROMPTS.basic],
   ['infographic-extract-standard', INFOGRAPHIC_EXTRACT_PROMPTS.standard],
