@@ -216,18 +216,6 @@ export async function getCardsForDeck(deckId: string): Promise<Flashcard[]> {
 }
 
 /**
- * Overwrites one card in place.
- *
- * The deck's cardCount is untouched, because this never adds or removes a card
- * — use addCard or deleteCard for that. Called on every textarea blur in the
- * deck manager, including blurs that changed nothing.
- */
-export async function updateCard(card: Flashcard): Promise<void> {
-  const db = await getDB();
-  await db.put('flashcards', card);
-}
-
-/**
  * Writes new text onto a card, leaving everything else on the record alone.
  *
  * Read and write in one transaction, for the reason renameDeck gives. The deck

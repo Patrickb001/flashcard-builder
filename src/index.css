@@ -1065,15 +1065,15 @@ textarea:focus-visible {
   letter-spacing: 0.06em;
 }
 
-.source-label.status-known {
+.source-label.schedule-scheduled {
   color: var(--success);
 }
 
-.source-label.status-unknown {
+.source-label.schedule-due {
   color: var(--warning);
 }
 
-.source-label.status-new {
+.source-label.schedule-new {
   color: var(--text-secondary);
 }
 

@@ -10,6 +10,7 @@ export default function DeckRoute() {
     <DeckManager
       deckId={deckId}
       onStudy={(id) => navigate(`/deck/${id}/study`)}
+      onStudyAll={(id) => navigate(`/deck/${id}/study?mode=all`)}
       onTest={(id) => navigate(`/deck/${id}/test`)}
       onInfographic={(id) => navigate(`/deck/${id}/infographic`)}
       // Replace: the deck is gone, so Back must not return to its page.
