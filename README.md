@@ -155,8 +155,11 @@ skipped rather than dressed up as a scenario, and the skip is remembered against
 card's text, so the setup screen does not offer it again until the card is edited.
 Skipped cards stay in recall tests. Like vignettes, every application question is
 checked by a second, short audit call before it is kept: is the answer grounded in the
-cards, is it actually right (a program is traced), and could any wrong option also be
-defended? A flagged question is dropped and its card retried.
+cards, is it actually right (a program is traced), could any wrong option be defended
+using any card in the deck, does answering really depend on the scenario rather than
+the stem alone, and is the scenario genuinely new rather than the card's own example
+renamed? A flagged question is dropped and its card retried. On screen, the scenario
+and any program it includes sit together in a tinted panel above the question.
 
 The questions themselves need the AI helper, so "Test this deck" opens a setup screen
 that carries the drafting-mode panel inline when AI is off; there is no need to go

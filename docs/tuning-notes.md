@@ -551,3 +551,29 @@ deck here.
 **Audit reject rate.** As with the vignette audit: too high means the audit is too
 strict; never rejecting a planted bad question means it is too lax. The stubbed
 generator test in the harness checks the plumbing; only a real run checks the judgement.
+
+## 2026-09-19 — application questions: four prompt fixes and the render-and-commit fixture
+
+A read-through of real application questions from a React slide deck found four failures, each now
+addressed in `APPLICATION_SYSTEM_PROMPT` and `APPLICATION_AUDIT_SYSTEM_PROMPT`:
+
+1. **Restated, not applied.** A scenario narrated "React re-renders, then commits" and the stem asked
+   what happens after commit — the card read back. The prompt now requires the answer to depend on
+   a particular of the scenario ("cover the scenario"), and the audit gained an APPLIED check.
+2. **Forced scenarios for sequences.** The escape hatch told the model not to skip "a procedure",
+   which it read as licence to wrap a fixed sequence in a story. Sequences, analogies, terms and
+   API names are now listed as skips; a procedure counts as applicable only when the student must
+   decide what happens next.
+3. **The card's own example, renamed.** A card built on the docs' Clock example (an `<h1>` and an
+   `<input>`) produced a Timer with a `<p>` and a `<textarea>`. The prompt now forbids swapped-name
+   copies of the card's or the textbook's example, and the audit gained a NEW check.
+4. **Options checked against one card.** A question about which component React calls ignored a
+   neighbouring card saying rendering recurses into children. The prompt now checks options against
+   every card given, and the audit's ONE RIGHT ANSWER check names every related card. The audit's
+   context also now includes every card in the batch: `contextCards` excludes the batch, so a
+   sibling card — or one the model skipped — was invisible to it.
+
+**The fixture.** `tools/fixtures/render-and-commit-cards.json` is that deck, each card annotated with
+the verdict it should get: 9 apply, 10 skip, 5 either. Running `tools/test-application.mjs` with a
+key and this fixture prints skip and apply agreement and the three known traps (c11, c17, c23).
+Record each run's numbers here.
