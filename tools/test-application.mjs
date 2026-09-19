@@ -159,8 +159,8 @@ console.log('\nTRANSPORT');
 // ---------------------------------------------------------------------------
 
 check('the client knows the application task', CLIENT_TOKENS.application, 16000);
-check('the client knows its audit', CLIENT_TOKENS['application-audit'], 1000);
-check('the server agrees', [SERVER_TOKENS.application, SERVER_TOKENS['application-audit']], [16000, 1000]);
+check('the client knows its audit', CLIENT_TOKENS['application-audit'], 4000);
+check('the server agrees', [SERVER_TOKENS.application, SERVER_TOKENS['application-audit']], [16000, 4000]);
 
 // ---------------------------------------------------------------------------
 console.log('\nGENERATOR (stubbed model)');

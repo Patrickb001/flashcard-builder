@@ -40,7 +40,7 @@ export const MAX_TOKENS: Record<string, number> = {
   vignette: 16000,
   'vignette-audit': 1000,
   application: 16000,
-  'application-audit': 1000,
+  'application-audit': 4000,
   ocr: 16000,
   'infographic-extract-basic': 2000,
   'infographic-extract-standard': 3000,

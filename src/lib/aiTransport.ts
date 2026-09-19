@@ -81,12 +81,16 @@ export const MAX_TOKENS: Record<AiTask, number> = {
   // A verdict list, not prose — see "vignette-audit" in docs/tuning-notes.md
   // once real batches have been measured against this starting estimate.
   'vignette-audit': 1000,
-  // Starting estimates, not measurements: an application batch is six
-  // scenario questions, near a vignette batch in size, and its audit is a
-  // verdict list like the vignette audit's. See "Application questions" in
-  // docs/tuning-notes.md.
+  // The generation ceiling is still a starting estimate: an application batch
+  // is six scenario questions, near a vignette batch in size.
   application: 16000,
-  'application-audit': 1000,
+  // Measured, not estimated. At 1000 — the vignette audit's value, borrowed
+  // because both replies are verdict lists — two of three audit batches in the
+  // render-and-commit fixture run came back at max_tokens with no verdict for
+  // any question, and the whole batch was dropped for retry. Six checks reason
+  // over more than four did, and the reply runs past the ceiling before it
+  // reaches the JSON. See "Application questions" in docs/tuning-notes.md.
+  'application-audit': 4000,
   // A transcribed page can be as dense as a card-drafting batch; same
   // ceiling as `cards` until real batches say otherwise (docs/tuning-notes.md).
   ocr: 16000,
