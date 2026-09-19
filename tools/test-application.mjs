@@ -247,6 +247,12 @@ check('every question was audited', calls.filter((c) => c.task === 'application-
 const firstAudit = calls.find((c) => c.task === 'application-audit').payload.questions;
 check('the audit is sent the program to trace', firstAudit.some((item) => item.code === program), true);
 check('the audit is sent scenarios as scenarios', firstAudit.every((item) => 'scenario' in item && !('vignette' in item)), true);
+const firstAuditContext = calls.find((c) => c.task === 'application-audit').payload.context;
+check(
+  'the audit sees every card in the batch, even one skipped',
+  firstAuditContext.some((c) => c.front.startsWith('Who')),
+  true
+);
 check('a skipped card is never audited', firstAudit.some((item) => item.card?.front.startsWith('Who')), false);
 check('the skipped card is not sent again on the retry pass', calls.filter((c) => c.task === 'application').at(-1).payload.cards.some((c) => c.front.startsWith('Who')), false);
 // The retry batch leaves the other cards out, so it is the one with neighbours.
@@ -259,6 +265,26 @@ const recallRun = await generateQuestionsForCards(deckCards.slice(0, 1), deckCar
 check('recall is unchanged: one call, no audit', calls.map((c) => c.task), ['quiz']);
 check("recall still carries the card's own snippet", recallRun.questions[0].stemCode?.text, 'OLD EXAMPLE');
 check('recall never reports skips', recallRun.notApplicableCardIds, []);
+
+// ---------------------------------------------------------------------------
+console.log('\nFIXTURE: render and commit');
+// ---------------------------------------------------------------------------
+
+// A real deck (a React slide deck), annotated with the verdict each card
+// should get: "apply", "skip", or "either" where both are defensible. Cards
+// marked "watch" are known traps; the real-model section below prints them.
+const rc = JSON.parse(fs.readFileSync('tools/fixtures/render-and-commit-cards.json', 'utf8'));
+const verdicts = { apply: 0, skip: 0, either: 0 };
+for (const c of rc) if (c.expect in verdicts) verdicts[c.expect] += 1;
+check('the fixture has 24 cards with unique ids', [rc.length, new Set(rc.map((c) => c.id)).size], [24, 24]);
+check('every card carries a verdict', verdicts.apply + verdicts.skip + verdicts.either, 24);
+check('nine apply, ten skip, five either', verdicts, { apply: 9, skip: 10, either: 5 });
+check('the three known traps are annotated', ['c11', 'c17', 'c23'].every((id) => rc.find((c) => c.id === id)?.watch), true);
+
+calls.length = 0;
+await generateQuestionsForCards(rc.slice(9, 11), rc, 'Render and commit', settings, { style: 'application' });
+const sent = JSON.stringify(calls.map((c) => c.payload));
+check('fixture annotations never reach the model', ['"expect"', '"watch"', 'Trap:'].some((t) => sent.includes(t)), false);
 
 // ---------------------------------------------------------------------------
 console.log('\nDATABASE (in-memory IndexedDB)');
@@ -329,6 +355,32 @@ for (const id of live.notApplicableCardIds) {
 check('every card is answered, skipped or reported', live.questions.length + live.notApplicableCardIds.length + live.failedCardIds.length, cards.length);
 check('every question has three distractors', live.questions.every((item) => item.distractors.length === 3), true);
 check('every question has a scenario or a program', live.questions.every((item) => item.vignette || item.stemCode), true);
+
+// Scored against the fixture's verdicts, when it has them. Reported, not
+// asserted: one run of a model is a sample, and the numbers belong in
+// docs/tuning-notes.md rather than in a pass/fail.
+if (cards.some((c) => c.expect)) {
+  const asked = new Map(live.questions.map((item) => [item.cardId, item]));
+  const skippedIds = new Set(live.notApplicableCardIds);
+  const shouldSkip = cards.filter((c) => c.expect === 'skip');
+  const shouldApply = cards.filter((c) => c.expect === 'apply');
+  const forced = shouldSkip.filter((c) => asked.has(c.id));
+  const dodged = shouldApply.filter((c) => skippedIds.has(c.id));
+  console.log('\nAGAINST THE FIXTURE');
+  console.log(`  skipped as expected: ${shouldSkip.length - forced.length} of ${shouldSkip.length}`);
+  for (const c of forced) console.log(`    FORCED  ${c.id}: ${c.front}`);
+  console.log(`  applied as expected: ${shouldApply.length - dodged.length} of ${shouldApply.length}`);
+  for (const c of dodged) console.log(`    DODGED  ${c.id}: ${c.front}`);
+  for (const c of cards.filter((card) => card.watch)) {
+    const item = asked.get(c.id);
+    console.log(`\n  WATCH ${c.id}: ${c.watch}`);
+    console.log(
+      item
+        ? `    -> ${item.vignette ?? ''} ${item.stemCode ? '[program]' : ''}\n       Q: ${item.stem}\n       * ${item.correctAnswer} | ${item.distractors.join(' | ')}`
+        : `    -> ${skippedIds.has(c.id) ? 'skipped' : 'no question (failed)'}`
+    );
+  }
+}
 
 console.log(
   '\n  Read the questions above. For each: is the situation new (not the card\'s own example)?\n' +
