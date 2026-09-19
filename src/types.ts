@@ -76,8 +76,34 @@ export interface Infographic {
 /** Which kind of document a deck was built from. */
 export type SourceType = 'pdf' | 'pptx' | 'md' | 'html';
 
-/** How the reader last answered a card in study mode. */
+/**
+ * How the reader last answered a card.
+ *
+ * Superseded by `srs` for every scheduling decision, and kept in step by
+ * applyGrade only so records stay readable by anything that still looks at it.
+ */
 export type CardStatus = 'new' | 'known' | 'unknown';
+
+/**
+ * Where a card sits in the spaced-repetition schedule.
+ *
+ * Absent on a card that has never been graded — which is every card saved
+ * before scheduling existed, so there is nothing to migrate: absent means new.
+ * Written only by applyGrade in lib/scheduling; never build one by hand.
+ */
+export interface CardSchedule {
+  /** When the card next comes up, as epoch ms. Due once this falls before the end of today. */
+  due: number;
+  /** Days between the last review and `due`. 0 while the card is being (re)learned. */
+  intervalDays: number;
+  /** SM-2 ease factor: how fast the interval grows. Starts at 2.5, never below 1.3. */
+  ease: number;
+  /** Successful reviews in a row. 0 means new or relearning after a lapse. */
+  reps: number;
+  /** Times the card was forgotten after it had been learned. */
+  lapses: number;
+  lastReviewedAt: number;
+}
 
 /**
  * A snippet shown on a card face.
@@ -131,6 +157,8 @@ export interface Flashcard extends CardMedia {
    * falls back to `createdAt` for those decks rather than forcing a migration.
    */
   order?: number;
+  /** The card's place in the review schedule. Absent means never graded; see CardSchedule. */
+  srs?: CardSchedule;
 }
 
 /**
@@ -237,6 +265,12 @@ export interface TestQuestion {
    * deliberately: removing them costs an IndexedDB migration for no gain. */
   lastAskedAt: number | null;
   timesCorrect: number;
+  /**
+   * Whether the most recent answer to this question was right. Absent until it
+   * has been answered once under a build that records it. selectQuestions gives
+   * questions with `false` here priority, so a miss comes back.
+   */
+  lastCorrect?: boolean;
 }
 
 /**
