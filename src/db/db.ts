@@ -261,6 +261,33 @@ export async function reviewCard(cardId: string, grade: Grade, now: number): Pro
 }
 
 /**
+ * Records that the model judged these cards to have nothing to apply, at
+ * their current text, so the setup screen stops offering them for an
+ * application question.
+ *
+ * Read-modify-write in one transaction, like updateCardContent: only the
+ * marker changes, so a schedule written by a study session in another tab is
+ * not put back. `cardHash` is the hash the verdict was reached on; if the card
+ * has been edited since, the stored marker simply will not match its text, and
+ * the card is offered again. A card deleted meanwhile stays deleted.
+ */
+export async function markApplicationSkipped(
+  entries: { cardId: string; cardHash: string }[]
+): Promise<void> {
+  if (entries.length === 0) return;
+  const db = await getDB();
+  const tx = db.transaction('flashcards', 'readwrite');
+  const cards = await Promise.all(entries.map((entry) => tx.store.get(entry.cardId)));
+  const writes: Promise<unknown>[] = [];
+  cards.forEach((card, i) => {
+    if (!card) return;
+    card.applicationSkipHash = entries[i].cardHash;
+    writes.push(tx.store.put(card));
+  });
+  await Promise.all([...writes, tx.done]);
+}
+
+/**
  * How many cards in each deck are due, and how many are new, without reading
  * a single card.
  *
