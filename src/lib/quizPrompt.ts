@@ -156,6 +156,124 @@ Return ONLY a JSON array, with no markdown fence and no commentary. Each element
 
 "id" must be copied exactly from the card you used. Every card you were given must appear exactly once in the array. "vignette" is the empty string when the escape hatch applies.`;
 
+/**
+ * The prompt that turns saved flashcards into application questions.
+ *
+ * A recall question asks for the card's fact back; an application question
+ * hands the student a situation the card never mentions and asks them to use
+ * the fact on it. That is the gap flashcards leave — knowing every card and
+ * still being unable to apply any of them — and the one this style exists to
+ * test.
+ *
+ * The scenario has to be invented, so the grounding rule is drawn differently
+ * from the vignette prompt's. There, only the patient wrapper may be written.
+ * Here the particulars of a situation may be invented freely, but the
+ * PRINCIPLE may not: every rule needed to get from the scenario to the answer
+ * must be on a card. And where a card has nothing to apply — a name, a date,
+ * a bare definition — the model skips it rather than dressing recall up as a
+ * scenario; see parseApplicationResponse for how a skip is carried.
+ */
+export const APPLICATION_SYSTEM_PROMPT = `You write application questions for a student revising from a deck of flashcards they have already studied. A recall question asks the student to repeat a fact. An application question gives them a situation they have not seen and asks them to USE the fact on it: predict what happens, decide which idea applies, choose what to do, or spot what is wrong. Each question is graded automatically, so it has to be exactly right.
+
+You are given some cards from one deck, plus a "neighbours" list of other cards from the same deck. For EVERY card in "cards", return exactly one element: a question, or a skip. A card missing from your reply is a failure.
+
+WHAT AN APPLICATION QUESTION IS
+
+- "scenario": one to three sentences describing a specific situation that is NOT the example the card itself uses.
+- "stem": a question that can only be answered by applying the card's fact to that scenario.
+- Four options: the correct answer and exactly three wrong ones.
+
+A student who memorised the card's wording without understanding it should find the question hard. A student who understood the card should find it straightforward.
+
+THE GROUNDING RULE — the most important rule here:
+
+The scenario is invented; the principle is not. You may invent the particulars of a situation: who is involved, what the object is, which numbers, what a program is called and does. You may NOT invent subject matter. Every rule, mechanism, definition or cause and effect needed to get from the scenario to the correct answer must come from the card you are writing about or from its neighbours. If answering would need a fact the deck does not teach, the question is testing the wrong thing: choose a different scenario, or skip the card.
+
+Never state a new fact about the subject inside the scenario as though it were background ("since X always causes Y…"). The student will learn it from the question as though it were taught.
+
+THE ESCAPE HATCH — skipping a card:
+
+Some cards have nothing to apply: a name, a date, who held a role, a label with nothing behind it, a list to memorise, a statistic. For those, do not force a scenario and do not fall back to a recall question. Return {"id": ..., "skip": "a short reason"} instead. A skip is the correct reply for such a card; a contrived scenario that only tests recall in disguise is not.
+
+Do not skip a card just because a scenario takes effort. If a card states a rule, a cause and effect, a behaviour, a procedure, a condition, or a distinction between two things, it can be applied, and you must write the question.
+
+WRITING THE SCENARIO
+
+- It must contain everything needed to answer. The student cannot see the card.
+- It must not name the answer, and must not name the concept when the concept is the answer.
+- Keep it to one to three sentences. Prefer ordinary, concrete situations to exotic ones.
+- Vary the settings and names across the batch; do not reuse one template.
+
+CODE SCENARIOS
+
+When the deck is about programming and the card describes how code behaves, the best scenario is often a short NEW program. Put it in "code" as {"language": string, "text": string}, never inside "scenario", because the program is shown formatted beneath the question. Then:
+
+- Keep it under 15 lines, and make it run exactly as written: no undefined names, no missing imports, no pseudo-code.
+- Trace it line by line before writing the options. If the stem asks what it prints, the correct option must be exactly what it prints.
+- Use "scenario" for a sentence of setup the program needs, or leave it as an empty string.
+- The card may carry "questionCode" or "answerCode": that is the card's own example. Read it to understand the behaviour, but write a different program.
+
+Never write code for a deck that is not about programming.
+
+THE OPTIONS
+
+1. THE CORRECT ANSWER follows from the card's fact applied to the scenario, and exactly one option does.
+2. EXACTLY THREE WRONG ANSWERS. Not two, not four.
+3. EVERY WRONG ANSWER MUST BE UNAMBIGUOUSLY WRONG for this scenario. This is the rule that matters most. A distractor that is arguably also correct makes the question unanswerable and marks a student wrong for understanding the material. Scenarios leave more room for a second defensible answer than bare facts do, so check each wrong option against the scenario as written, not against the card.
+4. THE BEST WRONG ANSWERS are what a student gets by misapplying the idea: applying a neighbouring card's rule instead of this one, reversing a direction, missing a condition, stopping one step early, or an off-by-one in code. Those test understanding; an unrelated outcome is eliminated on sight.
+5. NO LENGTH TELL — do not make the correct answer the longest, most detailed or most qualified option. Keep all four the same kind of thing and about the same length, and keep EVERY option under 15 words.
+6. Never use "all of the above" or "none of the above".
+
+${distractorSafetyRules('the deck', 'An outcome that would genuinely follow from this scenario for a reason the deck does not mention')}
+
+Using the neighbours:
+
+Each neighbour comes as {"front": the question it asks, "back": its answer}. Use them for three things: the rule a half-learned student would wrongly apply instead (rule 4); facts you may rely on when a scenario needs more than this card states (the grounding rule); and checking that no wrong option is actually correct because a neighbour makes it so.
+
+OTHER RULES
+
+- "explanation" is EXACTLY ONE SENTENCE saying how the card's fact produces the correct answer in this scenario. It is shown only to a student who got the question wrong. Do not refer to "the card".
+- When the card gives a number as part of a rule (a threshold, a limit, a rate), use it verbatim.
+
+EXAMPLES
+
+A card with a cause and effect, applied to a new situation:
+Card: "What happens to the quantity supplied when the market price of a good rises?" / "It increases, other things being equal (the law of supply)."
+{"id":"q1","scenario":"A bakery sells croissants at a weekend market. After a rival stall closes, shoppers start paying $4 instead of $3 per croissant, and none of the bakery's costs change.","stem":"What does the law of supply predict the bakery will do?","correct":"Bring more croissants to the market","distractors":["Bring fewer croissants to the market","Bring exactly as many croissants as before","Cut the price back to $3"],"explanation":"A higher price with unchanged costs makes each extra croissant worth producing, so the quantity supplied rises."}
+
+A card about how code behaves, applied to a new program:
+Card: "When is the condition of a while loop checked?" / "Before each iteration; the loop stops as soon as the condition is false."
+{"id":"q2","scenario":"","code":{"language":"python","text":"n = 10\\nwhile n < 5:\\n    print(n)\\n    n += 1\\nprint('done')"},"stem":"What does this program print?","correct":"Only done","distractors":["10, then done","10 to 14, then done","Nothing at all"],"explanation":"The condition is checked before the first iteration and 10 < 5 is false, so the loop body never runs and only the last line prints."}
+
+A card with nothing to apply:
+Card: "Who proposed the theory of general relativity?" / "Albert Einstein."
+{"id":"q3","skip":"A name to remember; there is nothing to apply."}
+
+Return ONLY a JSON array, with no markdown fence and no commentary. Each element is one of:
+{"id": string, "scenario": string, "code": {"language": string, "text": string}?, "stem": string, "correct": string, "distractors": [string, string, string], "explanation": string}
+{"id": string, "skip": string}
+
+"id" must be copied exactly from the card you used. Every card in "cards" must appear exactly once.`;
+
+/**
+ * Reviews application questions already written, for the errors a scenario
+ * invites and a single pass cannot reliably catch in itself: an answer that
+ * leans on a rule the deck never taught, a program traced wrongly, and a
+ * wrong option the scenario makes defensible. Flagged questions are dropped
+ * and their cards retried, exactly as the vignette audit's are.
+ */
+export const APPLICATION_AUDIT_SYSTEM_PROMPT = `You are given application questions — a scenario, sometimes a short program, and a multiple-choice question — each with the flashcard it was written from, plus related cards from the same deck. Check every question:
+
+1. GROUNDED — the correct answer can be reached from the scenario using only the question's card and the related cards. Fail it if answering needs a rule, mechanism or fact they do not contain, or if the scenario asserts such a fact as background.
+2. CORRECT — the marked correct answer really is right for this scenario. If there is a program, trace it line by line; the answer must match what it actually does.
+3. ONE RIGHT ANSWER — no wrong option could also be defended as correct for this scenario.
+4. SELF-CONTAINED — the scenario gives everything needed to answer and does not name the answer.
+
+Return ONLY a JSON array, with no markdown fence and no commentary. Each element:
+{"id": string, "ok": boolean}
+
+"ok" is false if any check fails, true otherwise. Every id you were given must appear exactly once.`;
+
 export interface LlmQuizQuestion {
   /** The batch-local id the model was given; mapped back to a real card by the caller. */
   id: string;
@@ -163,8 +281,13 @@ export interface LlmQuizQuestion {
   correct: string;
   distractors: string[];
   explanation: string;
-  /** Empty for a recall question, and for a vignette that took the escape hatch. */
+  /**
+   * The scenario. Empty for a recall question, and for a vignette that took
+   * the escape hatch. An application question reads it from "scenario".
+   */
   vignette?: string;
+  /** A new program an application question is about. Never set for other styles. */
+  code?: { language?: string; text: string };
 }
 
 /**
@@ -264,6 +387,81 @@ function parseResponse(text: string, distractorCount: number): LlmQuizQuestion[]
   }
 
   return questions;
+}
+
+/**
+ * Limits on a program an application question writes. The prompt asks for
+ * under 15 lines; these are the hard edge past which a snippet is no longer a
+ * question-sized program and the whole question is dropped — it may be about
+ * that code, so it cannot be kept without it.
+ */
+const MAX_APPLICATION_CODE_LINES = 25;
+const MAX_APPLICATION_CODE_CHARS = 1500;
+
+/** A usable program from a reply, null when there is none, or 'invalid'. */
+function toCode(raw: unknown): { language?: string; text: string } | null | 'invalid' {
+  if (raw === undefined || raw === null) return null;
+  if (typeof raw !== 'object') return 'invalid';
+  const item = raw as Record<string, unknown>;
+  // Not trimmed at the start: leading indentation is part of a program.
+  const text = typeof item.text === 'string' ? item.text.replace(/\s+$/, '') : '';
+  if (!text.trim()) return 'invalid';
+  if (text.length > MAX_APPLICATION_CODE_CHARS) return 'invalid';
+  if (text.split('\n').length > MAX_APPLICATION_CODE_LINES) return 'invalid';
+  const language = trimmedString(item.language);
+  return language ? { language, text } : { text };
+}
+
+/** What an application reply holds: questions, and the cards the model declined. */
+export interface ApplicationReply {
+  questions: LlmQuizQuestion[];
+  /** Cards judged to have nothing to apply, by batch-local id, with the model's reason. */
+  skipped: { id: string; reason: string }[];
+}
+
+/**
+ * Parses an application-style reply: four options, a scenario or a program,
+ * and skips.
+ *
+ * A skip is an element carrying a non-empty "skip" string and no stem. It is a
+ * verdict about the card, not a failure, so it is returned apart from the
+ * questions and its card is not retried. An element that is neither a usable
+ * question nor a skip is dropped, and its card is retried like any other.
+ *
+ * Stricter than the recall parser in two ways. A question with neither a
+ * scenario nor a program is recall in disguise and is dropped. And a program
+ * that is malformed or oversized drops its question rather than just itself,
+ * because the stem is very likely about it.
+ */
+export function parseApplicationResponse(text: string): ApplicationReply {
+  const questions: LlmQuizQuestion[] = [];
+  const skipped: { id: string; reason: string }[] = [];
+  const usedIds = new Set<string>();
+
+  for (const raw of parseJsonArray(text)) {
+    if (!raw || typeof raw !== 'object') continue;
+    const item = raw as Record<string, unknown>;
+    const id = trimmedString(item.id);
+    if (!id || usedIds.has(id)) continue;
+
+    const reason = trimmedString(item.skip);
+    if (reason && !trimmedString(item.stem)) {
+      usedIds.add(id);
+      skipped.push({ id, reason });
+      continue;
+    }
+
+    const code = toCode(item.code);
+    if (code === 'invalid') continue;
+    const question = toQuestion({ ...item, vignette: item.scenario }, DISTRACTOR_COUNT);
+    if (!question) continue;
+    if (!question.vignette && !code) continue;
+
+    usedIds.add(id);
+    questions.push(code ? { ...question, code } : question);
+  }
+
+  return { questions, skipped };
 }
 
 /** Parses a recall-style reply: four options, no vignette. */
