@@ -682,3 +682,24 @@ chose to *skip*; a card whose question the audit rejected to death is not counte
 it is not in `notApplicableCardIds`. Run B scored 8/8 while c9 ("What does React do in
 Strict Mode…", an apply card) produced no question at all. Read the failed-card count
 beside the applied figure, not instead of it.
+
+## 2026-09-19 — card prompt: yes/no fronts, one-answer fronts, paraphrased repeats
+
+Three patterns found in a real React slide deck (now `tools/fixtures/render-and-commit-cards.json`)
+that the card prompt did not address:
+
+- **Near-duplicates in different words.** "What are the three steps involved in React displaying UI
+  on screen?" and "What are the three steps that happen during any screen update in a React app?"
+  score 0.67 / 0.67 — far below the 0.9 / 0.9 dedupe threshold, which is deliberate (see "What this
+  deliberately does not catch" above). Rule 7 now says one fact gets one card however it is worded,
+  within a section as well as across sections.
+- **Yes/no fronts.** "Does React touch the DOM if the rendering result is the same as last time?"
+  restated another card's rule as a coin toss. Rule 3 now forbids yes/no questions.
+- **Many-answer fronts.** "What can you use to find mistakes in your React components?" → "Strict
+  Mode." has many correct answers. New rule 8 requires one.
+
+**What a prompt cannot fix.** Rule 7 only sees the sections in one request (`BATCH_SIZE = 4`
+sections in `aiGenerator.ts`). An intro slide and a recap slide drafted in different requests can
+still produce the same card twice. Catching that needs a meaning-based pass over the whole deck
+after drafting; it is not part of this change. To measure: re-draft the source of the fixture deck
+and count repeated facts, yes/no fronts and many-answer fronts, before and after.
