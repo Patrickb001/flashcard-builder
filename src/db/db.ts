@@ -1,6 +1,7 @@
 import { openDB, type DBSchema, type IDBPDatabase } from 'idb';
 import type { Deck, Flashcard, Folder, Infographic, TestQuestion } from '../types';
 import { DuplicateFolderNameError, cleanFolderName, isDuplicateFolderName } from '../lib/deckFolders';
+import { applyGrade, startOfNextDay, type Grade } from '../lib/scheduling';
 
 interface FlashcardForgeDB extends DBSchema {
   decks: {
@@ -11,7 +12,13 @@ interface FlashcardForgeDB extends DBSchema {
   flashcards: {
     key: string;
     value: Flashcard;
-    indexes: { 'by-deckId': string };
+    /**
+     * `by-deck-due` holds only cards that have a schedule: IndexedDB leaves a
+     * record out of an index when the key path is missing, and a new card has
+     * no `srs`. That is what lets the library count due cards without reading
+     * any card — and count new ones as cardCount minus the scheduled ones.
+     */
+    indexes: { 'by-deckId': string; 'by-deck-due': [string, number] };
   };
   testQuestions: {
     key: string;
@@ -35,7 +42,7 @@ interface FlashcardForgeDB extends DBSchema {
 }
 
 const DB_NAME = 'flashcard-forge';
-const DB_VERSION = 4;
+const DB_VERSION = 5;
 
 let dbPromise: Promise<IDBPDatabase<FlashcardForgeDB>> | null = null;
 
@@ -96,7 +103,7 @@ function getDB() {
        * that already exists throws ConstraintError, which on a version bump
        * would leave every existing user unable to open their decks at all.
        */
-      upgrade(db, oldVersion) {
+      upgrade(db, oldVersion, _newVersion, transaction) {
         if (oldVersion < 1) {
           const deckStore = db.createObjectStore('decks', { keyPath: 'id' });
           deckStore.createIndex('by-createdAt', 'createdAt');
@@ -120,6 +127,13 @@ function getDB() {
         if (oldVersion < 4) {
           const infographicStore = db.createObjectStore('infographics', { keyPath: 'id' });
           infographicStore.createIndex('by-deckId', 'deckId');
+        }
+
+        // An index on an existing store, so it goes through the upgrade
+        // transaction rather than db. IndexedDB fills it from the records
+        // already there; cards without a schedule are simply not in it.
+        if (oldVersion < 5) {
+          transaction.objectStore('flashcards').createIndex('by-deck-due', ['deckId', 'srs.due']);
         }
       },
 
@@ -202,15 +216,82 @@ export async function getCardsForDeck(deckId: string): Promise<Flashcard[]> {
 }
 
 /**
- * Overwrites one card in place.
+ * Writes new text onto a card, leaving everything else on the record alone.
  *
- * The deck's cardCount is untouched, because this never adds or removes a card
- * — use addCard or deleteCard for that. Called on every textarea blur in the
- * deck manager, including blurs that changed nothing.
+ * Read and write in one transaction, for the reason renameDeck gives. The deck
+ * manager used to write back its whole in-memory card on every blur, which
+ * would put back a schedule from whenever that screen loaded — undoing any
+ * study done since in another tab. A card deleted meanwhile stays deleted.
  */
-export async function updateCard(card: Flashcard): Promise<void> {
+export async function updateCardContent(
+  cardId: string,
+  content: Pick<Flashcard, 'front' | 'back'>
+): Promise<void> {
   const db = await getDB();
-  await db.put('flashcards', card);
+  const tx = db.transaction('flashcards', 'readwrite');
+  const card = await tx.store.get(cardId);
+  if (card) {
+    card.front = content.front;
+    card.back = content.back;
+    await tx.store.put(card);
+  }
+  await tx.done;
+}
+
+/**
+ * Grades one card and saves its new schedule, returning the card as stored.
+ *
+ * Read-modify-write on the stored record rather than on the caller's copy, so
+ * a schedule is always computed from the latest one. Returns undefined when the
+ * card has been deleted, and the unchanged card when the grade does not count
+ * (see countsAsReview) — in which case nothing is written.
+ */
+export async function reviewCard(cardId: string, grade: Grade, now: number): Promise<Flashcard | undefined> {
+  const db = await getDB();
+  const tx = db.transaction('flashcards', 'readwrite');
+  const card = await tx.store.get(cardId);
+  if (!card) {
+    await tx.done;
+    return undefined;
+  }
+  const updated = applyGrade(card, grade, now);
+  if (updated !== card) await tx.store.put(updated);
+  await tx.done;
+  return updated;
+}
+
+/**
+ * How many cards in each deck are due, and how many are new, without reading
+ * a single card.
+ *
+ * Counts on the `by-deck-due` index: due is every scheduled card whose date
+ * falls before the end of today, and new is the deck's cardCount less every
+ * scheduled card. All counts are issued before any is awaited, in one
+ * transaction, so a library of fifty decks is one round trip.
+ */
+export async function getStudyCounts(
+  decks: Pick<Deck, 'id' | 'cardCount'>[],
+  now: number
+): Promise<Map<string, { due: number; new: number }>> {
+  const db = await getDB();
+  const index = db.transaction('flashcards').store.index('by-deck-due');
+  const cutoff = startOfNextDay(now);
+
+  const counts = await Promise.all(
+    decks.map((deck) =>
+      Promise.all([
+        index.count(IDBKeyRange.bound([deck.id, -Infinity], [deck.id, cutoff], false, true)),
+        index.count(IDBKeyRange.bound([deck.id, -Infinity], [deck.id, Infinity])),
+      ])
+    )
+  );
+
+  const result = new Map<string, { due: number; new: number }>();
+  decks.forEach((deck, i) => {
+    const [due, scheduled] = counts[i];
+    result.set(deck.id, { due, new: Math.max(0, deck.cardCount - scheduled) });
+  });
+  return result;
 }
 
 /**
@@ -319,48 +400,66 @@ export async function saveQuestions(questions: TestQuestion[]): Promise<void> {
 }
 
 /**
- * Marks questions as asked, and records whether they were answered correctly.
+ * Marks questions as asked, records whether they were answered correctly, and
+ * sends the card behind every missed question back for review.
  *
- * Read-modify-write inside one transaction so two answers landing close
- * together cannot overwrite each other's counts. A question that has since been
- * deleted is skipped rather than recreated — another tab may have removed its
- * card while this test was running.
+ * Read-modify-write inside one transaction across both stores, so two answers
+ * landing close together cannot overwrite each other's counts, and a miss can
+ * never be counted on the question without reaching its card. A question or
+ * card that has since been deleted is skipped rather than recreated — another
+ * tab may have removed it while this test was running.
+ *
+ * A miss grades the card `again`, which makes it due now. A correct answer
+ * leaves the card's schedule alone: picking the right option out of four is
+ * recognition, weaker evidence than the recall a study session asks for, and
+ * countsAsReview would ignore it on any card not yet due anyway.
  */
 export async function recordQuestionsAsked(
-  results: { questionId: string; correct: boolean }[]
+  results: { questionId: string; correct: boolean }[],
+  now: number = Date.now()
 ): Promise<void> {
   if (results.length === 0) return;
   const db = await getDB();
-  const tx = db.transaction('testQuestions', 'readwrite');
-  const now = Date.now();
+  const tx = db.transaction(['testQuestions', 'flashcards'], 'readwrite');
+  const questionStore = tx.objectStore('testQuestions');
+  const cardStore = tx.objectStore('flashcards');
 
   // Totalled per question first, so a question answered twice in one run is
-  // still counted twice once the reads below are issued together.
-  const tally = new Map<string, { asked: number; correct: number }>();
+  // still counted twice once the reads below are issued together. `last` is
+  // the latest answer, which is the one lastCorrect should describe.
+  const tally = new Map<string, { asked: number; correct: number; last: boolean }>();
   for (const { questionId, correct } of results) {
-    const entry = tally.get(questionId) ?? { asked: 0, correct: 0 };
+    const entry = tally.get(questionId) ?? { asked: 0, correct: 0, last: correct };
     entry.asked += 1;
     if (correct) entry.correct += 1;
+    entry.last = correct;
     tally.set(questionId, entry);
   }
 
-  // Every read is issued before any is awaited, then every write: two round
-  // trips rather than two per question, with no gap for the transaction to
+  // Every read is issued before any is awaited, then every write: a few round
+  // trips rather than a few per question, with no gap for the transaction to
   // go inactive in.
   const ids = [...tally.keys()];
-  const found = await Promise.all(ids.map((id) => tx.store.get(id)));
+  const found = await Promise.all(ids.map((id) => questionStore.get(id)));
 
   const writes: Promise<unknown>[] = [];
+  const missedCardIds = new Set<string>();
   found.forEach((question, i) => {
-    // Skipped rather than recreated: another tab may have deleted the card
-    // this question came from while the test was running.
     if (!question) return;
     const entry = tally.get(ids[i])!;
     question.timesAsked += entry.asked;
     question.lastAskedAt = now;
     question.timesCorrect += entry.correct;
-    writes.push(tx.store.put(question));
+    question.lastCorrect = entry.last;
+    if (entry.asked > entry.correct) missedCardIds.add(question.cardId);
+    writes.push(questionStore.put(question));
   });
+
+  const cardIds = [...missedCardIds];
+  const cards = await Promise.all(cardIds.map((id) => cardStore.get(id)));
+  for (const card of cards) {
+    if (card) writes.push(cardStore.put(applyGrade(card, 'again', now)));
+  }
 
   await Promise.all([...writes, tx.done]);
 }

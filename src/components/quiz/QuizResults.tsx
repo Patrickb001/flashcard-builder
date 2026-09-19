@@ -15,6 +15,10 @@ interface Props {
   cardFor: (question: TestQuestion) => Flashcard | undefined;
   /** Starts another test over the same deck. */
   onAgain: () => void;
+  /** Starts a sitting of only the questions missed in this one. */
+  onRetestMissed: () => void;
+  /** Opens a review session, where the missed cards are now due. */
+  onStudyMissed: () => void;
   onManageExit: (id: string) => void;
 }
 
@@ -32,6 +36,8 @@ export default function QuizResults({
   answers,
   cardFor,
   onAgain,
+  onRetestMissed,
+  onStudyMissed,
   onManageExit,
   deckId,
 }: Props) {
@@ -58,9 +64,14 @@ export default function QuizResults({
           <p className="eyebrow">
             Review — {missedCount} missed · {correctCount} correct
           </p>
-          {missedCount === 0 && (
+          {missedCount === 0 ? (
             <p className="muted centered">
               Clean sheet — every answer correct.
+            </p>
+          ) : (
+            <p className="muted centered">
+              The {missedCount === 1 ? "card behind the question" : `${missedCount} cards behind the questions`}{" "}
+              you missed {missedCount === 1 ? "is" : "are"} now due for review.
             </p>
           )}
 
@@ -144,6 +155,16 @@ export default function QuizResults({
         <button className="ghost-btn" onClick={() => onManageExit(deckId)}>
           Back to deck manager
         </button>
+        {missedCount > 0 && (
+          <>
+            <button className="secondary-btn" onClick={onStudyMissed}>
+              Study them now
+            </button>
+            <button className="secondary-btn" onClick={onRetestMissed}>
+              Retest what I missed
+            </button>
+          </>
+        )}
         <button className="primary-btn" onClick={onAgain}>
           Test again
         </button>

@@ -91,6 +91,33 @@ Every candidate then passes `src/lib/cardValidation.ts`, which rejects truncated
 
 Generation is rule-based, with no external AI call, so review the draft deck before saving — the review screen exists for exactly that.
 
+## Studying a deck
+
+Studying follows a spaced-repetition schedule, in `src/lib/scheduling.ts`: a trimmed
+SM-2, the algorithm Anki grew from. Each card carries its own schedule (`srs` on the
+record); a card with none is **new**, which is every card saved before scheduling
+existed, so nothing needed migrating.
+
+**Study** opens a review session: the cards that are due, shuffled so one topic is not
+drilled in a block, then up to twenty new cards in deck order. "Knew it" sends a card
+out for longer each time — one day, then roughly three, eight, twenty. "Still learning"
+makes it due again and brings it back three cards later in the same session. When
+nothing is due the screen says so, and when the next review is.
+
+"Due" means due before the end of today, not before this instant, so a card due at 9 pm
+still comes up in the morning session.
+
+**Study all cards** (`?mode=all`) is the old run through the whole deck, for cramming.
+One rule keeps it from distorting the schedule: *forgetting always counts; remembering
+counts only when the card was up for review.* Knowing a card days before it is due
+changes nothing, because it says nothing about whether it survives the full gap.
+Forgetting one always makes it due.
+
+Tests feed the same schedule. A missed question makes its card due immediately; a
+correct one leaves the schedule alone, since picking the right option out of four is
+recognition, weaker evidence than recall. The library and the deck manager show how many
+cards are due and new; the library counts them from an index, without reading any card.
+
 ## Testing a deck
 
 A saved deck can be studied or **tested**. A test is multiple choice, graded on the
@@ -141,13 +168,17 @@ rather than shipped. `parseQuizResponse` enforces what it can — three distinct
 options, none restating the answer — and recovers the intact questions from a reply
 that was cut off mid-array.
 
-Which questions a test asks is `src/lib/quizSelection.ts`. Questions are tiered by
-how often they have been asked and a tier is emptied before the next is touched, so
-nothing repeats until everything has been asked once, with the order random inside
-each tier. Option order is shuffled at presentation rather than stored, so a model
-that likes to list the answer first cannot put it in slot A for every sitting. The
-counter moves as each answer is committed, not at the end, so quitting a test part
-way still counts what you did and leaves the rest untouched.
+Which questions a test asks is `src/lib/quizSelection.ts`. Questions missed the last
+time they were asked go first, up to 30% of the test, so a miss comes back without the
+test turning into nothing but misses. The rest are tiered by how often they have been
+asked and a tier is emptied before the next is touched, so apart from recent misses,
+nothing repeats until everything has been asked once, with the order random inside each
+tier. After a test, **Retest what I missed** runs a sitting of only the misses, and
+**Study them now** opens a review session where their cards are due. Option order is
+shuffled at presentation rather than stored, so a model that likes to list the answer
+first cannot put it in slot A for every sitting. The counter moves as each answer is
+committed, not at the end, so quitting a test part way still counts what you did and
+leaves the rest untouched.
 
 ## Inspecting the pipeline
 
@@ -175,6 +206,15 @@ node --experimental-strip-types --import ./tools/register.mjs \
 # Folder grouping, library sorting, and the remembered sort choice. Pure; no key.
 node --experimental-strip-types --import ./tools/register.mjs \
   tools/test-folders.mjs
+
+# Spaced-repetition scheduling and study queues. Pure; no key.
+node --experimental-strip-types --import ./tools/register.mjs \
+  tools/test-scheduling.mjs
+
+# The scheduling writes in db.ts, including the v4 -> v5 upgrade, against an
+# in-memory IndexedDB (fake-indexeddb). Behaviour only; races stay in idb-check.html.
+node --experimental-strip-types --import ./tools/register.mjs \
+  tools/test-srs-db.mjs
 ```
 
 `tools/test-quiz.mjs` is the one to run after touching question generation. It
@@ -204,7 +244,7 @@ Edit the `path` constant at the top of the PDF harnesses to point at your own fi
 
 ## Tech stack
 
-React + TypeScript + Vite, `pdfjs-dist` for PDF text, `jszip` for `.pptx`, hand-rolled readers for `.md` and HTML (the browser's own `DOMParser` does the tokenizing), `idb` for IndexedDB. `linkedom` is a devDependency only: it stands in for the DOM so the test harnesses can run the real parsers under Node.
+React + TypeScript + Vite, `pdfjs-dist` for PDF text, `jszip` for `.pptx`, hand-rolled readers for `.md` and HTML (the browser's own `DOMParser` does the tokenizing), `idb` for IndexedDB. `linkedom` is a devDependency only: it stands in for the DOM so the test harnesses can run the real parsers under Node. `fake-indexeddb` is likewise a devDependency, used only by `tools/test-srs-db.mjs`.
 
 ## Build for production
 

@@ -1,8 +1,16 @@
-import { useMemo, useState } from "react";
-import type { Flashcard } from "../types";
-import { updateCard } from "../db/db";
-import { Diagram, Snippet } from "./CardMedia";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { reviewCard } from "../db/db";
+import { describeDue, type Grade } from "../lib/scheduling";
 import { shuffle } from "../lib/shuffle";
+import {
+  NEW_PER_SESSION,
+  buildQueue,
+  countStudyable,
+  nextDueAt,
+  requeue,
+  type StudySessionMode,
+} from "../lib/studyQueue";
+import { Diagram, Snippet } from "./CardMedia";
 import { useDeck } from "./useDeck";
 import DeckGate from "./ui/DeckGate";
 import ProgressBar from "./ui/ProgressBar";
@@ -12,94 +20,110 @@ import Tally from "./ui/Tally";
 interface Props {
   /** The deck to study. Its cards are read once, on mount. */
   deckId: string;
+  /** Review (due + some new) or all cards. Comes from the URL; see StudyRoute. */
+  mode: StudySessionMode;
   onExit: () => void;
+  /** Switches mode by changing the URL, so Back returns to the previous one. */
+  onChangeMode: (mode: StudySessionMode) => void;
 }
 
 /**
- * A study run: one card at a time, flipped by click or space, marked known or
- * still-learning.
+ * A study session: one card at a time, flipped by click or space, graded
+ * "Knew it" (good) or "Still learning" (again).
  *
- * Marking a card writes its status straight to the database and advances, so a
- * run interrupted halfway is not lost. A failed write is reported but does not
- * stop the run — losing one card's status is not worth interrupting studying.
+ * In review mode the session is what the schedule says is due, then up to
+ * NEW_PER_SESSION new cards. In all mode it is the whole deck, for cramming.
+ * Either way a grade goes through reviewCard, which applies countsAsReview —
+ * so knowing a card early while cramming never inflates its interval, and
+ * forgetting one always counts.
+ *
+ * A missed card comes back REQUEUE_GAP cards later, until it is known. Every
+ * grade is written before the card advances, so a session interrupted halfway
+ * keeps everything graded so far.
  */
-export default function StudyMode({ deckId, onExit }: Props) {
+export default function StudyMode({ deckId, mode, onExit, onChangeMode }: Props) {
   const { deck, cards, setCards, loading, error, setError } = useDeck(deckId);
+
+  /**
+   * The session, as card ids. Built once per session rather than derived from
+   * `cards` on every render: grading updates `cards`, and rebuilding from that
+   * would drop each card from the queue the moment it stopped being due.
+   * Looked up by id at render, so a graded card is never shown stale.
+   */
+  const [queue, setQueue] = useState<string[] | null>(null);
   const [position, setPosition] = useState(0);
   const [flipped, setFlipped] = useState(false);
+  const [saving, setSaving] = useState(false);
   const [known, setKnown] = useState(0);
   const [unknown, setUnknown] = useState(0);
+  const [reviewed, setReviewed] = useState<Set<string>>(() => new Set());
 
-  /**
-   * The run's order, as a permutation of `cards` rather than a second copy.
-   *
-   * Only the shuffle decision is state. Holding the ordered cards themselves
-   * meant every card edit had to be written to two arrays, and marking a card
-   * updated one of them — leaving the other serving the pre-update object.
-   */
-  const [shuffled, setShuffled] = useState(false);
-  const [shuffleSeed, setShuffleSeed] = useState(0);
-  const order = useMemo(() => {
-    // The seed's only job is to re-run this memo, so that shuffling twice over
-    // the same cards gives two different orders. Named here so the dependency
-    // below is not an unused one somebody later removes as a mistake.
-    void shuffleSeed;
-    return shuffled ? shuffle(cards) : cards;
-  }, [cards, shuffled, shuffleSeed]);
+  /** Latest cards for startSession, without making it rebuild on every grade. */
+  const cardsRef = useRef(cards);
+  useEffect(() => {
+    cardsRef.current = cards;
+  }, [cards]);
 
-  const current = order[position];
-  const finished = order.length > 0 && position >= order.length;
+  /** Builds a fresh session from the cards as they are now. */
+  const startSession = useCallback(
+    (shuffleAll = false) => {
+      const ids = buildQueue(cardsRef.current, mode, Date.now());
+      setQueue(mode === "all" && shuffleAll ? shuffle(ids) : ids);
+      setPosition(0);
+      setFlipped(false);
+      setKnown(0);
+      setUnknown(0);
+      setReviewed(new Set());
+    },
+    [mode],
+  );
 
-  /**
-   * Whether ANY card in this deck carries a snippet or a diagram — not whether
-   * the card on screen does.
-   *
-   * The card's height follows from this, so every card in a deck is the same
-   * size and moving through them doesn't resize the box under the cursor. Asked
-   * per card instead, the deck jumped between two heights as you went.
-   *
-   * A deck with no media anywhere still gets the compact card: there is nothing
-   * for the extra room to hold, and nothing to be consistent with.
-   */
+  // Declared after the ref effect above, so the ref holds the loaded cards by
+  // the time this runs in the same commit.
+  useEffect(() => {
+    if (!loading) startSession();
+  }, [loading, startSession]);
+
+  const cardsById = useMemo(
+    () => new Map(cards.map((card) => [card.id, card])),
+    [cards],
+  );
+
+  /** Same height for every card in a deck with any media; see the CSS. */
   const deckHasMedia = useMemo(
     () => cards.some((card) => card.frontCode || card.backCode || card.image),
     [cards],
   );
 
-  const progressFraction =
-    order.length === 0 ? 0 : Math.min(position, order.length) / order.length;
+  const current = queue ? cardsById.get(queue[position]) : undefined;
+  const finished = queue !== null && position >= queue.length;
 
-  /** Records how the current card went, saves it, and moves to the next. */
-  const mark = async (status: "known" | "unknown") => {
-    if (!current) return;
-    if (status === "known") setKnown((k) => k + 1);
-    else setUnknown((u) => u + 1);
-    const updated: Flashcard = { ...current, status };
+  /** Records a grade, saves it, requeues a miss, and moves to the next card. */
+  const mark = async (grade: Grade) => {
+    if (!current || !queue || saving) return;
+    const graded = current;
+    const at = position;
+    setSaving(true);
+    if (grade === "again") setUnknown((u) => u + 1);
+    else setKnown((k) => k + 1);
+    setReviewed((prev) => new Set(prev).add(graded.id));
+
     try {
-      await updateCard(updated);
+      const stored = await reviewCard(graded.id, grade, Date.now());
+      if (stored) {
+        setCards((prev) => prev.map((card) => (card.id === stored.id ? stored : card)));
+      }
     } catch (err) {
-      // The card still advances: losing a status write is not worth
-      // interrupting a study run over, but it should not be silent either.
-      console.error("[study] Could not save the card status:", err);
+      // The card still advances: losing one grade is not worth stopping a
+      // session over, but it should not be silent either.
+      console.error("[study] Could not save the grade:", err);
       setError("Your progress on that card could not be saved.");
     }
-    setCards((prev) =>
-      prev.map((card) => (card.id === updated.id ? updated : card)),
-    );
+
+    if (grade === "again") setQueue((q) => (q ? requeue(q, at, graded.id) : q));
     setFlipped(false);
     setPosition((p) => p + 1);
-  };
-
-  /** Starts the deck again, in document order or shuffled. */
-  const restart = (wantShuffled: boolean) => {
-    setShuffled(wantShuffled);
-    // Bumped even when the answer is the same, so shuffling twice in a row
-    // reshuffles rather than replaying the identical order.
-    setShuffleSeed((seed) => seed + 1);
-    setPosition(0);
-    setFlipped(false);
-    setKnown(0);
-    setUnknown(0);
+    setSaving(false);
   };
 
   if (loading || !deck) {
@@ -115,10 +139,46 @@ export default function StudyMode({ deckId, onExit }: Props) {
       </div>
     );
   }
+  if (queue === null) return null;
+
+  const now = Date.now();
+  const remaining = countStudyable(cards, now);
+  const nextDue = nextDueAt(cards, now);
+  const nextDueLine =
+    nextDue === null ? null : `Next review ${describeDue(nextDue, now)}.`;
+
+  // Nothing due and nothing new: say so, rather than showing an empty session.
+  if (queue.length === 0) {
+    return (
+      <div className="study">
+        <ScreenHeader eyebrow="Review" title={deck.name} />
+        <div className="study-summary">
+          <h2>All caught up</h2>
+          <p className="muted">
+            Nothing in this deck is due today.{nextDueLine ? ` ${nextDueLine}` : ""}
+          </p>
+          <div className="form-actions">
+            <button className="ghost-btn" onClick={onExit}>
+              Back to library
+            </button>
+            <button className="secondary-btn" onClick={() => onChangeMode("all")}>
+              Study all cards anyway
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  const progressFraction = Math.min(position, queue.length) / queue.length;
+  const moreToStudy = remaining.due + remaining.new;
 
   return (
     <div className="study">
-      <ScreenHeader eyebrow="Studying" title={deck.name}>
+      <ScreenHeader
+        eyebrow={mode === "all" ? "Studying all cards" : "Review"}
+        title={deck.name}
+      >
         <div className="tally-board">
           <div className="tally-row">
             <span className="tally-label knew">Knew it</span>
@@ -136,11 +196,11 @@ export default function StudyMode({ deckId, onExit }: Props) {
       {!finished && current && (
         <>
           <p className="muted small centered">
-            Card {position + 1} of {order.length} · {current.sourceLabel}
+            Card {position + 1} of {queue.length} · {current.sourceLabel}
           </p>
 
           <div
-            key={current.id}
+            key={`${current.id}-${position}`}
             className={`flip-card ${flipped ? "is-flipped" : ""} ${
               deckHasMedia ? "deck-has-media" : ""
             }`}
@@ -183,13 +243,15 @@ export default function StudyMode({ deckId, onExit }: Props) {
           <div className="study-actions">
             <button
               className="secondary-btn learning"
-              onClick={() => mark("unknown")}
+              disabled={saving}
+              onClick={() => mark("again")}
             >
               Still learning
             </button>
             <button
               className="secondary-btn knew"
-              onClick={() => mark("known")}
+              disabled={saving}
+              onClick={() => mark("good")}
             >
               Knew it
             </button>
@@ -197,21 +259,44 @@ export default function StudyMode({ deckId, onExit }: Props) {
         </>
       )}
 
-      {finished && (
+      {finished && mode === "review" && (
         <div className="study-summary">
-          <h2>Deck complete</h2>
+          <h2>Session complete</h2>
           <p className="muted">
-            {known} knew it · {unknown} still learning, out of {order.length}{" "}
-            cards.
+            {reviewed.size} card{reviewed.size === 1 ? "" : "s"} reviewed
+            {unknown > 0 ? ` · ${unknown} miss${unknown === 1 ? "" : "es"} retried` : ""}.
+            {nextDueLine ? ` ${nextDueLine}` : ""}
           </p>
           <div className="form-actions">
             <button className="ghost-btn" onClick={onExit}>
               Back to library
             </button>
-            <button className="secondary-btn" onClick={() => restart(false)}>
+            {moreToStudy > 0 && (
+              <button className="primary-btn" onClick={() => startSession()}>
+                {remaining.due > 0
+                  ? "Keep going"
+                  : `Learn ${Math.min(remaining.new, NEW_PER_SESSION)} more new cards`}
+              </button>
+            )}
+          </div>
+        </div>
+      )}
+
+      {finished && mode === "all" && (
+        <div className="study-summary">
+          <h2>Deck complete</h2>
+          <p className="muted">
+            {known} knew it · {unknown} still learning, over {reviewed.size} cards.
+            Cards you knew before they were due keep their schedule.
+          </p>
+          <div className="form-actions">
+            <button className="ghost-btn" onClick={onExit}>
+              Back to library
+            </button>
+            <button className="secondary-btn" onClick={() => startSession(false)}>
               Study again
             </button>
-            <button className="primary-btn" onClick={() => restart(true)}>
+            <button className="primary-btn" onClick={() => startSession(true)}>
               Shuffle &amp; restart
             </button>
           </div>
@@ -223,9 +308,11 @@ export default function StudyMode({ deckId, onExit }: Props) {
           <button className="ghost-btn" onClick={onExit}>
             Exit to library
           </button>
-          <button className="ghost-btn" onClick={() => restart(true)}>
-            Shuffle deck
-          </button>
+          {mode === "all" && (
+            <button className="ghost-btn" onClick={() => startSession(true)}>
+              Shuffle deck
+            </button>
+          )}
         </div>
       )}
     </div>

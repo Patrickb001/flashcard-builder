@@ -1,7 +1,7 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import type { Deck, Folder } from '../types';
-import { getAllDecks, getAllFolders, onUpgradeBlocked } from '../db/db';
+import { getAllDecks, getAllFolders, getStudyCounts, onUpgradeBlocked } from '../db/db';
 import { parseFolderFilter } from '../lib/deckFolders';
 import DeckLibrary from '../components/DeckLibrary';
 
@@ -22,6 +22,9 @@ export default function LibraryRoute() {
   const [folders, setFolders] = useState<Folder[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [studyCounts, setStudyCounts] = useState<Map<string, { due: number; new: number }>>();
+  /** Which refresh the latest count belongs to, so a slow count cannot land over a newer one. */
+  const countsRequest = useRef(0);
 
   // loading is cleared on both paths. Clearing it only on success is what
   // left this screen spinning forever whenever IndexedDB was unavailable -
@@ -35,6 +38,17 @@ export default function LibraryRoute() {
       const [allDecks, allFolders] = await Promise.all([getAllDecks(), getAllFolders()]);
       setDecks(allDecks);
       setFolders(allFolders);
+      // Counted after the lists are on screen, and allowed to fail on its own:
+      // a shelf without due counts is still a working shelf.
+      const request = ++countsRequest.current;
+      getStudyCounts(allDecks, Date.now())
+        .then((counts) => {
+          if (request === countsRequest.current) setStudyCounts(counts);
+        })
+        .catch((err) => {
+          console.error('[app] Could not count due cards:', err);
+          if (request === countsRequest.current) setStudyCounts(undefined);
+        });
     } catch (err) {
       console.error('[app] Could not read the deck list:', err);
       setError(
@@ -81,6 +95,7 @@ export default function LibraryRoute() {
       onStudy={(deckId) => navigate(`/deck/${deckId}/study`)}
       onManage={(deckId) => navigate(`/deck/${deckId}`)}
       onLibraryChange={refreshLibrary}
+      studyCounts={studyCounts}
     />
   );
 }

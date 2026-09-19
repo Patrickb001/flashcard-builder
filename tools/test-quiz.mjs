@@ -124,6 +124,44 @@ for (let i = 0; i < 20 && !differed; i++) {
 }
 check('two draws from the same pool differ', differed, true);
 
+// Recent misses come back, but only up to MISSED_SHARE of a test.
+const missedPool = pool.map((q, i) => ({ ...q, timesAsked: 1, lastCorrect: i < 5 ? false : true }));
+const missedIds = new Set(missedPool.slice(0, 5).map((q) => q.id));
+// At least three, not exactly: once the quota is met, the remaining misses sit
+// in the same timesAsked tier as everything else and may be drawn from it.
+let atLeastThree = true;
+for (let i = 0; i < 20; i++) {
+  const drawn = selectQuestions(missedPool, 10).filter((q) => missedIds.has(q.id)).length;
+  if (drawn < 3) atLeastThree = false;
+}
+check('a test of ten carries at least three recent misses when five exist', atLeastThree, true);
+check(
+  'with no quota, misses get no priority',
+  (() => {
+    for (let i = 0; i < 40; i++) {
+      if (selectQuestions(missedPool, 2, 0).filter((q) => missedIds.has(q.id)).length === 0) return true;
+    }
+    return false;
+  })(),
+  true
+);
+check(
+  'even a test of two carries a recent miss',
+  selectQuestions(missedPool, 2).filter((q) => missedIds.has(q.id)).length >= 1,
+  true
+);
+check(
+  'misses are not drawn twice',
+  new Set(selectQuestions(missedPool, 30).map((q) => q.id)).size,
+  30
+);
+const oneMiss = pool.map((q, i) => (i === 7 ? { ...q, timesAsked: 3, lastCorrect: false } : q));
+let missReturned = true;
+for (let i = 0; i < 20; i++) {
+  if (!selectQuestions(oneMiss, 10).some((q) => q.id === 'id-7')) missReturned = false;
+}
+check('a single miss always comes back, even from the most-asked tier', missReturned, true);
+
 // Option order must not be stored, or a model that answers first every time
 // would put the answer in slot A for every sitting.
 const question = pool[0];

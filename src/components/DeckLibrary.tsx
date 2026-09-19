@@ -37,6 +37,11 @@ interface Props {
   onManage: (deckId: string) => void;
   /** Fired after a deck or folder changes, so the route can re-read both lists. */
   onLibraryChange: () => Promise<void>;
+  /**
+   * Due and new counts per deck id. Absent while loading or when the counts
+   * could not be read — the shelf then simply shows no study line.
+   */
+  studyCounts?: Map<string, { due: number; new: number }>;
 }
 
 const SORT_OPTIONS: { value: LibrarySort; label: string }[] = [
@@ -63,6 +68,7 @@ export default function DeckLibrary({
   onStudy,
   onManage,
   onLibraryChange,
+  studyCounts,
 }: Props) {
   const [actionError, setActionError] = useState<string | null>(null);
   // Read on the first render rather than in an effect: set afterwards, the
@@ -487,6 +493,7 @@ export default function DeckLibrary({
                     <p className="deck-meta">
                       {deck.cardCount} card{deck.cardCount === 1 ? '' : 's'} · from {deck.sourceFileName}
                     </p>
+                    <StudyLine counts={studyCounts?.get(deck.id)} />
                     <div className="deck-card-actions">
                       <button
                         className="btn-study"
@@ -591,5 +598,19 @@ export default function DeckLibrary({
         </div>
       </Modal>
     </div>
+  );
+}
+
+/** "5 due · 12 new" under a deck, or "All caught up". Nothing until counts load. */
+function StudyLine({ counts }: { counts?: { due: number; new: number } }) {
+  if (!counts) return null;
+  if (counts.due === 0 && counts.new === 0) {
+    return <p className="deck-study-line muted">All caught up</p>;
+  }
+  const parts: string[] = [];
+  if (counts.due > 0) parts.push(`${counts.due} due`);
+  if (counts.new > 0) parts.push(`${counts.new} new`);
+  return (
+    <p className={`deck-study-line ${counts.due > 0 ? 'has-due' : ''}`}>{parts.join(' · ')}</p>
   );
 }

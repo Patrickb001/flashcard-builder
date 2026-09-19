@@ -10,6 +10,8 @@ interface Props {
   deckId: string;
   onExit: () => void;
   onManageExit: (id: string) => void;
+  /** Opens a review session for the deck, where missed cards are now due. */
+  onStudy: (id: string) => void;
 }
 
 /**
@@ -24,7 +26,7 @@ interface Props {
  * nothing and works offline: nothing below the setup screen makes a network
  * request.
  */
-export default function TestMode({ deckId, onExit, onManageExit }: Props) {
+export default function TestMode({ deckId, onExit, onManageExit, onStudy }: Props) {
   const quiz = useDeckQuiz(deckId);
 
   if (quiz.phase === "loading" || !quiz.deck) {
@@ -101,6 +103,12 @@ export default function TestMode({ deckId, onExit, onManageExit }: Props) {
       answers={quiz.answers}
       cardFor={quiz.cardFor}
       onAgain={() => quiz.setPhase("setup")}
+      onRetestMissed={quiz.retestMissed}
+      onStudyMissed={async () => {
+        // The misses have to be on disk before the study screen reads them.
+        await quiz.flushWrites();
+        onStudy(quiz.deck!.id);
+      }}
       onManageExit={onManageExit}
       deckId={quiz.deck.id}
     />

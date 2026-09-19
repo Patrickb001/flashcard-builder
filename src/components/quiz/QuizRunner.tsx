@@ -76,7 +76,7 @@ export default function QuizRunner({
         <button
           className="ghost-btn"
           onClick={() => {
-            if (confirm('End this test? Your answers so far will not be scored.')) onExit();
+            if (confirm('End this test? Answers so far are kept, and any you missed are marked for review.')) onExit();
           }}
         >
           Exit test

@@ -6,11 +6,13 @@ import {
   getAllFolders,
   moveDeckToFolder,
   renameDeck,
-  updateCard,
+  updateCardContent,
 } from "../db/db";
 import { confirmAndDeleteDeck } from "../lib/deckActions";
 import { UNFILED, folderOf, sortFolders } from "../lib/deckFolders";
 import { deckNameForUrl } from "../lib/pageSource";
+import { describeSchedule, scheduleState } from "../lib/scheduling";
+import { countStudyable } from "../lib/studyQueue";
 import {
   downloadTextFile,
   exportFileName,
@@ -24,7 +26,10 @@ import ErrorNotice from "./ui/ErrorNotice";
 interface Props {
   /** The deck to manage. Everything on screen is read from it on mount. */
   deckId: string;
+  /** A review session: due cards, then some new ones. */
   onStudy: (deckId: string) => void;
+  /** Every card in the deck, for cramming. */
+  onStudyAll: (deckId: string) => void;
   onTest: (deckId: string) => void;
   onInfographic: (deckId: string) => void;
   /**
@@ -45,6 +50,7 @@ interface Props {
 export default function DeckManager({
   deckId,
   onStudy,
+  onStudyAll,
   onTest,
   onInfographic,
   onDeckDeleted,
@@ -111,10 +117,16 @@ export default function DeckManager({
     );
   };
 
-  /** Writes one edited card. A failed write leaves the edit on screen. */
+  /**
+   * Writes one edited card's text. A failed write leaves the edit on screen.
+   *
+   * Text only, through updateCardContent: writing back the whole in-memory
+   * card would also write back the schedule this screen loaded, undoing any
+   * study done since in another tab.
+   */
   const persistCard = async (card: Flashcard) => {
     try {
-      await updateCard(card);
+      await updateCardContent(card.id, { front: card.front, back: card.back });
     } catch (err) {
       console.error("[manager] Saving the card failed:", err);
       setError("That edit could not be saved.");
@@ -252,6 +264,11 @@ export default function DeckManager({
     return <DeckGate loading={loading} error={error} deck={deck} />;
   }
 
+  // Read once per render; the labels below are day-granular, so a screen left
+  // open across midnight is only stale until its next render.
+  const now = Date.now();
+  const studyable = countStudyable(cards, now);
+
   return (
     <div className="manager">
       {/* A failure that happened after the deck loaded — a card that would not
@@ -287,8 +304,8 @@ export default function DeckManager({
             </select>
           </div>
           <p className="muted small">
-            {cards.length} card{cards.length === 1 ? "" : "s"} · from{" "}
-            {deck.sourceFileName}
+            {cards.length} card{cards.length === 1 ? "" : "s"} · {studyable.due}{" "}
+            due · {studyable.new} new · from {deck.sourceFileName}
           </p>
           {deck.sourceUrls && deck.sourceUrls.length > 0 && (
             <p className="source-links">
@@ -310,7 +327,14 @@ export default function DeckManager({
             onClick={() => onStudy(deckId)}
             disabled={cards.length === 0}
           >
-            Study this deck
+            {studyable.due + studyable.new > 0 ? "Study due cards" : "Study this deck"}
+          </button>
+          <button
+            className="secondary-btn"
+            onClick={() => onStudyAll(deckId)}
+            disabled={cards.length === 0}
+          >
+            Study all cards
           </button>
           {/* One entry. The kind of test is chosen on the setup screen, which
               has to offer the picker anyway, and nothing is written until the
@@ -409,8 +433,10 @@ export default function DeckManager({
                   {card.context && (
                     <span className="topic-chip">{card.context}</span>
                   )}
-                  <span className={`source-label status-${card.status}`}>
-                    {card.sourceLabel} · {card.status}
+                  <span
+                    className={`source-label schedule-${scheduleState(card, now)}`}
+                  >
+                    {card.sourceLabel} · {describeSchedule(card, now)}
                   </span>
                 </span>
               </div>
