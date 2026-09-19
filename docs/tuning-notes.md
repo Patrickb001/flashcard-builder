@@ -518,3 +518,36 @@ cap, which is now in place and confirmed working end to end. The one thing this 
 not confirm is the mixed-PDF path — real-text pages and scanned pages together in one
 file — since no fixture was available; that manual pass was skipped rather than asserted
 as passing.
+
+## 2026-09-19 — application questions
+
+A third question style, "Apply it" (`APPLICATION_SYSTEM_PROMPT` in
+`src/lib/quizPrompt.ts`). Everything below is a **starting estimate**, chosen by analogy
+with the two existing styles; none of it has been measured against real batches yet.
+Replace each estimate with a measurement the first time `tools/test-application.mjs`
+is run with a key.
+
+**Batch size 6, retry 3.** An application question is a one-to-three-sentence scenario
+or a short program plus four options — between a recall question (~330 output tokens)
+and a vignette (roughly double) in size. Six sits between the recall path's 8 and the
+vignette path's 4. To measure: output tokens per question on the golden decks and on
+`tools/fixtures/quiz-cards.json`, and whether any batch comes back truncated.
+
+**Ceilings: `application` 16000, `application-audit` 1000.** The generation ceiling
+matches `vignette`; the ceiling is headroom, not a reservation, so over-estimating it
+costs nothing. The audit reply is a verdict list, the same shape as `vignette-audit`.
+
+**Rate limit.** Each batch makes two sequential calls, generation then audit, the same
+as the vignette path. The reasoning recorded for the vignette audit above applies
+unchanged: generation latency, not request count, keeps a hosted run under 20/min. Worth
+confirming on a 100-card deck on the hosted route.
+
+**Skip rate.** The prompt lets the model skip a card with nothing to apply. Two failure
+modes to watch for, in opposite directions: skipping cards that state a rule, cause or
+behaviour (the prompt tells it not to — if it does anyway, tighten the escape hatch), and
+forcing scenarios onto names and dates (loosen it). Record the skip rate per fixture
+deck here.
+
+**Audit reject rate.** As with the vignette audit: too high means the audit is too
+strict; never rejecting a planted bad question means it is too lax. The stubbed
+generator test in the harness checks the plumbing; only a real run checks the judgement.
