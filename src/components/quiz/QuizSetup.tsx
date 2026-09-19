@@ -17,6 +17,11 @@ interface Props {
    * this card will not come up — so they are offered together.
    */
   unwritten: Flashcard[];
+  /**
+   * Application style only: how many cards were judged to have nothing to
+   * apply. Shown so the reader knows why they are not in the test.
+   */
+  skippedCount: number;
   style: QuestionStyle;
   onStyleChange: (style: QuestionStyle) => void;
   ai: AiSettings;
@@ -34,7 +39,7 @@ interface Props {
   onExit: () => void;
 }
 
-/** The two styles, as the picker offers them. */
+/** The styles, as the picker offers them. */
 const STYLES: { id: QuestionStyle; name: string; blurb: string }[] = [
   {
     id: "recall",
@@ -46,7 +51,19 @@ const STYLES: { id: QuestionStyle; name: string; blurb: string }[] = [
     name: "PANCE style",
     blurb: "Clinical vignettes, five options",
   },
+  {
+    id: "application",
+    name: "Apply it",
+    blurb: "New situations to reason through, four options",
+  },
 ];
+
+/** How the setup screen names each style's questions mid-sentence. */
+const STYLE_NOUN: Record<QuestionStyle, string> = {
+  recall: "recall",
+  vignette: "PANCE-style",
+  application: "application",
+};
 
 /**
  * Choosing what to be tested on: the question style, how many, and whether to
@@ -61,6 +78,7 @@ export default function QuizSetup({
   cards,
   pool,
   unwritten,
+  skippedCount,
   style,
   onStyleChange,
   ai,
@@ -86,7 +104,7 @@ export default function QuizSetup({
 
   const sliderMin = Math.min(MIN_SLIDER_POOL, pool.length);
   const showSlider = pool.length >= MIN_SLIDER_POOL;
-  const styleNoun = style === "vignette" ? "PANCE-style" : "recall";
+  const styleNoun = STYLE_NOUN[style];
 
   return (
     <div className="quiz quiz-setup">
@@ -131,6 +149,24 @@ export default function QuizSetup({
           Written from this deck only — the scenarios use your own lecture
           material and nothing else. Worth checking a few against the source;
           the review screen shows the card each question came from.
+        </p>
+      )}
+
+      {style === "application" && (
+        <p className="muted small">
+          Each question puts one of your cards to work in a situation the card
+          never mentions. The situations are new; the reasoning uses only what
+          your deck teaches. The results screen shows the card behind each
+          question.
+        </p>
+      )}
+
+      {style === "application" && skippedCount > 0 && (
+        <p className="muted small">
+          {skippedCount} card{skippedCount === 1 ? " is a fact" : "s are facts"}{" "}
+          with nothing to apply — a name, a date, a bare definition — so{" "}
+          {skippedCount === 1 ? "it stays" : "they stay"} in recall tests only.
+          Editing a card offers it again.
         </p>
       )}
 

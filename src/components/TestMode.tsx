@@ -60,6 +60,7 @@ export default function TestMode({ deckId, onExit, onManageExit, onStudy }: Prop
         cards={quiz.cards}
         pool={quiz.visiblePool}
         unwritten={quiz.unwritten}
+        skippedCount={quiz.skipped.length}
         style={quiz.style}
         onStyleChange={quiz.setStyle}
         ai={quiz.ai}

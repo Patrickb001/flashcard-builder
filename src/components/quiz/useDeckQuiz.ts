@@ -5,13 +5,14 @@ import {
   getCardsForDeck,
   getDeck,
   getQuestionsForDeck,
+  markApplicationSkipped,
   pruneOrphanQuestions,
   recordQuestionsAsked,
   saveQuestions,
 } from '../../db/db';
 import type { AiSettings } from '../../lib/aiGenerator';
 import { loadAiSettings } from '../../lib/aiGenerator';
-import { generateQuestionsForCards, hashCard } from '../../lib/quizGenerator';
+import { cardsNeedingQuestions, generateQuestionsForCards, hashCard } from '../../lib/quizGenerator';
 import type { BatchProgress } from '../../lib/batchRunner';
 import { prepareQuestions, selectQuestions, type PreparedQuestion } from '../../lib/quizSelection';
 
@@ -83,27 +84,17 @@ export function useDeckQuiz(deckId: string) {
   );
 
   /**
-   * Cards whose question is missing, or was written from different text.
-   *
-   * Both are offered together, because to the reader they are the same thing:
-   * this card will not come up in the test as it stands.
+   * Cards whose question is missing or was written from different text
+   * (`unwritten`), and, for application questions, cards the model judged to
+   * have nothing to apply (`skipped`). See cardsNeedingQuestions.
    *
    * Memoised because hashing every card in the deck on every render is real
    * work for a value only the setup screen reads.
    */
-  const unwritten = useMemo(() => {
-    // Keyed on card AND style. Keyed on card alone, the two styles of the same
-    // card overwrite each other and "cards without a question" goes wrong in
-    // both directions — offering cards that are already written, and hiding
-    // cards that are not.
-    const byCard = new Map(
-      pool.map((question) => [`${question.cardId}:${styleOf(question)}`, question])
-    );
-    return cards.filter((card) => {
-      const question = byCard.get(`${card.id}:${style}`);
-      return !question || question.cardHash !== hashCard(card);
-    });
-  }, [cards, pool, style]);
+  const { unwritten, skipped } = useMemo(
+    () => cardsNeedingQuestions(cards, pool, style),
+    [cards, pool, style]
+  );
 
   /** Reads the deck, its cards and its question pool in one pass. */
   const load = useCallback(async () => {
@@ -150,6 +141,18 @@ export function useDeckQuiz(deckId: string) {
           await saveQuestions(batch);
           setPool((prev) => [...prev, ...batch]);
         },
+        // Recorded per batch for the same reason, and mirrored into `cards` so
+        // the setup screen stops offering them without a reload.
+        onSkip: async (skippedCards) => {
+          const entries = skippedCards.map((card) => ({ cardId: card.id, cardHash: hashCard(card) }));
+          await markApplicationSkipped(entries);
+          const hashes = new Map(entries.map((entry) => [entry.cardId, entry.cardHash]));
+          setCards((prev) =>
+            prev.map((card) =>
+              hashes.has(card.id) ? { ...card, applicationSkipHash: hashes.get(card.id) } : card
+            )
+          );
+        },
         signal: controller.signal,
       });
 
@@ -174,9 +177,19 @@ export function useDeckQuiz(deckId: string) {
       // the model declined is a property of that card. Blaming the cards for a
       // truncation sent people editing decks that were never the problem.
       const truncated = result.truncatedBatches > 0;
-      if (result.questions.length === 0) {
+      const skippedCount = result.notApplicableCardIds.length;
+      // A skip is a verdict, not a failure, so a run that only skipped cards —
+      // a batch of names and dates — must not be reported as one.
+      const skipNote =
+        skippedCount > 0
+          ? ` ${skippedCount} card${skippedCount === 1 ? ' has' : 's have'} nothing to apply and stay${skippedCount === 1 ? 's' : ''} in recall tests only.`
+          : '';
+      if (result.questions.length === 0 && skippedCount === 0) {
         setNoticeFailed(true);
         setNotice(`No questions could be written. ${result.firstError ?? ''}`.trim());
+      } else if (missed === 0 && skippedCount > 0) {
+        setNoticeFailed(false);
+        setNotice(`Wrote ${result.questions.length} question${result.questions.length === 1 ? '' : 's'}.${skipNote}`);
       } else if (missed > 0) {
         setNoticeFailed(false);
         const plural = missed === 1 ? '' : 's';
@@ -184,7 +197,7 @@ export function useDeckQuiz(deckId: string) {
           ? `${missed} card${plural} ${missed === 1 ? 'was' : 'were'} left out because the reply ran into its length limit`
           : `${missed} card${plural} could not be turned into a fair question`;
         setNotice(
-          `Wrote ${result.questions.length} questions. ${reason} — try again to fill ${missed === 1 ? 'it' : 'them'} in.`
+          `Wrote ${result.questions.length} questions. ${reason} — try again to fill ${missed === 1 ? 'it' : 'them'} in.${skipNote}`
         );
       }
 
@@ -326,6 +339,8 @@ export function useDeckQuiz(deckId: string) {
     selected,
     setSelected,
     unwritten,
+    /** Application style only: cards with nothing to apply at their current text. */
+    skipped,
     generate,
     startTest,
     commitAnswer,
