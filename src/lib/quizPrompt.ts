@@ -193,7 +193,7 @@ Never state a new fact about the subject inside the scenario as though it were b
 
 THE ESCAPE HATCH — skipping a card:
 
-Some cards have nothing to apply: a name, a date, who held a role, a label with nothing behind it, what something is called, which function or command does a job, a list to memorise, a statistic, the order of the steps in a fixed sequence, or what each part of an analogy stands for. For those, do not force a scenario and do not fall back to a recall question. Return {"id": ..., "skip": "a short reason"} instead. A skip is the correct reply for such a card; a contrived scenario that only tests recall in disguise is not.
+Some cards have nothing to apply: a name, a date, who held a role, a label with nothing behind it, what something is called, which function or command does a job, a list to memorise, a statistic, the order of the steps in a fixed sequence, or what each part of an analogy stands for. A card whose answer is the name of a feature or tool is a skip even when the feature does something: a scenario ending "which feature would help?" is recall with scenery. For those, do not force a scenario and do not fall back to a recall question. Return {"id": ..., "skip": "a short reason"} instead. A skip is the correct reply for such a card; a contrived scenario that only tests recall in disguise is not.
 
 A sequence is the case most often got wrong. A card saying that step A is followed by step B gives the student nothing to decide: a scenario that walks through step A and asks what comes next is the card read back to them. Skip it — unless the card also says what the sequence depends on or changes, in which case apply that instead.
 
@@ -204,7 +204,7 @@ WRITING THE SCENARIO
 - It must contain everything needed to answer. The student cannot see the card.
 - It must not name the answer, and must not name the concept when the concept is the answer.
 - The stem must not restate the scenario, and answering must depend on a particular the scenario supplies. Test it: cover the scenario and read the stem alone. If the stem can still be answered, the question is recall — rewrite it, or skip the card.
-- It must be genuinely new: not the card's own example, and not the textbook example of the idea — the one the source most likely used — with its names, values or elements swapped. If the card describes an example, change what the situation is about, not just what its parts are called, so that a student who remembers the original example still has to reason.
+- It must be genuinely new: not the card's own example, and not the textbook example of the idea, even with every part renamed. If the card is built on an example, name to yourself its parts and what drives it (for instance: a value that updates on a timer, beside a field the user types into). Your situation must differ in that structure — what causes the change, what the change affects, or how the parts relate — not only in what the parts are called. Replacing each part with another that plays the same role (a clock with a weather widget, a heading with a span) is still the same example. If no new structure can be built from what the cards teach, skip the card rather than rename its example.
 - Keep it to one to three sentences. Prefer ordinary, concrete situations to exotic ones.
 - Vary the settings and names across the batch; do not reuse one template.
 
@@ -272,13 +272,13 @@ export const APPLICATION_AUDIT_SYSTEM_PROMPT = `You are given application questi
 2. CORRECT — the marked correct answer really is right for this scenario. If there is a program, trace it line by line; the answer must match what it actually does.
 3. ONE RIGHT ANSWER — check every wrong option against the question's own card AND every related card. Fail it if any card makes a wrong option also true for this scenario, or makes the marked answer only part of what happens — for example, the answer names one step and a related card says another step follows it.
 4. SELF-CONTAINED — the scenario gives everything needed to answer and does not name the answer.
-5. APPLIED — the question cannot be answered from the stem alone; it depends on something the scenario supplies. Fail a scenario that only narrates the card's own fact, followed by a stem that asks for that fact back.
-6. NEW — the scenario is not the card's own example, or the well-known example of the idea, with names, values or elements swapped.
+5. APPLIED — the question cannot be answered from the stem alone; it depends on something the scenario supplies. Fail a scenario that only narrates the card's own fact, followed by a stem that asks for that fact back. A question whose answer is the name of a tool, feature, API or term fails APPLIED even when it has a scenario: the scenario only decorates it.
+6. NEW — compare structure, not names: list the parts of the card's example (and of the well-known example of the idea) and what drives each. Fail the question if its scenario has the same parts in the same roles with the same trigger, however they are named.
 
 Return ONLY a JSON array, with no markdown fence and no commentary. Each element:
-{"id": string, "ok": boolean}
+{"id": string, "ok": boolean, "failed": [string]}
 
-"ok" is false if any check fails, true otherwise. Every id you were given must appear exactly once.`;
+"ok" is false if any check fails, true otherwise. "failed" lists the names of the checks that failed — GROUNDED, CORRECT, ONE RIGHT ANSWER, SELF-CONTAINED, APPLIED, NEW — and is empty when "ok" is true. Every id you were given must appear exactly once.`;
 
 export interface LlmQuizQuestion {
   /** The batch-local id the model was given; mapped back to a real card by the caller. */
@@ -523,4 +523,29 @@ export function parseAuditResponse(text: string): Map<string, boolean> {
     verdicts.set(id, item.ok === true);
   }
   return verdicts;
+}
+
+/**
+ * Which checks the application audit named as failing, per question id.
+ *
+ * Read only to report a run: "NEW 2, APPLIED 1" says which rule is not
+ * landing, where a bare reject count cannot distinguish a prompt that is too
+ * strict from one rule that is being ignored. Deliberately separate from
+ * parseAuditResponse, so the verdict never depends on this field — a reply
+ * that omits "failed", or fills it with names that match no check, still
+ * passes or fails on "ok" alone, exactly as it did before the field existed.
+ */
+export function parseAuditFailures(text: string): Map<string, string[]> {
+  const failures = new Map<string, string[]>();
+  for (const raw of parseJsonArray(text)) {
+    if (!raw || typeof raw !== 'object') continue;
+    const item = raw as Record<string, unknown>;
+    const id = trimmedString(item.id);
+    if (!id) continue;
+    const names = Array.isArray(item.failed)
+      ? item.failed.map(trimmedString).filter((name) => name !== '')
+      : [];
+    failures.set(id, names);
+  }
+  return failures;
 }

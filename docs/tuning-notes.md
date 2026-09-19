@@ -624,3 +624,61 @@ option names the parent and then its child, so nothing defensible is marked wron
   this bug ... ?". The skip list names "what something is called"; the model appears to
   treat a feature that *does* something as applicable regardless. Note that the resulting
   question is not a bad one — it is just recall of a name with scenery.
+
+### Fixture runs, round 2 (claude-sonnet-5)
+
+The round-2 changes: NEW compares *structure* rather than names in both the generation
+bullet and audit check 6; APPLIED now fails a question whose answer is the name of a
+tool, feature, API or term; the escape hatch names feature-and-tool cards as skips; and
+the audit reply carries `"failed": [string]`, so a rejection says which checks did it.
+c23's fixture verdict moved from `apply` to `either` — it is a worked example of c12's
+rule, and c12 can carry the application question.
+
+| | run A | run B | aim |
+|---|---|---|---|
+| skipped as expected | 10/10 | 10/10 | >= 8/10 |
+| applied as expected | 8/8 | 8/8 | >= 7/8 |
+| failed cards | 2 (c21, c23) | 1 (c9) | 0 |
+| audits truncated | 0 of 2 | 0 of 3 | 0 |
+| questions / skipped | 11 / 11 | 11 / 12 | — |
+
+**Per-check rejections**, read off the audit warnings (real-model batches only):
+
+- Run A: `NEW 3` in one batch, `NEW 2` in another. Five rejections, all NEW.
+- Run B: `APPLIED 1, NEW 1`; then `NEW 2`; then `NEW 1`. Five rejections, four NEW and
+  one APPLIED.
+
+Ten rejections across the two runs, nine of them NEW. The named-check field is doing
+exactly the job it was added for: before it, this would have read as "five flagged" with
+no way to tell a strict prompt from one rule doing all the work.
+
+**Audit output tokens per call:** not recorded. `callModel` returns `{ text, stopReason }`
+only (src/lib/aiTransport.ts), and adding usage plumbing was out of scope for this round.
+
+**c19 — skipped in both runs.** The APPLIED sentence about names, and the escape hatch's
+feature-and-tool clause, hold. Round 1 forced it into an impure-component story twice.
+
+**c23 — one rejection, one rename.** Not fixed.
+
+- Run A: no question. The audit rejected its scenario on NEW, the retry too, and the card
+  ended as a failure rather than a skip.
+- Run B, accepted and shipped, verbatim: "A dashboard component re-renders every second
+  to show a live stock price, while a `<textarea>` next to it lets the user jot notes. As
+  the price updates, the notes the user is typing never disappear." Q: "Based on how
+  React handles commits, why does the text in the textarea stay intact across these
+  re-renders?" Correct: "React only updates the DOM where the output differs, so the
+  unchanged textarea node is left alone."
+
+That is the Clock example again — a value on a timer beside a text field the user types
+into — with every part renamed and the structure untouched, which is precisely what the
+round-2 wording forbids. Wording that names the failure this explicitly still did not
+prevent it in one run of two. Worth noting it was *not* rescued by an untaught fact: the
+question is grounded in c12, and no variant tried to test what happens when the input
+moves position. The open question is therefore not how to phrase NEW, but whether a card
+that *is* a worked example should be skipped outright.
+
+**A blind spot in the scoring.** "Applied as expected" counts only apply-cards the model
+chose to *skip*; a card whose question the audit rejected to death is not counted, because
+it is not in `notApplicableCardIds`. Run B scored 8/8 while c9 ("What does React do in
+Strict Mode…", an apply card) produced no question at all. Read the failed-card count
+beside the applied figure, not instead of it.

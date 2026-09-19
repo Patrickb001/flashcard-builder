@@ -7,6 +7,7 @@ import {
   parseApplicationResponse,
   parseQuizResponse,
   parseVignetteResponse,
+  parseAuditFailures,
   parseAuditResponse,
   type LlmQuizQuestion,
 } from './quizPrompt';
@@ -463,10 +464,26 @@ async function auditQuestions(
     // question here unless missingVerdict/stopReason are reported alongside
     // it — a batch that hit the ceiling is a transport problem, not a
     // judgment about the questions.
+    // Which checks did the rejecting, for the application audit only — the
+    // vignette audit's reply format is unchanged, so it has none to report.
+    // Counted over rejected questions alone: a reply that names a check
+    // beside "ok": true is contradicting itself, and the verdict wins.
+    const byCheck = new Map<string, number>();
+    if (task === 'application-audit') {
+      for (const [id, names] of parseAuditFailures(text)) {
+        if (verdicts.get(id) === true) continue;
+        for (const name of names) byCheck.set(name, (byCheck.get(name) ?? 0) + 1);
+      }
+    }
     if (flagged > 0) {
+      const named = [...byCheck]
+        .sort((a, b) => b[1] - a[1])
+        .map(([name, count]) => `${name} ${count}`)
+        .join(', ');
       console.warn(
         `${task} flagged ${flagged} of ${parsed.length} question(s) ` +
-          `(${missingVerdict} had no verdict in the reply; stopReason=${stopReason}); dropped for retry.`
+          `(${missingVerdict} had no verdict in the reply; stopReason=${stopReason}` +
+          `${named ? `; ${named}` : ''}); dropped for retry.`
       );
     }
     return kept;

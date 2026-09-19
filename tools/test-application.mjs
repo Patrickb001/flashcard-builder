@@ -5,6 +5,8 @@ import {
   APPLICATION_SYSTEM_PROMPT,
   QUIZ_SYSTEM_PROMPT,
   parseApplicationResponse,
+  parseAuditFailures,
+  parseAuditResponse,
 } from '../src/lib/quizPrompt.ts';
 import { cardsNeedingQuestions, generateQuestionsForCards, hashCard } from '../src/lib/quizGenerator.ts';
 import { MAX_TOKENS as CLIENT_TOKENS } from '../src/lib/aiTransport.ts';
@@ -126,6 +128,24 @@ check(
 const cut = reply([question('q1'), { id: 'q2', skip: 'x' }]).slice(0, -1) + ',{"id":"q3","scenario":"A tra';
 const salvaged = parseApplicationResponse(cut);
 check('a truncated reply keeps its complete elements', [salvaged.questions.length, salvaged.skipped.length], [1, 1]);
+
+// The application audit names the checks a question failed. The verdict must
+// not depend on that field: the format was changed under a parser that only
+// ever read id and ok, and a reply from before the change still has to work.
+const withFailed = '[{"id":"q1","ok":false,"failed":["NEW","APPLIED"]},{"id":"q2","ok":true,"failed":[]}]';
+const withoutFailed = '[{"id":"q1","ok":false},{"id":"q2","ok":true}]';
+check(
+  'a verdict carrying "failed" still parses as id and ok',
+  [...parseAuditResponse(withFailed)],
+  [['q1', false], ['q2', true]]
+);
+check(
+  'a verdict without "failed" parses the same way',
+  [...parseAuditResponse(withoutFailed)],
+  [['q1', false], ['q2', true]]
+);
+check('the named checks are read off a verdict', parseAuditFailures(withFailed).get('q1'), ['NEW', 'APPLIED']);
+check('a verdict with no "failed" names no checks', parseAuditFailures(withoutFailed).get('q1'), []);
 
 // ---------------------------------------------------------------------------
 console.log('\nWHICH CARDS NEED A QUESTION');
@@ -278,7 +298,7 @@ const verdicts = { apply: 0, skip: 0, either: 0 };
 for (const c of rc) if (c.expect in verdicts) verdicts[c.expect] += 1;
 check('the fixture has 24 cards with unique ids', [rc.length, new Set(rc.map((c) => c.id)).size], [24, 24]);
 check('every card carries a verdict', verdicts.apply + verdicts.skip + verdicts.either, 24);
-check('nine apply, ten skip, five either', verdicts, { apply: 9, skip: 10, either: 5 });
+check('eight apply, ten skip, six either', verdicts, { apply: 8, skip: 10, either: 6 });
 check('the three known traps are annotated', ['c11', 'c17', 'c23'].every((id) => rc.find((c) => c.id === id)?.watch), true);
 
 calls.length = 0;
