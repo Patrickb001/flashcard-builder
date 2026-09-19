@@ -193,14 +193,18 @@ Never state a new fact about the subject inside the scenario as though it were b
 
 THE ESCAPE HATCH — skipping a card:
 
-Some cards have nothing to apply: a name, a date, who held a role, a label with nothing behind it, a list to memorise, a statistic. For those, do not force a scenario and do not fall back to a recall question. Return {"id": ..., "skip": "a short reason"} instead. A skip is the correct reply for such a card; a contrived scenario that only tests recall in disguise is not.
+Some cards have nothing to apply: a name, a date, who held a role, a label with nothing behind it, what something is called, which function or command does a job, a list to memorise, a statistic, the order of the steps in a fixed sequence, or what each part of an analogy stands for. For those, do not force a scenario and do not fall back to a recall question. Return {"id": ..., "skip": "a short reason"} instead. A skip is the correct reply for such a card; a contrived scenario that only tests recall in disguise is not.
 
-Do not skip a card just because a scenario takes effort. If a card states a rule, a cause and effect, a behaviour, a procedure, a condition, or a distinction between two things, it can be applied, and you must write the question.
+A sequence is the case most often got wrong. A card saying that step A is followed by step B gives the student nothing to decide: a scenario that walks through step A and asks what comes next is the card read back to them. Skip it — unless the card also says what the sequence depends on or changes, in which case apply that instead.
+
+Do not skip a card just because a scenario takes effort. If a card states a rule, a cause and effect, a behaviour, a condition, or a distinction between two things, it can be applied, and you must write the question. A procedure can be applied when a scenario can put the student at a point where they must decide what happens, or what to do, next.
 
 WRITING THE SCENARIO
 
 - It must contain everything needed to answer. The student cannot see the card.
 - It must not name the answer, and must not name the concept when the concept is the answer.
+- The stem must not restate the scenario, and answering must depend on a particular the scenario supplies. Test it: cover the scenario and read the stem alone. If the stem can still be answered, the question is recall — rewrite it, or skip the card.
+- It must be genuinely new: not the card's own example, and not the textbook example of the idea — the one the source most likely used — with its names, values or elements swapped. If the card describes an example, change what the situation is about, not just what its parts are called, so that a student who remembers the original example still has to reason.
 - Keep it to one to three sentences. Prefer ordinary, concrete situations to exotic ones.
 - Vary the settings and names across the batch; do not reuse one template.
 
@@ -219,7 +223,7 @@ THE OPTIONS
 
 1. THE CORRECT ANSWER follows from the card's fact applied to the scenario, and exactly one option does.
 2. EXACTLY THREE WRONG ANSWERS. Not two, not four.
-3. EVERY WRONG ANSWER MUST BE UNAMBIGUOUSLY WRONG for this scenario. This is the rule that matters most. A distractor that is arguably also correct makes the question unanswerable and marks a student wrong for understanding the material. Scenarios leave more room for a second defensible answer than bare facts do, so check each wrong option against the scenario as written, not against the card.
+3. EVERY WRONG ANSWER MUST BE UNAMBIGUOUSLY WRONG for this scenario. This is the rule that matters most. A distractor that is arguably also correct makes the question unanswerable and marks a student wrong for understanding the material. Scenarios leave more room for a second defensible answer than bare facts do, so check each wrong option against the scenario as written, not against the card. Check it against every card you were given, too — the other cards in "cards" and every neighbour — not only the one you are writing about. If another card makes a wrong option true, or makes the correct answer only part of what happens (the card names one step, and another card says a second step follows it), change the options or the scenario until exactly one option is right.
 4. THE BEST WRONG ANSWERS are what a student gets by misapplying the idea: applying a neighbouring card's rule instead of this one, reversing a direction, missing a condition, stopping one step early, or an off-by-one in code. Those test understanding; an unrelated outcome is eliminated on sight.
 5. NO LENGTH TELL — do not make the correct answer the longest, most detailed or most qualified option. Keep all four the same kind of thing and about the same length, and keep EVERY option under 15 words.
 6. Never use "all of the above" or "none of the above".
@@ -262,12 +266,14 @@ Return ONLY a JSON array, with no markdown fence and no commentary. Each element
  * wrong option the scenario makes defensible. Flagged questions are dropped
  * and their cards retried, exactly as the vignette audit's are.
  */
-export const APPLICATION_AUDIT_SYSTEM_PROMPT = `You are given application questions — a scenario, sometimes a short program, and a multiple-choice question — each with the flashcard it was written from, plus related cards from the same deck. Check every question:
+export const APPLICATION_AUDIT_SYSTEM_PROMPT = `You are given application questions — a scenario, sometimes a short program, and a multiple-choice question — each with the flashcard it was written from, plus related cards from the same deck in "context". The related cards include every other card from the same batch, whether or not it has a question here. Check every question:
 
 1. GROUNDED — the correct answer can be reached from the scenario using only the question's card and the related cards. Fail it if answering needs a rule, mechanism or fact they do not contain, or if the scenario asserts such a fact as background.
 2. CORRECT — the marked correct answer really is right for this scenario. If there is a program, trace it line by line; the answer must match what it actually does.
-3. ONE RIGHT ANSWER — no wrong option could also be defended as correct for this scenario.
+3. ONE RIGHT ANSWER — check every wrong option against the question's own card AND every related card. Fail it if any card makes a wrong option also true for this scenario, or makes the marked answer only part of what happens — for example, the answer names one step and a related card says another step follows it.
 4. SELF-CONTAINED — the scenario gives everything needed to answer and does not name the answer.
+5. APPLIED — the question cannot be answered from the stem alone; it depends on something the scenario supplies. Fail a scenario that only narrates the card's own fact, followed by a stem that asks for that fact back.
+6. NEW — the scenario is not the card's own example, or the well-known example of the idea, with names, values or elements swapped.
 
 Return ONLY a JSON array, with no markdown fence and no commentary. Each element:
 {"id": string, "ok": boolean}
