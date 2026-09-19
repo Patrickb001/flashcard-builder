@@ -11,6 +11,7 @@ export default function TestRoute() {
     <TestMode
       deckId={deckId}
       onExit={() => navigate("/")}
+      onStudy={(id) => navigate(`/deck/${id}/study`)}
       onManageExit={(id) =>
         // The only way into this screen is Manage cards' "Test this deck"
         // button, so any push at all (idx above 0, the tab's own first

@@ -69,6 +69,13 @@ export function useDeckQuiz(deckId: string) {
 
   const abortRef = useRef<AbortController | null>(null);
 
+  /**
+   * Answer writes still in flight. commitAnswer does not wait on them, so the
+   * test never stalls between questions — but a screen that is about to read
+   * the cards those answers touched calls flushWrites first.
+   */
+  const pendingWrites = useRef<Promise<unknown>[]>([]);
+
   /** The questions in the style currently selected. Everything below reads this. */
   const visiblePool = useMemo(
     () => pool.filter((question) => styleOf(question) === style),
@@ -251,14 +258,41 @@ export function useDeckQuiz(deckId: string) {
     const correct = selected === current.correctIndex;
 
     setAnswers((prev) => prev.map((a, i) => (i === position ? selected : a)));
-    void recordQuestionsAsked([{ questionId: current.question.id, correct }]).catch((err) =>
-      console.error('Could not record the answer:', err)
+    // A miss also sends the question's card back for review; see
+    // recordQuestionsAsked. The promise is kept so flushWrites can wait on it.
+    pendingWrites.current.push(
+      recordQuestionsAsked([{ questionId: current.question.id, correct }]).catch((err) =>
+        console.error('Could not record the answer:', err)
+      )
     );
 
     setSelected(null);
     if (position + 1 >= asked.length) setPhase('results');
     else setPosition((p) => p + 1);
   }, [selected, asked, position]);
+
+  /**
+   * A new sitting of exactly the questions missed in the one just finished,
+   * with their options reshuffled. Unanswered questions count as missed.
+   */
+  const retestMissed = useCallback(() => {
+    const missed = asked
+      .filter((prepared, i) => answers[i] !== prepared.correctIndex)
+      .map((prepared) => prepared.question);
+    if (missed.length === 0) return;
+    setAsked(prepareQuestions(missed));
+    setAnswers(new Array(missed.length).fill(null));
+    setPosition(0);
+    setSelected(null);
+    setPhase('taking');
+  }, [asked, answers]);
+
+  /** Waits for every answer written so far. Never rejects; failures were logged. */
+  const flushWrites = useCallback(async () => {
+    const writes = pendingWrites.current;
+    pendingWrites.current = [];
+    await Promise.all(writes);
+  }, []);
 
   /** The card a question was written from, for a stem that carries a snippet. */
   const cardFor = useCallback(
@@ -295,6 +329,8 @@ export function useDeckQuiz(deckId: string) {
     generate,
     startTest,
     commitAnswer,
+    retestMissed,
+    flushWrites,
     cardFor,
     stopGenerating,
   };
