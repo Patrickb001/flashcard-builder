@@ -1876,10 +1876,26 @@ textarea:focus-visible {
   font-family: var(--font-ui);
   font-size: 1rem;
   line-height: 1.65;
-  color: var(--text-secondary);
-  margin: 0.4rem 0 0.9rem;
-  padding-left: 0.9rem;
-  border-left: 3px solid var(--accent-soft);
+  /* Primary, not secondary: the scenario is what the reader has to study. */
+  color: var(--text-primary);
+  margin: 0;
+}
+
+/*
+ * The scenario's panel — its text, and an application question's program. A
+ * tint rather than a rule down the side, so it reads as part of the question
+ * rather than a quotation beside it. More space below it than above, so the
+ * topic chip and the scenario read as one unit and the lead-in as the next.
+ */
+.quiz-scenario {
+  background: var(--accent-soft);
+  border-radius: 10px;
+  padding: 0.85rem 1rem;
+  margin: 0.4rem 0 1.4rem;
+}
+
+.quiz-scenario > * + * {
+  margin-top: 0.75rem;
 }
 
 .quiz-stem {
