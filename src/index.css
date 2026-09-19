@@ -800,6 +800,19 @@ p {
   margin: 0;
 }
 
+.deck-study-line {
+  font-family: var(--font-ui);
+  font-size: 0.72rem;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--text-secondary);
+  margin: 0.25rem 0 0;
+}
+
+.deck-study-line.has-due {
+  color: var(--warning);
+}
+
 .deck-card-actions {
   display: flex;
   /* Stretch rather than center, so Study/Manage/Remove share one height
