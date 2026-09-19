@@ -157,6 +157,14 @@ export interface Flashcard extends CardMedia {
    * falls back to `createdAt` for those decks rather than forcing a migration.
    */
   order?: number;
+  /**
+   * The card's hash (see hashCard) when the model last judged that it has
+   * nothing to apply — a name, a date, a bare definition — and so no
+   * application question. While it matches the card's current text, the card
+   * is not offered for an application question again; editing the card changes
+   * the hash and offers it afresh. Absent on every card never judged.
+   */
+  applicationSkipHash?: string;
   /** The card's place in the review schedule. Absent means never graded; see CardSchedule. */
   srs?: CardSchedule;
 }
@@ -186,13 +194,15 @@ export interface CandidateCard extends CardMedia {
  * "recall" rewords the card's front and asks for its back — good for retention,
  * and what this app wrote before there was a choice. "vignette" is a PANCE-style
  * item: a short clinical scenario, a lead-in question, and five homogeneous
- * options.
+ * options. "application" puts the card's fact to work in a situation the card
+ * never mentions — a new scenario, or a short new program — with four options;
+ * it tests whether the fact was understood rather than memorised.
  *
  * Stored as an OPTIONAL field, and absent means "recall". Every question written
  * before this existed reads back with no style, and reading it through styleOf
  * below is what lets those keep working without an IndexedDB migration.
  */
-export type QuestionStyle = 'recall' | 'vignette';
+export type QuestionStyle = 'recall' | 'vignette' | 'application';
 
 /**
  * One multiple-choice question, written once from a flashcard and kept.
@@ -218,13 +228,16 @@ export interface TestQuestion {
   style?: QuestionStyle;
 
   /**
-   * The clinical scenario a vignette question opens with, when it has one.
+   * The scenario a question opens with, when it has one: the clinical case of a
+   * vignette item, or the situation an application question asks about.
    *
    * Kept apart from the stem rather than folded into it. The stem stays the
    * lead-in question either way, so grading, selection and shuffling never have
    * to know which style they are handling, and a recall question is simply one
-   * with no vignette. A PANCE item whose fact cannot carry a scenario without
+   * with no scenario. A PANCE item whose fact cannot carry a scenario without
    * inventing findings has none either — see the escape hatch in the prompt.
+   * The name predates application questions; renaming it would cost an
+   * IndexedDB migration for no behavioural gain.
    */
   vignette?: string;
 
@@ -237,9 +250,15 @@ export interface TestQuestion {
   explanation: string;
 
   /**
-   * Media copied straight from the source card, never routed through the model.
-   * A question about a program is unanswerable without the program in front of
-   * you, so the snippet travels with the question.
+   * Media shown with the stem. For recall and vignette questions it is copied
+   * straight from the source card, never routed through the model: a question
+   * about a program is unanswerable without the program in front of you, so the
+   * snippet travels with the question.
+   *
+   * An application question is the exception. Its program is a NEW one the
+   * model wrote for the scenario, so `stemCode` holds that and `stemImage` is
+   * always absent — the card's own example is exactly what the question must
+   * not reuse.
    */
   stemCode?: CardCode;
   stemImage?: CardImage;
