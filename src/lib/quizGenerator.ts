@@ -416,7 +416,17 @@ async function auditQuestions(
   settings: AiSettings,
   signal?: AbortSignal
 ): Promise<LlmQuizQuestion[]> {
-  const context = contextCards(batch, deckCards).map(({ front, back }) => ({ front, back }));
+  // The application audit also gets every card in the batch. contextCards
+  // leaves the batch out (it was written for generation, where those cards
+  // are already in the payload), so a sibling card that makes a wrong option
+  // true — or one the model skipped, which has no question here at all —
+  // would otherwise be invisible to the one check that looks for it. The
+  // vignette audit's payload is left exactly as it was measured.
+  const related = contextCards(batch, deckCards).map(({ front, back }) => ({ front, back }));
+  const context =
+    task === 'application-audit'
+      ? [...batch.map(({ front, back }) => ({ front, back })), ...related]
+      : related;
   const questions = parsed.map((item) => {
     const index = Number(item.id.replace(/^q/i, '')) - 1;
     const card = batch[index];
