@@ -230,6 +230,18 @@ node --experimental-strip-types --import ./tools/register.mjs \
 node --experimental-strip-types --import ./tools/register.mjs \
   tools/test-application.mjs
 
+# The check for card fronts that point at something the card does not show
+# ("In this example, …"). Pure; no key.
+node --experimental-strip-types --import ./tools/register.mjs \
+  tools/test-card-references.mjs
+
+# The old card prompt against the current one, side by side on the same page, a
+# few runs each. Costs a few cents; reads the key from the environment only.
+# --dry-run checks the script itself against a stub model, free.
+ANTHROPIC_API_KEY=sk-ant-... node --experimental-strip-types --import ./tools/register.mjs \
+  tools/compare-card-prompts.mjs https://react.dev/learn/render-and-commit \
+  --runs 2 --compare tools/fixtures/render-and-commit-cards.json
+
 # Folder grouping, library sorting, and the remembered sort choice. Pure; no key.
 node --experimental-strip-types --import ./tools/register.mjs \
   tools/test-folders.mjs

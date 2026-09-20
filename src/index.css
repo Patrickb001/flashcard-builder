@@ -1393,6 +1393,19 @@ textarea:focus-visible {
   background: var(--warning-soft);
 }
 
+/*
+ * Marks a candidate whose question points at something the card does not show.
+ * Warning colours like the rule-based chip, with a dashed outline so the two
+ * are not mistaken for each other: this one asks for an edit.
+ */
+.topic-chip.needs-rewording {
+  color: var(--warning);
+  background: var(--warning-soft);
+  border: 1px dashed currentColor;
+  text-transform: none;
+  letter-spacing: normal;
+}
+
 .flip-card-face .topic-chip {
   position: absolute;
   top: 1.1rem;

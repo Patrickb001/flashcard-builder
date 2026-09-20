@@ -3,7 +3,7 @@ import type { CandidateCard, CardCode, CardImage } from '../types';
 import { parseCardsResponse } from './cardPrompt';
 import { callModel } from './aiTransport';
 import { runBatches, type BatchProgress } from './batchRunner';
-import { dedupeCards, isUsableCard } from './cardValidation';
+import { dedupeCards, flagDanglingReference, isUsableCard } from './cardValidation';
 import { generateCandidates } from './flashcardGenerator';
 
 /**
@@ -441,12 +441,12 @@ export async function generateCandidatesWithAi(
   }
 
   return {
-    cards: dedupeCards(all.filter(isUsableCard)),
+    cards: dedupeCards(all.filter(isUsableCard)).map(flagDanglingReference),
     // Deduped only against itself, not against `cards`: the two are drafted
     // from disjoint sections by construction, so a cross-check would add
     // real complexity (comparing against a list the caller may have already
     // edited by the time this is used) for a case that shouldn't arise.
-    fallbackCards: dedupeCards(fallbackCards.filter(isUsableCard)),
+    fallbackCards: dedupeCards(fallbackCards.filter(isUsableCard)).map(flagDanglingReference),
     failedBatches,
     totalBatches,
     // Cancelling is not a failure, and reporting the abort as one would tell

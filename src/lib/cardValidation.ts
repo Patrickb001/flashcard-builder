@@ -197,6 +197,56 @@ function isNearDuplicate(a: Weighed, b: Weighed): boolean {
 }
 
 /**
+ * Words a front uses to point at something the student cannot see.
+ *
+ * Rule 2 of the card prompt forbids "this example", "the above" and "the
+ * following", but a model occasionally writes them anyway — "In this example,
+ * which functions does React call…" — and a student studying from the card
+ * alone has no example in front of them. Kept narrow on purpose: a demonstrative
+ * followed by one of these nouns, or a bare "the above" / "the following" /
+ * "shown below". A broader net ("that", "these steps") would flag ordinary
+ * questions, and a flag that is usually wrong teaches people to ignore it.
+ */
+const REFERENCE_NOUNS =
+  'examples?|code|snippets?|programs?|listings?|output|diagrams?|figures?|images?|pictures?|illustrations?|tables?|charts?|graphs?|slides?|sections?|passages?|excerpts?|text|scenario|case';
+const DANGLING_REFERENCE = new RegExp(
+  `\\b(?:this|these|the above|the following|the preceding|the previous|the given)\\s+(?:${REFERENCE_NOUNS})\\b` +
+    `|\\b(?:the above|the following)(?=\\s*[?:,.]|\\s*$)` +
+    `|\\b(?:shown|given|listed) (?:above|below)\\b`,
+  'i'
+);
+
+/** Nouns a front may point at when the card carries a snippet on its front. */
+const ATTACHED_CODE_NOUN = /\b(?:examples?|code|snippets?|programs?|listings?|output)\b/i;
+
+/**
+ * The phrase in a card's front that points at something the student cannot
+ * see, or null when there is none.
+ *
+ * "What does this program print?" is fine when the program is attached to the
+ * front (`frontCode`), which is exactly what the card prompt asks for. A
+ * diagram is never on the front — `image` is shown with the answer — so "What
+ * does this diagram show?" is always flagged.
+ */
+export function danglingReference(card: Pick<CandidateCard, 'front' | 'frontCode'>): string | null {
+  const match = DANGLING_REFERENCE.exec(card.front);
+  if (!match) return null;
+  if (card.frontCode && ATTACHED_CODE_NOUN.test(match[0])) return null;
+  return match[0];
+}
+
+/**
+ * Unticks a card whose front points at something the student cannot see.
+ *
+ * Unticked rather than dropped: the fact on the card is usually worth keeping,
+ * and rewording "In this example, …" takes a few seconds on the review screen,
+ * where the reason is shown beside the card. A card left unticked is not saved.
+ */
+export function flagDanglingReference(card: CandidateCard): CandidateCard {
+  return danglingReference(card) ? { ...card, include: false } : card;
+}
+
+/**
  * Drops cards that repeat one another, exactly or near enough.
  *
  * A document that makes the same point twice — a summary slide restating a body

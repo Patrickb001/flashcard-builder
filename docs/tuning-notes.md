@@ -839,3 +839,29 @@ does not apply.
 
 Per the plan's second stopping rule, this is audit judgement varying between runs rather than a
 wording problem: recorded, and left alone.
+
+## 2026-09-20 — card prompt, round 2: repeats by answer, name answers turned round
+
+The before-and-after read-through above found rule 7 costing distinct facts (24 cards to 19:
+c24 lost, c11 + c18 and c5 + c13 merged) while rule 8 did not bite on "What tool can help find
+mistakes…?". A lost fact is worse than a repeat — a repeat is visible and deleted in review, a
+lost fact is never known to be missing — so the changes lean towards keeping cards:
+
+- **Rule 7** now defines a repeat as the *same answer* (or one card turned round). Cards whose
+  answers differ are different facts; rule 1 ATOMIC comes first; when unsure, keep both.
+- **Rule 8** names its most common case — a name answer asked for by the job it does — and the
+  fix: turn the card round and ask what the named thing does; drop it if another card asks that.
+- **The diagram rule** says an illustration of an analogy or metaphor is decorative.
+- **A check in code** (`danglingReference` in `cardValidation.ts`) unticks a drafted card whose
+  front points at something the card does not show ("In this example, …") and says why on the
+  review screen. Unticked, not dropped; the note goes away when the front is reworded.
+
+**How to measure it.** `tools/compare-card-prompts.mjs` drafts one page with the old prompt
+(`tools/fixtures/card-prompt-baseline.txt`, the prompt before the card-prompt fixes plan) and the
+current one, the same model, the same session, several runs each. It counts yes/no fronts,
+fronts pointing at the unseen, name-by-job fronts and cards with a picture, lists answer pairs to
+check by hand as possible repeats, and with `--compare` lists fixture facts no card seems to
+cover. Repeats are a reading list, not a count: the two "three steps" cards share a quarter of
+their words as `contentWords` sees them, while a card that is *not* a repeat shares two thirds.
+
+**Results:** not yet run. Record the table here, both prompts, at least two runs each.

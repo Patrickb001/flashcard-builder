@@ -1,6 +1,6 @@
 import type { CodeBlock, DocumentSection, ImageBlock, TableBlock } from './documentModel';
 import type { CandidateCard, CardCode, CardImage } from '../types';
-import { dedupeCards, isUsableCard, isMeaningfulLabel } from './cardValidation';
+import { dedupeCards, flagDanglingReference, isUsableCard, isMeaningfulLabel } from './cardValidation';
 import {
   codeQuestion,
   diagramQuestion,
@@ -454,5 +454,5 @@ export function generateCandidates(sections: DocumentSection[]): CandidateCard[]
   for (const section of sections) {
     all.push(...cardsFromSection(section));
   }
-  return dedupeCards(all.filter(isUsableCard));
+  return dedupeCards(all.filter(isUsableCard)).map(flagDanglingReference);
 }
