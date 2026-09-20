@@ -864,4 +864,59 @@ check by hand as possible repeats, and with `--compare` lists fixture facts no c
 cover. Repeats are a reading list, not a count: the two "three steps" cards share a quarter of
 their words as `contentWords` sees them, while a card that is *not* a repeat shares two thirds.
 
-**Results:** not yet run. Record the table here, both prompts, at least two runs each.
+**Results.** `tools/compare-card-prompts.mjs https://react.dev/learn/render-and-commit --runs 2
+--compare tools/fixtures/render-and-commit-cards.json`, claude-sonnet-5, 6 sections, one session.
+
+| | old 1 | old 2 | new 1 | new 2 |
+|---|---|---|---|---|
+| cards | 20 | 20 | 20 | 22 |
+| answer pairs to check | 2 | 1 | 1 | 1 |
+| **real repeats, judged** | **1** | **1** | **1** | **1** |
+| yes/no fronts | 0 | 0 | **1** | 0 |
+| name-by-job fronts | 0 | 0 | 0 | 0 |
+| fronts pointing at the unseen | 0 | 0 | 0 | 0 |
+| cards with a picture | 1 | 0 | 0 | 0 |
+| failed batches | 0 | 0 | 0 | 0 |
+| fixture facts not covered (of 24) | 1 | 1 | 1 | 1 |
+
+**Repeat verdicts.** Five pairs were offered; four are real, and all four are the same pair — a
+"three steps" card with the list spelled out beside one answering "Trigger, Render, and Commit."
+It appears once in every run under both prompts. That is the cross-request limit already recorded
+above (`BATCH_SIZE = 4`), not a rule 7 failure, and it is why repeats did not fall. The fifth pair,
+baseline run 1, is not a repeat: "The browser repaints the screen." beside a description of the
+browser-painting cartoon. Different answers, so the new rule 7 would not merge them — but the
+cartoon card is point 4's case, and it appears under the baseline only. No picture card was drafted
+under the current prompt in either run.
+
+**Lost verdicts.** c14 (the cooking-analogy card for committing to the DOM) is the only fixture
+fact left uncovered, and it is uncovered in all four runs, under both prompts equally. Nothing in
+round 2 dropped it.
+
+**The round-1 merges are fixed.** A third drafting run with the current prompt, captured to read
+the cards rather than the measures, returned c18 and c11 as two cards ("Which component does React
+call during the initial render?" / "... during a subsequent render?") and c5 and c13 as two cards
+("What must be true of a pure React component's output given the same inputs?" / "What must a React
+component avoid doing to objects or variables that existed before it rendered?"). Round 1 merged
+both pairs; rule 7's same-answer definition keeps them apart.
+
+**Rule 8 now bites.** "What tool can help find mistakes…?" did not come back in any run:
+name-by-job fronts are 0 in all four. The capture run shows the card turned round instead — "What
+can Strict Mode be used for in React?" -> "Strict Mode can be used to find mistakes in your
+components." — which is what rule 8's new wording asks for.
+
+**One aim missed: a yes/no front under the current prompt.** Run 1 drafted "Does React modify a DOM
+node if its rendering output hasn't changed between renders?" — rule 3 forbids exactly this, and
+the baseline produced none in either run. One occurrence in two runs, against zero in the
+single-run read-through above, so this reads as variance rather than a regression the wording
+caused; but rule 3 is not airtight, and the next comparison should watch this row specifically.
+
+**A gap in the unseen-reference check.** Both measured runs scored 0, yet the capture run drafted
+"In this Clock component, why doesn't text typed into the <input> disappear…" and "During the
+initial render of this Gallery/Image component tree…". `REFERENCE_NOUNS` has no entry for
+"component" or "tree", so neither is flagged. The narrowness is deliberate (see the appendix to the
+round-2 plan), and widening it to "component" would flag ordinary questions — noted rather than
+changed.
+
+**Verdict against the aims:** total cards held (20/22 against 20/20), real repeats did not rise
+(1 against 1), the merges are gone, rule 8 bites, and the one miss is a single yes/no front. Per
+the plan's first stopping rule, this is the intended trade: recorded, and stopping here.
