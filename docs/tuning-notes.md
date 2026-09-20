@@ -703,3 +703,29 @@ sections in `aiGenerator.ts`). An intro slide and a recap slide drafted in diffe
 still produce the same card twice. Catching that needs a meaning-based pass over the whole deck
 after drafting; it is not part of this change. To measure: re-draft the source of the fixture deck
 and count repeated facts, yes/no fronts and many-answer fronts, before and after.
+
+### Round 3: audit-confirmed skips, NEW scoped to described examples
+
+Round 2 met the skip and apply aims but not the failed-card aim (2 and 1 against 0), and nine
+of its ten audit rejections were NEW. Three changes follow from that:
+
+- **Audit check 6 is scoped to examples the cards describe.** Round 2's wording asked the audit
+  to compare every scenario with "the well-known example of the idea", while the generation
+  rule only asks about cards built on an example. The audit therefore imagined a canonical
+  example for rule cards too, and two rule cards (c9, Strict Mode; c21, `root.render()`) ended
+  with no question. NEW now compares a scenario only with examples a card actually describes —
+  the question's own card or any related card — which is also something the audit can check,
+  where "the well-known example" was its memory.
+- **Audit-confirmed skips.** A card whose question the audit rejects in both passes, each time
+  only on APPLIED or NEW, is recorded as a skip instead of a failure. As a failure it was
+  offered again on every visit to the setup screen and charged for again. A rejection on
+  CORRECT or ONE RIGHT ANSWER, or no verdict at all, still leaves a failure: those describe the
+  question, not the card.
+- **Every rejection is visible.** `onAuditReject` reports each rejected question with its named
+  checks; `tools/test-application.mjs` prints them on a real run. "Applied as expected" now
+  counts apply cards that got a question, and lists LOST cards (no question, not skipped)
+  separately.
+
+**Risk to watch:** an audit-confirmed skip persists until the card is edited. If NEW still
+over-reaches, an apply card can be skipped for good. That shows up as a DODGED apply card in
+the fixture run; read its REJECTED entries before accepting the numbers.

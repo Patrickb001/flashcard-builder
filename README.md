@@ -152,7 +152,9 @@ invented freely — who, what, which numbers, what a program does — but the *p
 may not: every rule needed to get from the scenario to the answer must be on one of the
 deck's cards. A card with nothing to apply — a name, a date, a bare definition — is
 skipped rather than dressed up as a scenario, and the skip is remembered against the
-card's text, so the setup screen does not offer it again until the card is edited.
+card's text, so the setup screen does not offer it again until the card is edited. A card whose
+question the audit rejects in both passes, both times only because the question restates
+the card or renames the card's own example, is skipped the same way.
 Skipped cards stay in recall tests. Like vignettes, every application question is
 checked by a second, short audit call before it is kept: is the answer grounded in the
 cards, is it actually right (a program is traced), could any wrong option be defended
