@@ -704,6 +704,46 @@ still produce the same card twice. Catching that needs a meaning-based pass over
 after drafting; it is not part of this change. To measure: re-draft the source of the fixture deck
 and count repeated facts, yes/no fronts and many-answer fronts, before and after.
 
+**Before and after, measured.** Source: <https://react.dev/learn/render-and-commit>, parsed by the
+app's own pipeline (`sectionsFromDocument` -> `generateCandidatesWithAi`, 6 sections,
+claude-sonnet-5). "Before" is the 24-card fixture; "after" is one drafting run with rules 3, 7 and
+8 in place. One run each side — a read-through, not a statistic.
+
+| | before | after |
+|---|---|---|
+| total cards | 24 | 19 |
+| repeated facts | 3 pairs | 1 pair, plus 1 reversal |
+| yes/no fronts | 1 | 0 |
+| many-answer fronts | 1 | 1 |
+
+- **Yes/no fronts: fixed.** No front in the new draft opens with does/is/can/will. c15, the
+  coin-toss restatement of c12, has no counterpart.
+- **Repeats: improved, not solved.** "What are the three steps involved in React displaying a
+  component on screen?" and "What are the three steps that occur for any screen update in a React
+  app?" both came back, with the identical answer "Trigger, Render, and Commit." — the c3/c7 pair
+  again, from sections drafted in different requests. That is the limit named just above, not a
+  rule 7 failure. A softer repeat survives too: "Why does React call each component's function
+  twice in Strict Mode?" beside "What tool can help find mistakes in your React components?" ->
+  "Strict Mode." is the c9/c19 reversal.
+- **Many-answer fronts: not fixed.** "What tool can help find mistakes in your React components?"
+  -> "Strict Mode." survived rule 8 almost verbatim. ESLint, the profiler and a type checker all
+  answer it. Rule 8's example did not transfer to this card.
+
+**The total fell 24 -> 19, and the lost cards matter.** Rule 7 merged cards that differ:
+
+- The three cooking/restaurant analogy cards (c2, c4, c14) produced no counterpart at all.
+- The "painting" terminology card (c6), the commented-out `root.render()` card (c21) and the
+  "update state to trigger a re-render" card (c24) are gone.
+- Two pairs became one card each: initial-render and re-render callee (c18 + c11), and both purity
+  rules (c5 + c13) in a single two-part answer — rule 1 ATOMIC giving way to rule 7.
+
+Three cards are new, two of them weak in ways no rule covers: "In this example, which functions
+does React call while rendering the Gallery component..." leans on "this example" against rule 2,
+and "What does the diagram of the browser painting step depict?" tests a figure rather than a fact.
+
+**Reading it whole:** rule 3 worked, rule 7 helped within a request and cost distinct facts
+elsewhere, and rule 8 did not bite. The next wording to change is rule 8's, not rule 7's.
+
 ### Round 3: audit-confirmed skips, NEW scoped to described examples
 
 Round 2 met the skip and apply aims but not the failed-card aim (2 and 1 against 0), and nine
