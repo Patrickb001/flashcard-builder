@@ -729,3 +729,73 @@ of its ten audit rejections were NEW. Three changes follow from that:
 **Risk to watch:** an audit-confirmed skip persists until the card is edited. If NEW still
 over-reaches, an apply card can be skipped for good. That shows up as a DODGED apply card in
 the fixture run; read its REJECTED entries before accepting the numbers.
+
+### Fixture runs, round 3 (claude-sonnet-5)
+
+Two runs of `tools/test-application.mjs` against `tools/fixtures/render-and-commit-cards.json`,
+with check 6 scoped to described examples, audit-confirmed skips, and the rejection printout.
+
+| | run A | run B | aim |
+|---|---|---|---|
+| skipped as expected | 10/10 | 10/10 | >= 8/10 |
+| applied as expected (got a question) | 8/8 | 8/8 | >= 7/8 |
+| lost apply cards | 0 | 0 | 0 |
+| failed cards | 0 | 0 | 0 |
+| audits truncated | 0 | 0 | 0 |
+| questions / skipped | 12 / 12 | 11 / 13 | — |
+
+Every aim met in both runs. Round 2's failed cards (2 and 1, against an aim of 0) are gone.
+
+**Per-check rejections**, real-model batches only — the stubbed sections' warnings are not
+counted:
+
+- Run A: `APPLIED 1` (c8), then `NEW 1` (c23). Two rejections.
+- Run B: `NEW 2` (c21, c23), then `NEW 1` (c23 again). Three rejections, all NEW.
+
+Five rejections across two runs against round 2's ten. The NEW share barely moved (4/5 against
+9/10); what changed is that there are half as many rejections to share out.
+
+**c9 and c21 both got a question in both runs.** These are the two rule cards round 2 lost to an
+imagined canonical example, and the reason check 6 was scoped.
+
+**"either" cards:**
+
+| card | run A | run B |
+|---|---|---|
+| c8 | skipped | skipped |
+| c15 | question | question |
+| c18 | skipped | skipped |
+| c21 | question | question |
+| c22 | question | question |
+| c23 | question | skipped (audit-confirmed) |
+
+**Were the rejections fair?** Read before the numbers, as the plan requires. All five describe
+the card rather than an example the audit imagined:
+
+- **c8 [APPLIED], run A.** The scenario put a `console.log` in a component and asked what React
+  is doing when it fires; the answer, "calling the component function to determine what should
+  be displayed", is the card's own definition of rendering with scenery around it. Fair.
+- **c23 [NEW], three times.** Each scenario re-ran the Clock example with the parts renamed: a
+  stopwatch with a `<textarea>` (run A), a dashboard with a checkbox and a cart with a
+  gift-message `<input>` (run B). Same trigger, same roles. Fair — and this is exactly the
+  protection the scoping was meant to keep.
+- **c21 [NEW], run B.** The scenario moved `root.render()` into an onClick handler instead of
+  commenting it out. Borderline: the trigger differs, but the mechanism is the card's own. It
+  cost nothing — the retry was accepted.
+
+No rejection was unfair, and no apply card was DODGED in either run, so the first stopping rule
+does not apply.
+
+**c23 — still accepted renamed in one run of two.** Verbatim:
+
+- **Run A, accepted:** "A weather widget re-renders every 5 seconds with a new temperature prop.
+  Its JSX includes an `<h2>` showing the temperature and, in the same position each render, a
+  `<select>` dropdown for choosing a city. A user picks 'Paris' from the dropdown just before the
+  next update fires." — Q: "What happens to the dropdown's selected value after the next render?"
+  That is the Clock example with `<h1>`/`<input>` renamed to `<h2>`/`<select>`, accepted after the
+  stopwatch version was rejected on NEW.
+- **Run B:** rejected twice on NEW and recorded as an audit-confirmed skip — the new mechanism
+  doing its job, and an acceptable outcome for an `either` card.
+
+Per the plan's second stopping rule, this is audit judgement varying between runs rather than a
+wording problem: recorded, and left alone.
