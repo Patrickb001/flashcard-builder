@@ -518,3 +518,405 @@ cap, which is now in place and confirmed working end to end. The one thing this 
 not confirm is the mixed-PDF path — real-text pages and scanned pages together in one
 file — since no fixture was available; that manual pass was skipped rather than asserted
 as passing.
+
+## 2026-09-19 — application questions
+
+A third question style, "Apply it" (`APPLICATION_SYSTEM_PROMPT` in
+`src/lib/quizPrompt.ts`). Everything below is a **starting estimate**, chosen by analogy
+with the two existing styles; none of it has been measured against real batches yet.
+Replace each estimate with a measurement the first time `tools/test-application.mjs`
+is run with a key.
+
+**Batch size 6, retry 3.** An application question is a one-to-three-sentence scenario
+or a short program plus four options — between a recall question (~330 output tokens)
+and a vignette (roughly double) in size. Six sits between the recall path's 8 and the
+vignette path's 4. To measure: output tokens per question on the golden decks and on
+`tools/fixtures/quiz-cards.json`, and whether any batch comes back truncated.
+
+**Ceilings: `application` 16000, `application-audit` 1000.** The generation ceiling
+matches `vignette`; the ceiling is headroom, not a reservation, so over-estimating it
+costs nothing. The audit reply is a verdict list, the same shape as `vignette-audit`.
+
+**Rate limit.** Each batch makes two sequential calls, generation then audit, the same
+as the vignette path. The reasoning recorded for the vignette audit above applies
+unchanged: generation latency, not request count, keeps a hosted run under 20/min. Worth
+confirming on a 100-card deck on the hosted route.
+
+**Skip rate.** The prompt lets the model skip a card with nothing to apply. Two failure
+modes to watch for, in opposite directions: skipping cards that state a rule, cause or
+behaviour (the prompt tells it not to — if it does anyway, tighten the escape hatch), and
+forcing scenarios onto names and dates (loosen it). Record the skip rate per fixture
+deck here.
+
+**Audit reject rate.** As with the vignette audit: too high means the audit is too
+strict; never rejecting a planted bad question means it is too lax. The stubbed
+generator test in the harness checks the plumbing; only a real run checks the judgement.
+
+## 2026-09-19 — application questions: four prompt fixes and the render-and-commit fixture
+
+A read-through of real application questions from a React slide deck found four failures, each now
+addressed in `APPLICATION_SYSTEM_PROMPT` and `APPLICATION_AUDIT_SYSTEM_PROMPT`:
+
+1. **Restated, not applied.** A scenario narrated "React re-renders, then commits" and the stem asked
+   what happens after commit — the card read back. The prompt now requires the answer to depend on
+   a particular of the scenario ("cover the scenario"), and the audit gained an APPLIED check.
+2. **Forced scenarios for sequences.** The escape hatch told the model not to skip "a procedure",
+   which it read as licence to wrap a fixed sequence in a story. Sequences, analogies, terms and
+   API names are now listed as skips; a procedure counts as applicable only when the student must
+   decide what happens next.
+3. **The card's own example, renamed.** A card built on the docs' Clock example (an `<h1>` and an
+   `<input>`) produced a Timer with a `<p>` and a `<textarea>`. The prompt now forbids swapped-name
+   copies of the card's or the textbook's example, and the audit gained a NEW check.
+4. **Options checked against one card.** A question about which component React calls ignored a
+   neighbouring card saying rendering recurses into children. The prompt now checks options against
+   every card given, and the audit's ONE RIGHT ANSWER check names every related card. The audit's
+   context also now includes every card in the batch: `contextCards` excludes the batch, so a
+   sibling card — or one the model skipped — was invisible to it.
+
+**The fixture.** `tools/fixtures/render-and-commit-cards.json` is that deck, each card annotated with
+the verdict it should get: 9 apply, 10 skip, 5 either. Running `tools/test-application.mjs` with a
+key and this fixture prints skip and apply agreement and the three known traps (c11, c17, c23).
+Record each run's numbers here.
+
+### Fixture runs, 2026-09-19 (claude-sonnet-5)
+
+**Run 1 — audit ceiling still 1000.** 13 questions, 9 skipped, 2 failed, of 24 cards.
+Skipped as expected 9/10, applied as expected 9/9. Two of the three audit batches came
+back `stopReason=max_tokens` with no verdict for any of their five questions, so both
+batches were dropped whole and retried; the two card failures were the residue. A
+truncated audit is indistinguishable from a unanimous rejection except by the
+`missingVerdict`/`stopReason` reporting added when the audit was written — which is what
+caught it.
+
+**Ceiling raised: `application-audit` 1000 -> 4000** (client and server copies). 1000 was
+borrowed from `vignette-audit` on the reasoning that both replies are verdict lists. It
+no longer holds: six checks reason over more than four did, and the reply runs past 1000
+before it reaches the JSON.
+
+**Run 2 — audit ceiling 4000.** 14 questions, 10 skipped, 0 failed, of 24 cards. All three
+audits ended `end_turn` with every verdict present, flagging 1 of 4, 1 of 3 and 1 of 5 —
+judgement rather than truncation. Skipped as expected 9/10, applied as expected 9/9.
+
+| | run 1 | run 2 | aim |
+|---|---|---|---|
+| skipped as expected | 9/10 | 9/10 | >= 8/10 |
+| applied as expected | 9/9 | 9/9 | >= 8/9 |
+| failed cards | 2 | 0 | 0 |
+| audits truncated | 2 of 3 | 0 of 3 | 0 |
+
+**The traps.** c17 skipped in both runs — the sequence fix holds. c11 came back consistent
+with c10 in both runs: the marked answer is the component whose state updated, and no
+option names the parent and then its child, so nothing defensible is marked wrong.
+
+**Still open after these fixes:**
+
+- **c23 defeats the NEW check.** Run 2 produced "a weather widget re-renders every 5
+  seconds to show the latest temperature in a `<span>`, while a text `<input>` ... sits in
+  the same spot in the JSX". That is the docs' Clock example with the names swapped —
+  clock to weather widget, `<h1>` to `<span>`, time to temperature — which is exactly what
+  the NEW rule and the audit's NEW check forbid. Changing the elements and the subject
+  noun is evidently not read as changing "what the situation is about" when the *shape*
+  (something on a timer beside a text input) is preserved. The next attempt should name
+  the shape, not just the names: forbid re-using the card's arrangement of parts.
+- **c19 is forced in both runs.** "What can you use to find mistakes in your React
+  components?" -> "Strict Mode" is a card whose answer is a name, and both runs wrapped it
+  in an impure-component story ending "which React feature would help the developer notice
+  this bug ... ?". The skip list names "what something is called"; the model appears to
+  treat a feature that *does* something as applicable regardless. Note that the resulting
+  question is not a bad one — it is just recall of a name with scenery.
+
+### Fixture runs, round 2 (claude-sonnet-5)
+
+The round-2 changes: NEW compares *structure* rather than names in both the generation
+bullet and audit check 6; APPLIED now fails a question whose answer is the name of a
+tool, feature, API or term; the escape hatch names feature-and-tool cards as skips; and
+the audit reply carries `"failed": [string]`, so a rejection says which checks did it.
+c23's fixture verdict moved from `apply` to `either` — it is a worked example of c12's
+rule, and c12 can carry the application question.
+
+| | run A | run B | aim |
+|---|---|---|---|
+| skipped as expected | 10/10 | 10/10 | >= 8/10 |
+| applied as expected | 8/8 | 8/8 | >= 7/8 |
+| failed cards | 2 (c21, c23) | 1 (c9) | 0 |
+| audits truncated | 0 of 2 | 0 of 3 | 0 |
+| questions / skipped | 11 / 11 | 11 / 12 | — |
+
+**Per-check rejections**, read off the audit warnings (real-model batches only):
+
+- Run A: `NEW 3` in one batch, `NEW 2` in another. Five rejections, all NEW.
+- Run B: `APPLIED 1, NEW 1`; then `NEW 2`; then `NEW 1`. Five rejections, four NEW and
+  one APPLIED.
+
+Ten rejections across the two runs, nine of them NEW. The named-check field is doing
+exactly the job it was added for: before it, this would have read as "five flagged" with
+no way to tell a strict prompt from one rule doing all the work.
+
+**Audit output tokens per call:** not recorded. `callModel` returns `{ text, stopReason }`
+only (src/lib/aiTransport.ts), and adding usage plumbing was out of scope for this round.
+
+**c19 — skipped in both runs.** The APPLIED sentence about names, and the escape hatch's
+feature-and-tool clause, hold. Round 1 forced it into an impure-component story twice.
+
+**c23 — one rejection, one rename.** Not fixed.
+
+- Run A: no question. The audit rejected its scenario on NEW, the retry too, and the card
+  ended as a failure rather than a skip.
+- Run B, accepted and shipped, verbatim: "A dashboard component re-renders every second
+  to show a live stock price, while a `<textarea>` next to it lets the user jot notes. As
+  the price updates, the notes the user is typing never disappear." Q: "Based on how
+  React handles commits, why does the text in the textarea stay intact across these
+  re-renders?" Correct: "React only updates the DOM where the output differs, so the
+  unchanged textarea node is left alone."
+
+That is the Clock example again — a value on a timer beside a text field the user types
+into — with every part renamed and the structure untouched, which is precisely what the
+round-2 wording forbids. Wording that names the failure this explicitly still did not
+prevent it in one run of two. Worth noting it was *not* rescued by an untaught fact: the
+question is grounded in c12, and no variant tried to test what happens when the input
+moves position. The open question is therefore not how to phrase NEW, but whether a card
+that *is* a worked example should be skipped outright.
+
+**A blind spot in the scoring.** "Applied as expected" counts only apply-cards the model
+chose to *skip*; a card whose question the audit rejected to death is not counted, because
+it is not in `notApplicableCardIds`. Run B scored 8/8 while c9 ("What does React do in
+Strict Mode…", an apply card) produced no question at all. Read the failed-card count
+beside the applied figure, not instead of it.
+
+## 2026-09-19 — card prompt: yes/no fronts, one-answer fronts, paraphrased repeats
+
+Three patterns found in a real React slide deck (now `tools/fixtures/render-and-commit-cards.json`)
+that the card prompt did not address:
+
+- **Near-duplicates in different words.** "What are the three steps involved in React displaying UI
+  on screen?" and "What are the three steps that happen during any screen update in a React app?"
+  score 0.67 / 0.67 — far below the 0.9 / 0.9 dedupe threshold, which is deliberate (see "What this
+  deliberately does not catch" above). Rule 7 now says one fact gets one card however it is worded,
+  within a section as well as across sections.
+- **Yes/no fronts.** "Does React touch the DOM if the rendering result is the same as last time?"
+  restated another card's rule as a coin toss. Rule 3 now forbids yes/no questions.
+- **Many-answer fronts.** "What can you use to find mistakes in your React components?" → "Strict
+  Mode." has many correct answers. New rule 8 requires one.
+
+**What a prompt cannot fix.** Rule 7 only sees the sections in one request (`BATCH_SIZE = 4`
+sections in `aiGenerator.ts`). An intro slide and a recap slide drafted in different requests can
+still produce the same card twice. Catching that needs a meaning-based pass over the whole deck
+after drafting; it is not part of this change. To measure: re-draft the source of the fixture deck
+and count repeated facts, yes/no fronts and many-answer fronts, before and after.
+
+**Before and after, measured.** Source: <https://react.dev/learn/render-and-commit>, parsed by the
+app's own pipeline (`sectionsFromDocument` -> `generateCandidatesWithAi`, 6 sections,
+claude-sonnet-5). "Before" is the 24-card fixture; "after" is one drafting run with rules 3, 7 and
+8 in place. One run each side — a read-through, not a statistic.
+
+| | before | after |
+|---|---|---|
+| total cards | 24 | 19 |
+| repeated facts | 3 pairs | 1 pair, plus 1 reversal |
+| yes/no fronts | 1 | 0 |
+| many-answer fronts | 1 | 1 |
+
+- **Yes/no fronts: fixed.** No front in the new draft opens with does/is/can/will. c15, the
+  coin-toss restatement of c12, has no counterpart.
+- **Repeats: improved, not solved.** "What are the three steps involved in React displaying a
+  component on screen?" and "What are the three steps that occur for any screen update in a React
+  app?" both came back, with the identical answer "Trigger, Render, and Commit." — the c3/c7 pair
+  again, from sections drafted in different requests. That is the limit named just above, not a
+  rule 7 failure. A softer repeat survives too: "Why does React call each component's function
+  twice in Strict Mode?" beside "What tool can help find mistakes in your React components?" ->
+  "Strict Mode." is the c9/c19 reversal.
+- **Many-answer fronts: not fixed.** "What tool can help find mistakes in your React components?"
+  -> "Strict Mode." survived rule 8 almost verbatim. ESLint, the profiler and a type checker all
+  answer it. Rule 8's example did not transfer to this card.
+
+**The total fell 24 -> 19, and the lost cards matter.** Rule 7 merged cards that differ:
+
+- The three cooking/restaurant analogy cards (c2, c4, c14) produced no counterpart at all.
+- The "painting" terminology card (c6), the commented-out `root.render()` card (c21) and the
+  "update state to trigger a re-render" card (c24) are gone.
+- Two pairs became one card each: initial-render and re-render callee (c18 + c11), and both purity
+  rules (c5 + c13) in a single two-part answer — rule 1 ATOMIC giving way to rule 7.
+
+Three cards are new, two of them weak in ways no rule covers: "In this example, which functions
+does React call while rendering the Gallery component..." leans on "this example" against rule 2,
+and "What does the diagram of the browser painting step depict?" tests a figure rather than a fact.
+
+**Reading it whole:** rule 3 worked, rule 7 helped within a request and cost distinct facts
+elsewhere, and rule 8 did not bite. The next wording to change is rule 8's, not rule 7's.
+
+### Round 3: audit-confirmed skips, NEW scoped to described examples
+
+Round 2 met the skip and apply aims but not the failed-card aim (2 and 1 against 0), and nine
+of its ten audit rejections were NEW. Three changes follow from that:
+
+- **Audit check 6 is scoped to examples the cards describe.** Round 2's wording asked the audit
+  to compare every scenario with "the well-known example of the idea", while the generation
+  rule only asks about cards built on an example. The audit therefore imagined a canonical
+  example for rule cards too, and two rule cards (c9, Strict Mode; c21, `root.render()`) ended
+  with no question. NEW now compares a scenario only with examples a card actually describes —
+  the question's own card or any related card — which is also something the audit can check,
+  where "the well-known example" was its memory.
+- **Audit-confirmed skips.** A card whose question the audit rejects in both passes, each time
+  only on APPLIED or NEW, is recorded as a skip instead of a failure. As a failure it was
+  offered again on every visit to the setup screen and charged for again. A rejection on
+  CORRECT or ONE RIGHT ANSWER, or no verdict at all, still leaves a failure: those describe the
+  question, not the card.
+- **Every rejection is visible.** `onAuditReject` reports each rejected question with its named
+  checks; `tools/test-application.mjs` prints them on a real run. "Applied as expected" now
+  counts apply cards that got a question, and lists LOST cards (no question, not skipped)
+  separately.
+
+**Risk to watch:** an audit-confirmed skip persists until the card is edited. If NEW still
+over-reaches, an apply card can be skipped for good. That shows up as a DODGED apply card in
+the fixture run; read its REJECTED entries before accepting the numbers.
+
+### Fixture runs, round 3 (claude-sonnet-5)
+
+Two runs of `tools/test-application.mjs` against `tools/fixtures/render-and-commit-cards.json`,
+with check 6 scoped to described examples, audit-confirmed skips, and the rejection printout.
+
+| | run A | run B | aim |
+|---|---|---|---|
+| skipped as expected | 10/10 | 10/10 | >= 8/10 |
+| applied as expected (got a question) | 8/8 | 8/8 | >= 7/8 |
+| lost apply cards | 0 | 0 | 0 |
+| failed cards | 0 | 0 | 0 |
+| audits truncated | 0 | 0 | 0 |
+| questions / skipped | 12 / 12 | 11 / 13 | — |
+
+Every aim met in both runs. Round 2's failed cards (2 and 1, against an aim of 0) are gone.
+
+**Per-check rejections**, real-model batches only — the stubbed sections' warnings are not
+counted:
+
+- Run A: `APPLIED 1` (c8), then `NEW 1` (c23). Two rejections.
+- Run B: `NEW 2` (c21, c23), then `NEW 1` (c23 again). Three rejections, all NEW.
+
+Five rejections across two runs against round 2's ten. The NEW share barely moved (4/5 against
+9/10); what changed is that there are half as many rejections to share out.
+
+**c9 and c21 both got a question in both runs.** These are the two rule cards round 2 lost to an
+imagined canonical example, and the reason check 6 was scoped.
+
+**"either" cards:**
+
+| card | run A | run B |
+|---|---|---|
+| c8 | skipped | skipped |
+| c15 | question | question |
+| c18 | skipped | skipped |
+| c21 | question | question |
+| c22 | question | question |
+| c23 | question | skipped (audit-confirmed) |
+
+**Were the rejections fair?** Read before the numbers, as the plan requires. All five describe
+the card rather than an example the audit imagined:
+
+- **c8 [APPLIED], run A.** The scenario put a `console.log` in a component and asked what React
+  is doing when it fires; the answer, "calling the component function to determine what should
+  be displayed", is the card's own definition of rendering with scenery around it. Fair.
+- **c23 [NEW], three times.** Each scenario re-ran the Clock example with the parts renamed: a
+  stopwatch with a `<textarea>` (run A), a dashboard with a checkbox and a cart with a
+  gift-message `<input>` (run B). Same trigger, same roles. Fair — and this is exactly the
+  protection the scoping was meant to keep.
+- **c21 [NEW], run B.** The scenario moved `root.render()` into an onClick handler instead of
+  commenting it out. Borderline: the trigger differs, but the mechanism is the card's own. It
+  cost nothing — the retry was accepted.
+
+No rejection was unfair, and no apply card was DODGED in either run, so the first stopping rule
+does not apply.
+
+**c23 — still accepted renamed in one run of two.** Verbatim:
+
+- **Run A, accepted:** "A weather widget re-renders every 5 seconds with a new temperature prop.
+  Its JSX includes an `<h2>` showing the temperature and, in the same position each render, a
+  `<select>` dropdown for choosing a city. A user picks 'Paris' from the dropdown just before the
+  next update fires." — Q: "What happens to the dropdown's selected value after the next render?"
+  That is the Clock example with `<h1>`/`<input>` renamed to `<h2>`/`<select>`, accepted after the
+  stopwatch version was rejected on NEW.
+- **Run B:** rejected twice on NEW and recorded as an audit-confirmed skip — the new mechanism
+  doing its job, and an acceptable outcome for an `either` card.
+
+Per the plan's second stopping rule, this is audit judgement varying between runs rather than a
+wording problem: recorded, and left alone.
+
+## 2026-09-20 — card prompt, round 2: repeats by answer, name answers turned round
+
+The before-and-after read-through above found rule 7 costing distinct facts (24 cards to 19:
+c24 lost, c11 + c18 and c5 + c13 merged) while rule 8 did not bite on "What tool can help find
+mistakes…?". A lost fact is worse than a repeat — a repeat is visible and deleted in review, a
+lost fact is never known to be missing — so the changes lean towards keeping cards:
+
+- **Rule 7** now defines a repeat as the *same answer* (or one card turned round). Cards whose
+  answers differ are different facts; rule 1 ATOMIC comes first; when unsure, keep both.
+- **Rule 8** names its most common case — a name answer asked for by the job it does — and the
+  fix: turn the card round and ask what the named thing does; drop it if another card asks that.
+- **The diagram rule** says an illustration of an analogy or metaphor is decorative.
+- **A check in code** (`danglingReference` in `cardValidation.ts`) unticks a drafted card whose
+  front points at something the card does not show ("In this example, …") and says why on the
+  review screen. Unticked, not dropped; the note goes away when the front is reworded.
+
+**How to measure it.** `tools/compare-card-prompts.mjs` drafts one page with the old prompt
+(`tools/fixtures/card-prompt-baseline.txt`, the prompt before the card-prompt fixes plan) and the
+current one, the same model, the same session, several runs each. It counts yes/no fronts,
+fronts pointing at the unseen, name-by-job fronts and cards with a picture, lists answer pairs to
+check by hand as possible repeats, and with `--compare` lists fixture facts no card seems to
+cover. Repeats are a reading list, not a count: the two "three steps" cards share a quarter of
+their words as `contentWords` sees them, while a card that is *not* a repeat shares two thirds.
+
+**Results.** `tools/compare-card-prompts.mjs https://react.dev/learn/render-and-commit --runs 2
+--compare tools/fixtures/render-and-commit-cards.json`, claude-sonnet-5, 6 sections, one session.
+
+| | old 1 | old 2 | new 1 | new 2 |
+|---|---|---|---|---|
+| cards | 20 | 20 | 20 | 22 |
+| answer pairs to check | 2 | 1 | 1 | 1 |
+| **real repeats, judged** | **1** | **1** | **1** | **1** |
+| yes/no fronts | 0 | 0 | **1** | 0 |
+| name-by-job fronts | 0 | 0 | 0 | 0 |
+| fronts pointing at the unseen | 0 | 0 | 0 | 0 |
+| cards with a picture | 1 | 0 | 0 | 0 |
+| failed batches | 0 | 0 | 0 | 0 |
+| fixture facts not covered (of 24) | 1 | 1 | 1 | 1 |
+
+**Repeat verdicts.** Five pairs were offered; four are real, and all four are the same pair — a
+"three steps" card with the list spelled out beside one answering "Trigger, Render, and Commit."
+It appears once in every run under both prompts. That is the cross-request limit already recorded
+above (`BATCH_SIZE = 4`), not a rule 7 failure, and it is why repeats did not fall. The fifth pair,
+baseline run 1, is not a repeat: "The browser repaints the screen." beside a description of the
+browser-painting cartoon. Different answers, so the new rule 7 would not merge them — but the
+cartoon card is point 4's case, and it appears under the baseline only. No picture card was drafted
+under the current prompt in either run.
+
+**Lost verdicts.** c14 (the cooking-analogy card for committing to the DOM) is the only fixture
+fact left uncovered, and it is uncovered in all four runs, under both prompts equally. Nothing in
+round 2 dropped it.
+
+**The round-1 merges are fixed.** A third drafting run with the current prompt, captured to read
+the cards rather than the measures, returned c18 and c11 as two cards ("Which component does React
+call during the initial render?" / "... during a subsequent render?") and c5 and c13 as two cards
+("What must be true of a pure React component's output given the same inputs?" / "What must a React
+component avoid doing to objects or variables that existed before it rendered?"). Round 1 merged
+both pairs; rule 7's same-answer definition keeps them apart.
+
+**Rule 8 now bites.** "What tool can help find mistakes…?" did not come back in any run:
+name-by-job fronts are 0 in all four. The capture run shows the card turned round instead — "What
+can Strict Mode be used for in React?" -> "Strict Mode can be used to find mistakes in your
+components." — which is what rule 8's new wording asks for.
+
+**One aim missed: a yes/no front under the current prompt.** Run 1 drafted "Does React modify a DOM
+node if its rendering output hasn't changed between renders?" — rule 3 forbids exactly this, and
+the baseline produced none in either run. One occurrence in two runs, against zero in the
+single-run read-through above, so this reads as variance rather than a regression the wording
+caused; but rule 3 is not airtight, and the next comparison should watch this row specifically.
+
+**A gap in the unseen-reference check.** Both measured runs scored 0, yet the capture run drafted
+"In this Clock component, why doesn't text typed into the <input> disappear…" and "During the
+initial render of this Gallery/Image component tree…". `REFERENCE_NOUNS` has no entry for
+"component" or "tree", so neither is flagged. The narrowness is deliberate (see the appendix to the
+round-2 plan), and widening it to "component" would flag ordinary questions — noted rather than
+changed.
+
+**Verdict against the aims:** total cards held (20/22 against 20/20), real repeats did not rise
+(1 against 1), the merges are gone, rule 8 bites, and the one miss is a single yes/no front. Per
+the plan's first stopping rule, this is the intended trade: recorded, and stopping here.

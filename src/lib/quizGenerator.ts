@@ -1,10 +1,13 @@
 import type { Flashcard, QuestionStyle, TestQuestion } from '../types';
+import { styleOf } from '../types';
 import type { AiSettings } from './aiGenerator';
-import { callModel } from './aiTransport';
+import { callModel, type AiTask } from './aiTransport';
 import { runBatches, type BatchProgress } from './batchRunner';
 import {
+  parseApplicationResponse,
   parseQuizResponse,
   parseVignetteResponse,
+  parseAuditFailures,
   parseAuditResponse,
   type LlmQuizQuestion,
 } from './quizPrompt';
@@ -54,6 +57,37 @@ const RETRY_BATCH_SIZE = 4;
 const VIGNETTE_BATCH_SIZE = 4;
 const VIGNETTE_RETRY_BATCH_SIZE = 2;
 
+/**
+ * The same two numbers for application questions.
+ *
+ * A scenario of one to three sentences, sometimes a short program, and four
+ * options: between a recall question and a vignette in size. A starting
+ * estimate — see "Application questions" in docs/tuning-notes.md, which is
+ * where the measured numbers belong once real batches have been run.
+ */
+const APPLICATION_BATCH_SIZE = 6;
+const APPLICATION_RETRY_BATCH_SIZE = 3;
+
+/** Which prompt each style is written with, and which audits it, if any. */
+const GENERATE_TASK: Record<QuestionStyle, AiTask> = {
+  recall: 'quiz',
+  vignette: 'vignette',
+  application: 'application',
+};
+const AUDIT_TASK: Partial<Record<QuestionStyle, AiTask>> = {
+  vignette: 'vignette-audit',
+  application: 'application-audit',
+};
+
+/**
+ * Audit checks that say a card has nothing to apply, rather than that one
+ * attempt at it was wrong. A question failed only on these — it restates the
+ * card, or renames the card's example — tells us about the card; a question
+ * failed on CORRECT or ONE RIGHT ANSWER tells us about the question. See
+ * "audit-confirmed skips" in generateQuestionsForCards.
+ */
+const NOT_APPLICABLE_CHECKS = new Set(['APPLIED', 'NEW']);
+
 /** Other cards offered per batch, as raw material for wrong answers. */
 const NEIGHBOUR_LIMIT = 20;
 
@@ -94,6 +128,12 @@ export interface QuizGenerationResult {
   truncatedBatches: number;
   /** True when the user stopped the run. Not a failure, and not reported as one. */
   aborted: boolean;
+  /**
+   * Cards the model judged to have nothing to apply. Application style only;
+   * always empty otherwise. Not failures: they are not retried, and the caller
+   * records them so they are not offered again until the card changes.
+   */
+  notApplicableCardIds: string[];
 }
 
 export interface QuizGenerationOptions {
@@ -103,6 +143,19 @@ export interface QuizGenerationOptions {
   signal?: AbortSignal;
   /** Which kind of question to write. Defaults to the recall style. */
   style?: QuestionStyle;
+  /**
+   * Fired after each batch with the cards the model skipped as having nothing
+   * to apply, so the caller can record them as it goes — the same reason
+   * onBatch saves per batch. Application style only.
+   */
+  onSkip?: (cards: Flashcard[]) => Promise<void>;
+  /**
+   * Fired for every question the audit rejected, with the checks it named
+   * (empty when it named none). For diagnosis only — the question is dropped
+   * either way. tools/test-application.mjs prints these on a real run, which is
+   * the only way to judge whether a check is rejecting fairly.
+   */
+  onAuditReject?: (card: Flashcard, question: LlmQuizQuestion, failed: string[]) => void;
 }
 
 /**
@@ -121,6 +174,39 @@ export function hashCard(card: Pick<Flashcard, 'front' | 'back'>): string {
     hash = Math.imul(hash, 0x01000193);
   }
   return (hash >>> 0).toString(16);
+}
+
+/**
+ * Which cards have no usable question in a style, and which were skipped.
+ *
+ * A card needs a question when it has none in this style, or has one written
+ * from text that has since changed; to the reader those are the same thing —
+ * this card will not come up. Keyed on card AND style: keyed on card alone,
+ * one style's question hides another style's absence.
+ *
+ * `skipped` is application style only: cards the model judged to have nothing
+ * to apply, at their current text. They are left out of `unwritten`, or every
+ * visit to the setup screen would offer — and charge for — the same verdict
+ * again. Editing a card changes its hash, which lifts the skip.
+ */
+export function cardsNeedingQuestions(
+  cards: Flashcard[],
+  pool: TestQuestion[],
+  style: QuestionStyle
+): { unwritten: Flashcard[]; skipped: Flashcard[] } {
+  const byCard = new Map(pool.map((question) => [`${question.cardId}:${styleOf(question)}`, question]));
+  const unwritten: Flashcard[] = [];
+  const skipped: Flashcard[] = [];
+
+  for (const card of cards) {
+    const hash = hashCard(card);
+    const question = byCard.get(`${card.id}:${style}`);
+    if (question && question.cardHash === hash) continue;
+    if (style === 'application' && card.applicationSkipHash === hash) skipped.push(card);
+    else unwritten.push(card);
+  }
+
+  return { unwritten, skipped };
 }
 
 /**
@@ -328,8 +414,8 @@ function buildBatches(
 }
 
 /**
- * Runs the grounding/distractor-safety audit over one batch of vignette
- * questions, dropping any it flags — or all of them, if the audit call
+ * Runs the audit over one batch of scenario questions — vignette or
+ * application — dropping any it flags, or all of them if the audit call
  * itself fails.
  *
  * Failing closed here is deliberate: an unaudited vignette is exactly the
@@ -339,21 +425,39 @@ function buildBatches(
  * any other, per the same philosophy `toQuestion()` already uses for a
  * malformed reply.
  */
-async function auditVignettes(
+async function auditQuestions(
+  task: AiTask,
   parsed: LlmQuizQuestion[],
   batch: Flashcard[],
   deckCards: Flashcard[],
   settings: AiSettings,
   signal?: AbortSignal
-): Promise<LlmQuizQuestion[]> {
-  const context = contextCards(batch, deckCards).map(({ front, back }) => ({ front, back }));
+): Promise<{ kept: LlmQuizQuestion[]; rejected: Map<string, { question: LlmQuizQuestion; failed: string[] }> }> {
+  // The application audit also gets every card in the batch. contextCards
+  // leaves the batch out (it was written for generation, where those cards
+  // are already in the payload), so a sibling card that makes a wrong option
+  // true — or one the model skipped, which has no question here at all —
+  // would otherwise be invisible to the one check that looks for it. The
+  // vignette audit's payload is left exactly as it was measured.
+  const related = contextCards(batch, deckCards).map(({ front, back }) => ({ front, back }));
+  const context =
+    task === 'application-audit'
+      ? [...batch.map(({ front, back }) => ({ front, back })), ...related]
+      : related;
   const questions = parsed.map((item) => {
     const index = Number(item.id.replace(/^q/i, '')) - 1;
     const card = batch[index];
+    // The vignette audit's payload is left exactly as it was measured; an
+    // application question names its scenario as such and carries its program,
+    // which the audit has to trace.
+    const scenario =
+      task === 'application-audit'
+        ? { scenario: item.vignette ?? '', code: item.code?.text ?? null }
+        : { vignette: item.vignette ?? '' };
     return {
       id: item.id,
       card: card ? { front: card.front, back: card.back } : null,
-      vignette: item.vignette ?? '',
+      ...scenario,
       stem: item.stem,
       correct: item.correct,
       distractors: item.distractors,
@@ -364,7 +468,7 @@ async function auditVignettes(
     // Wrapped in an array for the same reason the generation call is: the
     // endpoint's contract is a non-empty list of things for the model, even
     // when — as here — there is only one thing to send.
-    const { text, stopReason } = await callModel('vignette-audit', [{ context, questions }], settings, signal);
+    const { text, stopReason } = await callModel(task, [{ context, questions }], settings, signal);
     const verdicts = parseAuditResponse(text);
     const kept = parsed.filter((item) => verdicts.get(item.id) === true);
     const flagged = parsed.length - kept.length;
@@ -376,16 +480,40 @@ async function auditVignettes(
     // question here unless missingVerdict/stopReason are reported alongside
     // it — a batch that hit the ceiling is a transport problem, not a
     // judgment about the questions.
+    // Which checks did the rejecting, for the application audit only — the
+    // vignette audit's reply format is unchanged, so it has none to report.
+    // Counted over rejected questions alone: a reply that names a check
+    // beside "ok": true is contradicting itself, and the verdict wins.
+    const byCheck = new Map<string, number>();
+    const failures = task === 'application-audit' ? parseAuditFailures(text) : new Map<string, string[]>();
+    for (const [id, names] of failures) {
+      if (verdicts.get(id) === true) continue;
+      for (const name of names) byCheck.set(name, (byCheck.get(name) ?? 0) + 1);
+    }
+    // Only an explicit "ok": false is a rejection here. A question with no
+    // verdict at all — a truncated or malformed reply — is dropped like one,
+    // but says nothing about the card, so it is not reported as rejected.
+    const rejected = new Map<string, { question: LlmQuizQuestion; failed: string[] }>();
+    for (const item of parsed) {
+      if (verdicts.get(item.id) !== false) continue;
+      const failed = (failures.get(item.id) ?? []).map((name) => name.toUpperCase());
+      rejected.set(item.id, { question: item, failed });
+    }
     if (flagged > 0) {
+      const named = [...byCheck]
+        .sort((a, b) => b[1] - a[1])
+        .map(([name, count]) => `${name} ${count}`)
+        .join(', ');
       console.warn(
-        `Vignette audit flagged ${flagged} of ${parsed.length} question(s) ` +
-          `(${missingVerdict} had no verdict in the reply; stopReason=${stopReason}); dropped for retry.`
+        `${task} flagged ${flagged} of ${parsed.length} question(s) ` +
+          `(${missingVerdict} had no verdict in the reply; stopReason=${stopReason}` +
+          `${named ? `; ${named}` : ''}); dropped for retry.`
       );
     }
-    return kept;
+    return { kept, rejected };
   } catch (err) {
-    console.error('Vignette audit failed; dropping the batch rather than trusting it unaudited:', err);
-    return [];
+    console.error(`${task} failed; dropping the batch rather than trusting it unaudited:`, err);
+    return { kept: [], rejected: new Map() };
   }
 }
 
@@ -406,6 +534,8 @@ export async function generateQuestionsForCards(
   // recall questions without being touched.
   const style: QuestionStyle = options.style ?? 'recall';
   const isVignette = style === 'vignette';
+  const isApplication = style === 'application';
+  const auditTask = AUDIT_TASK[style];
 
   const questions: TestQuestion[] = [];
   let failedBatches = 0;
@@ -414,6 +544,9 @@ export async function generateQuestionsForCards(
   let done = 0;
   let firstError: string | null = null;
   let aborted = false;
+  const notApplicable = new Set<string>();
+  /** Per card: how many of its questions the audit rejected only on NOT_APPLICABLE_CHECKS. */
+  const applicabilityRejections = new Map<string, number>();
 
   /**
    * Runs one batch and returns the cards it left without a question.
@@ -427,15 +560,34 @@ export async function generateQuestionsForCards(
     // list of things for the model, and card drafting sends one section per
     // entry. A quiz batch is a single entry, but it still has to be a list.
     const { text, stopReason } = await callModel(
-      isVignette ? 'vignette' : 'quiz',
+      GENERATE_TASK[style],
       [serializeBatch(batch, deckCards, deckName, style)],
       settings,
       options.signal
     );
     if (stopReason === 'max_tokens') truncatedBatches += 1;
 
-    let parsed = isVignette ? parseVignetteResponse(text) : parseQuizResponse(text);
-    if (parsed.length === 0) {
+    // A skip is a verdict about a card, not a missing answer: it is recorded,
+    // counted as handled so the retry pass leaves it alone, and never audited.
+    const skippedCards: Flashcard[] = [];
+    let parsed: LlmQuizQuestion[];
+    if (isApplication) {
+      const reply = parseApplicationResponse(text);
+      parsed = reply.questions;
+      for (const { id } of reply.skipped) {
+        const card = batch[Number(id.replace(/^q/i, '')) - 1];
+        if (card && !notApplicable.has(card.id)) skippedCards.push(card);
+      }
+    } else {
+      parsed = isVignette ? parseVignetteResponse(text) : parseQuizResponse(text);
+    }
+
+    if (skippedCards.length > 0) {
+      for (const card of skippedCards) notApplicable.add(card.id);
+      await options.onSkip?.(skippedCards);
+    }
+
+    if (parsed.length === 0 && skippedCards.length === 0) {
       throw new Error(
         stopReason === 'max_tokens'
           ? 'The reply was cut off by the length limit before any question was complete.'
@@ -446,13 +598,38 @@ export async function generateQuestionsForCards(
     // Audited before anything is marked answered, so a question the audit
     // drops flows through exactly like one the model never wrote: its card
     // stays unanswered and is retried, rather than needing separate handling.
-    if (isVignette) {
-      parsed = await auditVignettes(parsed, batch, deckCards, settings, options.signal);
+    if (auditTask && parsed.length > 0) {
+      const audit = await auditQuestions(auditTask, parsed, batch, deckCards, settings, options.signal);
+      parsed = audit.kept;
+
+      // Audit-confirmed skips. A card whose question is rejected in BOTH passes,
+      // each time only for restating the card or renaming its example, has been
+      // shown twice to have nothing to apply that the audit will accept. Left as
+      // a failure it would be offered again on every visit to the setup screen,
+      // and charged for again, to be rejected again. It is recorded as a skip
+      // instead — lifted, like any skip, when the card is edited. One such
+      // rejection is not enough: a single bad attempt is what the retry is for.
+      const confirmed: Flashcard[] = [];
+      for (const [id, { question, failed }] of audit.rejected) {
+        const card = batch[Number(id.replace(/^q/i, '')) - 1];
+        if (!card) continue;
+        options.onAuditReject?.(card, question, failed);
+        if (!isApplication || failed.length === 0) continue;
+        if (!failed.every((name) => NOT_APPLICABLE_CHECKS.has(name))) continue;
+        const count = (applicabilityRejections.get(card.id) ?? 0) + 1;
+        applicabilityRejections.set(card.id, count);
+        if (count >= 2 && !notApplicable.has(card.id)) confirmed.push(card);
+      }
+      if (confirmed.length > 0) {
+        for (const card of confirmed) notApplicable.add(card.id);
+        skippedCards.push(...confirmed);
+        await options.onSkip?.(confirmed);
+      }
     }
 
     const now = Date.now();
     const written: TestQuestion[] = [];
-    const answered = new Set<string>();
+    const answered = new Set<string>(skippedCards.map((card) => card.id));
 
     for (const item of parsed) {
       // Batch-local ids are "q1".."qN"; anything else the model invented
@@ -475,8 +652,10 @@ export async function generateQuestionsForCards(
         correctAnswer: item.correct,
         distractors: item.distractors,
         explanation: item.explanation,
-        stemCode: card.frontCode,
-        stemImage: card.image,
+        // An application question is about a NEW situation, so the card's own
+        // snippet and diagram — its example, not this one — stay off it.
+        stemCode: isApplication ? item.code : card.frontCode,
+        stemImage: isApplication ? undefined : card.image,
         context: card.context,
         sourceLabel: card.sourceLabel,
         cardHash: hashCard(card),
@@ -532,8 +711,12 @@ export async function generateQuestionsForCards(
     return missed;
   }
 
-  const firstSize = isVignette ? VIGNETTE_BATCH_SIZE : BATCH_SIZE;
-  const retrySize = isVignette ? VIGNETTE_RETRY_BATCH_SIZE : RETRY_BATCH_SIZE;
+  const firstSize = isVignette ? VIGNETTE_BATCH_SIZE : isApplication ? APPLICATION_BATCH_SIZE : BATCH_SIZE;
+  const retrySize = isVignette
+    ? VIGNETTE_RETRY_BATCH_SIZE
+    : isApplication
+      ? APPLICATION_RETRY_BATCH_SIZE
+      : RETRY_BATCH_SIZE;
 
   let missing = await runPass(buildBatches(targets, deckCards, deckName, firstSize, style));
 
@@ -554,5 +737,6 @@ export async function generateQuestionsForCards(
     firstError: aborted ? null : firstError,
     truncatedBatches,
     aborted,
+    notApplicableCardIds: [...notApplicable],
   };
 }

@@ -1,4 +1,5 @@
 import type { Flashcard, TestQuestion } from '../../types';
+import { styleOf } from '../../types';
 import type { PreparedQuestion } from '../../lib/quizSelection';
 import ProgressBar from '../ui/ProgressBar';
 import QuestionStem from './QuestionStem';
@@ -52,7 +53,12 @@ export default function QuizRunner({
 
       <div className="quiz-question">
         {current.question.context && <span className="topic-chip">{current.question.context}</span>}
-        <QuestionStem question={current.question} fallbackCode={card?.frontCode} />
+        {/* No fallback for an application question: its scenario is a new one,
+            and the card's own snippet would sit under it as though it belonged. */}
+        <QuestionStem
+          question={current.question}
+          fallbackCode={styleOf(current.question) === 'application' ? undefined : card?.frontCode}
+        />
       </div>
 
       <ul className="quiz-options" role="radiogroup" aria-label="Answer options">

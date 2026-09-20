@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import type { CandidateCard, Deck, Flashcard, Folder, SourceType } from '../types';
 import type { DocumentSection, OcrPage } from '../lib/documentModel';
 import { generateCandidates } from '../lib/flashcardGenerator';
+import { danglingReference } from '../lib/cardValidation';
 import type { AiSettings } from '../lib/aiGenerator';
 import type { BatchProgress } from '../lib/batchRunner';
 import { generateCandidatesWithAi } from '../lib/aiGenerator';
@@ -513,6 +514,16 @@ export default function CandidateReview({
                 {candidate.context && <span className="topic-chip">{candidate.context}</span>}
                 {candidate.origin === 'rule-based' && (
                   <span className="topic-chip rule-based">Rule-based</span>
+                )}
+                {/* Worked out on every render rather than stored, so the note
+                    disappears the moment the front is reworded. */}
+                {danglingReference(candidate) && (
+                  <span
+                    className="topic-chip needs-rewording"
+                    title="Studied on its own, this card has nothing for that phrase to point at. Reword the question to include what it refers to, then tick the card."
+                  >
+                    Mentions “{danglingReference(candidate)}”, which the card doesn’t show
+                  </span>
                 )}
                 <span className="source-label">{candidate.sourceLabel}</span>
               </span>

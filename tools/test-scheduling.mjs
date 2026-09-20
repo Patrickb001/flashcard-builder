@@ -18,6 +18,7 @@ import {
   nextDueAt,
   parseStudyMode,
   requeue,
+  sessionPreview,
 } from '../src/lib/studyQueue.ts';
 
 /**
@@ -183,6 +184,18 @@ check('a miss near the end goes to the end', requeue(['a', 'b', 'c'], 1, 'b'), [
 check('a miss on the last card comes straight back', requeue(['a'], 0, 'a'), ['a', 'a']);
 
 check('counts due and new', countStudyable(deck, NOW), { due: 2, new: 3 });
+check('a session holds every due card and the new ones', sessionPreview(deck, NOW), { due: 2, fresh: 3, nextDue: null });
+check('... new cards up to the session limit', sessionPreview(deck, NOW, 2), { due: 2, fresh: 2, nextDue: null });
+check(
+  'a session matches the queue it would build',
+  (() => {
+    const p = sessionPreview(deck, NOW, 2);
+    return p.due + p.fresh;
+  })(),
+  buildQueue(deck, 'review', NOW, { newLimit: 2 }).length
+);
+check('an empty session says when the next review is', sessionPreview([learned('later', at(15))], NOW), { due: 0, fresh: 0, nextDue: at(15) });
+check('a deck with nothing scheduled has no next review', sessionPreview([], NOW), { due: 0, fresh: 0, nextDue: null });
 check('the next card coming up', nextDueAt(deck, NOW), at(15));
 check('nothing scheduled means no next date', nextDueAt([card('n')], NOW), null);
 check('?mode=all is cram mode', parseStudyMode('all'), 'all');

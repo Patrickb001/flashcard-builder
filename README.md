@@ -125,14 +125,17 @@ spot with no model call — which is the whole reason the questions are written 
 kept rather than drafted each time. Once a deck has its questions, testing works
 offline and costs nothing.
 
-Two question styles, chosen on the setup screen and stored side by side, so a deck can
-have both:
+Three question styles, chosen on the setup screen and stored side by side, so a deck
+can have all of them:
 
 - **Recall** — one fact per question, four options. The stem rewords the card's front
   and the answer is its back.
 - **PANCE style** — a short clinical vignette, a board-style lead-in ("Which of the
   following is the most likely diagnosis?"), and five options. Written for PA students
   revising for the boards.
+- **Apply it** — a situation the card never mentions, or a short new program, and a
+  question that can only be answered by using the card's fact on it. Four options.
+  Tests whether a card was understood rather than memorised.
 
 The vignette style is deliberately constrained: every clinical fact must come from the
 deck's own cards, and the model may invent only the patient wrapper — an age, a sex,
@@ -143,11 +146,29 @@ direct board-style question and no patient instead. Studying a fabricated findin
 though it were examinable is worse than having one fewer question, so the prompt is
 written to leave the gap rather than fill it.
 
+Application questions draw the line in a different place, because a new situation has
+to be invented for there to be anything to apply. The particulars of a scenario may be
+invented freely — who, what, which numbers, what a program does — but the *principle*
+may not: every rule needed to get from the scenario to the answer must be on one of the
+deck's cards. A card with nothing to apply — a name, a date, a bare definition — is
+skipped rather than dressed up as a scenario, and the skip is remembered against the
+card's text, so the setup screen does not offer it again until the card is edited. A card whose
+question the audit rejects in both passes, both times only because the question restates
+the card or renames the card's own example, is skipped the same way.
+Skipped cards stay in recall tests. Like vignettes, every application question is
+checked by a second, short audit call before it is kept: is the answer grounded in the
+cards, is it actually right (a program is traced), could any wrong option be defended
+using any card in the deck, does answering really depend on the scenario rather than
+the stem alone, and is the scenario genuinely new rather than the card's own example
+renamed? A flagged question is dropped and its card retried. On screen, the scenario
+and any program it includes sit together in a tinted panel above the question.
+
 The questions themselves need the AI helper, so "Test this deck" opens a setup screen
 that carries the drafting-mode panel inline when AI is off; there is no need to go
 back to the upload screen to switch it on. The first launch writes one question per
-card and stores them — eight cards to a request for recall questions, four for the
-costlier vignettes — saving each batch as it lands so an
+card and stores them — eight cards to a request for recall questions, six for
+application questions, four for the costlier vignettes — saving each batch as it lands
+so an
 interrupted run keeps everything it earned. Cards added later — or edited, which is
 noticed by a content hash rather than a save timestamp, since the deck manager writes
 a card on every blur — are offered on the next launch as "some questions are missing".
@@ -203,6 +224,24 @@ URL=https://18.react.dev/learn/state-a-components-memory node \
 node --experimental-strip-types --import ./tools/register.mjs \
   tools/test-quiz.mjs
 
+# Application questions: parser, skips, the generator against a stubbed model, and the
+# skip marker in an in-memory IndexedDB. No key needed. Set ANTHROPIC_API_KEY in the
+# environment to also generate real questions and read them; it never reads .env.
+node --experimental-strip-types --import ./tools/register.mjs \
+  tools/test-application.mjs
+
+# The check for card fronts that point at something the card does not show
+# ("In this example, …"). Pure; no key.
+node --experimental-strip-types --import ./tools/register.mjs \
+  tools/test-card-references.mjs
+
+# The old card prompt against the current one, side by side on the same page, a
+# few runs each. Costs a few cents; reads the key from the environment only.
+# --dry-run checks the script itself against a stub model, free.
+ANTHROPIC_API_KEY=sk-ant-... node --experimental-strip-types --import ./tools/register.mjs \
+  tools/compare-card-prompts.mjs https://react.dev/learn/render-and-commit \
+  --runs 2 --compare tools/fixtures/render-and-commit-cards.json
+
 # Folder grouping, library sorting, and the remembered sort choice. Pure; no key.
 node --experimental-strip-types --import ./tools/register.mjs \
   tools/test-folders.mjs
@@ -238,6 +277,8 @@ Edit the `path` constant at the top of the PDF harnesses to point at your own fi
 - A test question is written once. If one comes out ambiguous there is no way to
   regenerate just that question yet — deleting its card and adding it back is the
   workaround.
+- A card the model judged to have nothing to apply cannot be forced into an application
+  question. Editing the card, even slightly, offers it again.
 - If the app is open in two tabs when a new version upgrades the database, the upgrade
   waits for the older tab to close. That is logged to the console; close the other
   tabs and reload.

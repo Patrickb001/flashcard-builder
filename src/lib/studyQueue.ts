@@ -84,6 +84,27 @@ export function countStudyable(cards: Flashcard[], now: number): { due: number; 
   return { due, new: fresh };
 }
 
+/**
+ * What a review session started now would hold: every due card, and new cards
+ * up to `newLimit` — the same arithmetic as buildQueue, without building the
+ * queue. For the deck manager's "Next session" summary, which has to promise
+ * exactly what the study screen will serve. `nextDue` is set only when the
+ * session would be empty, for the "All caught up" line.
+ */
+export function sessionPreview(
+  cards: Flashcard[],
+  now: number,
+  newLimit: number = NEW_PER_SESSION
+): { due: number; fresh: number; nextDue: number | null } {
+  const { due, new: fresh } = countStudyable(cards, now);
+  const sessionFresh = Math.min(fresh, Math.max(0, newLimit));
+  return {
+    due,
+    fresh: sessionFresh,
+    nextDue: due + sessionFresh === 0 ? nextDueAt(cards, now) : null,
+  };
+}
+
 /** When the next card not yet due comes up, or null when none is scheduled. */
 export function nextDueAt(cards: Flashcard[], now: number): number | null {
   let soonest: number | null = null;

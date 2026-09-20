@@ -11,8 +11,8 @@ import {
 import { confirmAndDeleteDeck } from "../lib/deckActions";
 import { UNFILED, folderOf, sortFolders } from "../lib/deckFolders";
 import { deckNameForUrl } from "../lib/pageSource";
-import { describeSchedule, scheduleState } from "../lib/scheduling";
-import { countStudyable } from "../lib/studyQueue";
+import { describeDue, describeSchedule, scheduleState } from "../lib/scheduling";
+import { sessionPreview } from "../lib/studyQueue";
 import {
   downloadTextFile,
   exportFileName,
@@ -22,6 +22,16 @@ import { useDeck } from "./useDeck";
 import CardAttachments from "./ui/CardAttachments";
 import DeckGate from "./ui/DeckGate";
 import ErrorNotice from "./ui/ErrorNotice";
+import {
+  ChartIcon,
+  CheckIcon,
+  ClipboardCheckIcon,
+  CopyIcon,
+  DownloadIcon,
+  LayersIcon,
+  PlayIcon,
+  PlusIcon,
+} from "./ui/Icons";
 
 interface Props {
   /** The deck to manage. Everything on screen is read from it on mount. */
@@ -267,7 +277,26 @@ export default function DeckManager({
   // Read once per render; the labels below are day-granular, so a screen left
   // open across midnight is only stale until its next render.
   const now = Date.now();
-  const studyable = countStudyable(cards, now);
+  const session = sessionPreview(cards, now);
+  const hasCards = cards.length > 0;
+  const caughtUp = hasCards && session.due + session.fresh === 0;
+  const cardCount = `${cards.length} card${cards.length === 1 ? "" : "s"} in this deck`;
+
+  // What the next review session holds, in the words the study screen will
+  // bear out: due cards, then new ones up to the session limit.
+  let sessionHeadline: string;
+  if (!hasCards) sessionHeadline = "No cards yet";
+  else if (caughtUp) sessionHeadline = "All caught up";
+  else if (session.due > 0 && session.fresh > 0) sessionHeadline = `${session.due} due · ${session.fresh} new`;
+  else if (session.due > 0) sessionHeadline = `${session.due} card${session.due === 1 ? "" : "s"} due`;
+  else sessionHeadline = `${session.fresh} new card${session.fresh === 1 ? "" : "s"}`;
+
+  let sessionDetail: string;
+  if (!hasCards) sessionDetail = "Add a card below to start studying.";
+  else if (caughtUp && session.nextDue !== null)
+    sessionDetail = `Next review ${describeDue(session.nextDue, now)} · ${cardCount}`;
+  else if (session.due === 0) sessionDetail = `0 due for review · ${cardCount}`;
+  else sessionDetail = cardCount;
 
   return (
     <div className="manager">
@@ -276,14 +305,15 @@ export default function DeckManager({
           away, because the edits are still here and still worth keeping. */}
       {error && <ErrorNotice message={error} />}
       <div className="manager-header">
-        <div>
-          <p className="eyebrow">Manage cards</p>
-          <input
-            className="deck-title-input"
-            value={nameDraft}
-            onChange={(e) => setNameDraft(e.target.value)}
-            onBlur={commitName}
-          />
+        <p className="eyebrow">Manage cards</p>
+        <input
+          className="deck-title-input"
+          value={nameDraft}
+          onChange={(e) => setNameDraft(e.target.value)}
+          onBlur={commitName}
+          aria-label="Deck name"
+        />
+        <div className="manager-meta">
           <div className="manager-folder-row">
             <label htmlFor="deck-folder">Folder</label>
             {/* Always A–Z, whatever the library is sorted by: a dropdown is
@@ -303,11 +333,10 @@ export default function DeckManager({
               ))}
             </select>
           </div>
-          <p className="muted small">
-            {cards.length} card{cards.length === 1 ? "" : "s"} · {studyable.due}{" "}
-            due · {studyable.new} new · from {deck.sourceFileName}
-          </p>
-          {deck.sourceUrls && deck.sourceUrls.length > 0 && (
+          <span className="manager-meta-divider" aria-hidden="true" />
+          {/* A deck from web pages links back to them; one from a file names
+              the file, which is the only trace of where it came from. */}
+          {deck.sourceUrls && deck.sourceUrls.length > 0 ? (
             <p className="source-links">
               Source{deck.sourceUrls.length === 1 ? "" : "s"}:{" "}
               {deck.sourceUrls.map((url, i) => (
@@ -319,81 +348,98 @@ export default function DeckManager({
                 </span>
               ))}
             </p>
+          ) : (
+            <p className="source-links">From {deck.sourceFileName}</p>
           )}
-        </div>
-        <div className="manager-actions">
-          <button
-            className="primary-btn"
-            onClick={() => onStudy(deckId)}
-            disabled={cards.length === 0}
-          >
-            {studyable.due + studyable.new > 0 ? "Study due cards" : "Study this deck"}
-          </button>
-          <button
-            className="secondary-btn"
-            onClick={() => onStudyAll(deckId)}
-            disabled={cards.length === 0}
-          >
-            Study all cards
-          </button>
-          {/* One entry. The kind of test is chosen on the setup screen, which
-              has to offer the picker anyway, and nothing is written until the
-              button there is pressed — so there is nothing to decide this early. */}
-          <button
-            className="secondary-btn"
-            onClick={() => onTest(deckId)}
-            disabled={cards.length === 0}
-          >
-            Test this deck
-          </button>
-          <button
-            className="secondary-btn"
-            onClick={() => onInfographic(deckId)}
-            disabled={cards.length === 0}
-          >
-            Create infographic
-          </button>
         </div>
       </div>
 
-      <div className="manager-toolbar">
-        <button className="secondary-btn" onClick={handleAdd}>
-          + Add card
+      {/* Studying is one choice with two scopes, so it is one control: the
+          review session, and "All cards" joined to its side. Test and
+          infographic are tools, one step quieter, below it. */}
+      <section className="study-panel" aria-label="Study">
+        <div className="study-panel-summary">
+          <span className="study-panel-label">Next session</span>
+          <span className="study-panel-headline">{sessionHeadline}</span>
+          <span className="study-panel-detail">{sessionDetail}</span>
+        </div>
+        <div className="split-btn">
+          {caughtUp ? (
+            // Nothing is due, so the only session on offer is the whole deck:
+            // one button, not a review button that leads to "All caught up".
+            <button className="primary-btn" onClick={() => onStudyAll(deckId)}>
+              <PlayIcon />
+              Study anyway
+            </button>
+          ) : (
+            <>
+              <button className="primary-btn" onClick={() => onStudy(deckId)} disabled={!hasCards}>
+                <PlayIcon />
+                Start studying
+              </button>
+              <button
+                className="secondary-btn"
+                onClick={() => onStudyAll(deckId)}
+                disabled={!hasCards}
+                title="Study every card in the deck, whether it is due or not"
+              >
+                <LayersIcon />
+                All cards
+              </button>
+            </>
+          )}
+        </div>
+      </section>
+
+      <div className="manager-tools">
+        {/* One entry. The kind of test is chosen on the setup screen, which
+            has to offer the picker anyway, and nothing is written until the
+            button there is pressed — so there is nothing to decide this early. */}
+        <button className="secondary-btn" onClick={() => onTest(deckId)} disabled={!hasCards}>
+          <ClipboardCheckIcon />
+          Test this deck
         </button>
-        <div className="manager-export">
+        <button className="secondary-btn" onClick={() => onInfographic(deckId)} disabled={!hasCards}>
+          <ChartIcon />
+          {/* The short form is for phones, where two tools share one row. */}
+          <span className="label-full">Create infographic</span>
+          <span className="label-short" aria-hidden="true">
+            Infographic
+          </span>
+        </button>
+      </div>
+
+      <div className="manager-cards-header">
+        <h2 className="manager-cards-title">
+          Cards <span className="count-chip">{cards.length}</span>
+        </h2>
+        <div className="manager-toolbar">
+          <button className="secondary-btn small" onClick={handleAdd}>
+            <PlusIcon />
+            Add card
+          </button>
+          <span className="toolbar-divider" aria-hidden="true" />
+          {/* On a phone these two collapse to their icons; the aria-label
+              keeps each one named for a screen reader either way. */}
           <button
-            className="ghost-btn small"
+            className="ghost-btn small collapsible-label"
             onClick={handleExport}
-            disabled={cards.length === 0}
+            disabled={!hasCards}
             title="Save the deck as a text file"
+            aria-label="Download .txt"
           >
-            Download .txt
+            <DownloadIcon />
+            <span className="btn-label">Download .txt</span>
           </button>
           <button
-            className="ghost-btn small"
+            className="ghost-btn small collapsible-label"
             onClick={handleCopy}
-            disabled={cards.length === 0}
+            disabled={!hasCards}
             title="Copy the deck as delimited text"
+            aria-label={copied ? "Copied" : "Copy"}
           >
-            {copied ? (
-              <>
-                <svg
-                  width="13"
-                  height="13"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth="2"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                >
-                  <path d="M20 6 9 17l-5-5" />
-                </svg>
-                Copied
-              </>
-            ) : (
-              "Copy"
-            )}
+            {copied ? <CheckIcon /> : <CopyIcon />}
+            <span className="btn-label">{copied ? "Copied" : "Copy"}</span>
           </button>
         </div>
       </div>

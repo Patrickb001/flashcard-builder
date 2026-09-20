@@ -1,6 +1,12 @@
 import type { AiSettings } from './aiGenerator';
 import { CARD_SYSTEM_PROMPT } from './cardPrompt';
-import { QUIZ_SYSTEM_PROMPT, VIGNETTE_SYSTEM_PROMPT, VIGNETTE_AUDIT_SYSTEM_PROMPT } from './quizPrompt';
+import {
+  APPLICATION_AUDIT_SYSTEM_PROMPT,
+  APPLICATION_SYSTEM_PROMPT,
+  QUIZ_SYSTEM_PROMPT,
+  VIGNETTE_AUDIT_SYSTEM_PROMPT,
+  VIGNETTE_SYSTEM_PROMPT,
+} from './quizPrompt';
 import { OCR_SYSTEM_PROMPT } from './ocrPrompt';
 import { INFOGRAPHIC_EXTRACT_PROMPTS, INFOGRAPHIC_DESIGN_PROMPT } from './infographicPrompt';
 
@@ -32,6 +38,8 @@ export type AiTask =
   | 'quiz'
   | 'vignette'
   | 'vignette-audit'
+  | 'application'
+  | 'application-audit'
   | 'ocr'
   | 'infographic-extract-basic'
   | 'infographic-extract-standard'
@@ -44,6 +52,8 @@ const PROMPTS: Record<AiTask, string> = {
   quiz: QUIZ_SYSTEM_PROMPT,
   vignette: VIGNETTE_SYSTEM_PROMPT,
   'vignette-audit': VIGNETTE_AUDIT_SYSTEM_PROMPT,
+  application: APPLICATION_SYSTEM_PROMPT,
+  'application-audit': APPLICATION_AUDIT_SYSTEM_PROMPT,
   ocr: OCR_SYSTEM_PROMPT,
   'infographic-extract-basic': INFOGRAPHIC_EXTRACT_PROMPTS.basic,
   'infographic-extract-standard': INFOGRAPHIC_EXTRACT_PROMPTS.standard,
@@ -71,6 +81,16 @@ export const MAX_TOKENS: Record<AiTask, number> = {
   // A verdict list, not prose — see "vignette-audit" in docs/tuning-notes.md
   // once real batches have been measured against this starting estimate.
   'vignette-audit': 1000,
+  // The generation ceiling is still a starting estimate: an application batch
+  // is six scenario questions, near a vignette batch in size.
+  application: 16000,
+  // Measured, not estimated. At 1000 — the vignette audit's value, borrowed
+  // because both replies are verdict lists — two of three audit batches in the
+  // render-and-commit fixture run came back at max_tokens with no verdict for
+  // any question, and the whole batch was dropped for retry. Six checks reason
+  // over more than four did, and the reply runs past the ceiling before it
+  // reaches the JSON. See "Application questions" in docs/tuning-notes.md.
+  'application-audit': 4000,
   // A transcribed page can be as dense as a card-drafting batch; same
   // ceiling as `cards` until real batches say otherwise (docs/tuning-notes.md).
   ocr: 16000,
