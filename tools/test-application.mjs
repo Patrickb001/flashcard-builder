@@ -287,6 +287,68 @@ check("recall still carries the card's own snippet", recallRun.questions[0].stem
 check('recall never reports skips', recallRun.notApplicableCardIds, []);
 
 // ---------------------------------------------------------------------------
+console.log('\nAUDIT-CONFIRMED SKIPS (stubbed model)');
+// ---------------------------------------------------------------------------
+
+// Five cards, each with a planted audit outcome, keyed by the card's front:
+//   x1 renamed   rejected on NEW in both passes         -> skipped, not failed
+//   x2 wrong     rejected on CORRECT in both passes     -> failed
+//   x3 once      rejected on NEW once, then accepted    -> written
+//   x4 mixed     rejected on NEW and CORRECT, twice     -> failed
+//   x5 silent    never given a verdict                  -> failed, never reported
+const outcomeCards = ['renamed', 'wrong', 'once', 'mixed', 'silent'].map((word, i) =>
+  card(`x${i + 1}`, { front: `Card ${word}?`, back: `Back ${word}.` })
+);
+const planted = {
+  'Card renamed?': () => ({ ok: false, failed: ['NEW'] }),
+  'Card wrong?': () => ({ ok: false, failed: ['CORRECT'] }),
+  'Card once?': (round) => (round === 1 ? { ok: false, failed: ['new'] } : { ok: true, failed: [] }),
+  'Card mixed?': () => ({ ok: false, failed: ['NEW', 'CORRECT'] }),
+  'Card silent?': () => null,
+};
+const auditRounds = new Map();
+const stubbedFetch = globalThis.fetch;
+globalThis.fetch = async (_url, init) => {
+  const body = JSON.parse(init.body);
+  const payload = JSON.parse(body.messages[0].content)[0];
+  let text = '[]';
+  if (body.system[0].text === APPLICATION_SYSTEM_PROMPT) {
+    text = reply(payload.cards.map((c) => question(c.id, { scenario: `A situation about ${c.front}` })));
+  } else if (body.system[0].text === APPLICATION_AUDIT_SYSTEM_PROMPT) {
+    text = reply(
+      payload.questions.flatMap((item) => {
+        const round = (auditRounds.get(item.card.front) ?? 0) + 1;
+        auditRounds.set(item.card.front, round);
+        const verdict = planted[item.card.front](round);
+        return verdict ? [{ id: item.id, ...verdict }] : [];
+      })
+    );
+  }
+  return { ok: true, json: async () => ({ content: [{ type: 'text', text }], stop_reason: 'end_turn' }), text: async () => '' };
+};
+
+const confirmedSeen = [];
+const rejections = [];
+const outcome = await generateQuestionsForCards(outcomeCards, outcomeCards, 'Outcomes', settings, {
+  style: 'application',
+  onSkip: async (cards) => confirmedSeen.push(...cards.map((c) => c.id)),
+  onAuditReject: (c, _q, failed) => rejections.push(`${c.id}:${failed.join('+')}`),
+});
+globalThis.fetch = stubbedFetch;
+
+check('rejected twice on NEW alone: skipped, not failed', outcome.notApplicableCardIds, ['x1']);
+check('... and recorded through onSkip', confirmedSeen, ['x1']);
+check('rejected on CORRECT, on NEW with CORRECT, or never judged: failed', [...outcome.failedCardIds].sort(), ['x2', 'x4', 'x5']);
+check('rejected once, then accepted: written', outcome.questions.map((q) => q.cardId), ['x3']);
+check('check names are matched in any case', rejections.includes('x3:NEW'), true);
+check(
+  'every explicit rejection is reported, with its checks',
+  [...rejections].sort(),
+  ['x1:NEW', 'x1:NEW', 'x2:CORRECT', 'x2:CORRECT', 'x3:NEW', 'x4:NEW+CORRECT', 'x4:NEW+CORRECT']
+);
+check('a question with no verdict is dropped but never reported as rejected', rejections.some((r) => r.startsWith('x5')), false);
+
+// ---------------------------------------------------------------------------
 console.log('\nFIXTURE: render and commit');
 // ---------------------------------------------------------------------------
 
@@ -347,8 +409,10 @@ console.log('\nGENERATION (real model)');
 globalThis.fetch = realFetch;
 
 const cards = JSON.parse(fs.readFileSync(process.argv[2] ?? 'tools/fixtures/quiz-cards.json', 'utf8'));
+const liveRejections = [];
 const live = await generateQuestionsForCards(cards, cards, 'Loops', { mode: 'byok', apiKey: key }, {
   style: 'application',
+  onAuditReject: (c, q, failed) => liveRejections.push({ card: c, question: q, failed }),
 });
 console.log(
   `  ${live.questions.length} questions, ${live.notApplicableCardIds.length} skipped, ` +
@@ -386,11 +450,20 @@ if (cards.some((c) => c.expect)) {
   const shouldApply = cards.filter((c) => c.expect === 'apply');
   const forced = shouldSkip.filter((c) => asked.has(c.id));
   const dodged = shouldApply.filter((c) => skippedIds.has(c.id));
+  // An apply card that ended with no question at all — the audit rejected
+  // every attempt — is not applied either. Counting only skips hid this: a
+  // run could score 8 of 8 with an apply card missing.
+  const lost = shouldApply.filter((c) => !asked.has(c.id) && !skippedIds.has(c.id));
   console.log('\nAGAINST THE FIXTURE');
   console.log(`  skipped as expected: ${shouldSkip.length - forced.length} of ${shouldSkip.length}`);
   for (const c of forced) console.log(`    FORCED  ${c.id}: ${c.front}`);
-  console.log(`  applied as expected: ${shouldApply.length - dodged.length} of ${shouldApply.length}`);
+  console.log(`  applied as expected: ${shouldApply.filter((c) => asked.has(c.id)).length} of ${shouldApply.length}`);
   for (const c of dodged) console.log(`    DODGED  ${c.id}: ${c.front}`);
+  for (const c of lost) console.log(`    LOST    ${c.id}: ${c.front}`);
+  for (const c of cards.filter((card) => card.expect === 'either')) {
+    const fate = asked.has(c.id) ? 'question' : skippedIds.has(c.id) ? 'skipped' : 'failed';
+    console.log(`  either  ${c.id}: ${fate}`);
+  }
   for (const c of cards.filter((card) => card.watch)) {
     const item = asked.get(c.id);
     console.log(`\n  WATCH ${c.id}: ${c.watch}`);
@@ -400,6 +473,16 @@ if (cards.some((c) => c.expect)) {
         : `    -> ${skippedIds.has(c.id) ? 'skipped' : 'no question (failed)'}`
     );
   }
+}
+
+// Every rejection, with the checks named: the only way to tell a check that
+// is rejecting fairly from one that is over-reaching.
+if (liveRejections.length > 0) console.log('\nREJECTED BY THE AUDIT');
+for (const { card: c, question: q, failed } of liveRejections) {
+  console.log(`\n  ${c.id} [${failed.join(', ') || 'no checks named'}] card: ${c.front}`);
+  if (q.vignette) console.log(`    ${q.vignette}`);
+  if (q.code) console.log(q.code.text.replace(/^/gm, '    | '));
+  console.log(`    Q: ${q.stem}\n    * ${q.correct} | ${q.distractors.join(' | ')}`);
 }
 
 console.log(
