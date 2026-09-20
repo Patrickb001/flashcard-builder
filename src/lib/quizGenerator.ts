@@ -79,6 +79,15 @@ const AUDIT_TASK: Partial<Record<QuestionStyle, AiTask>> = {
   application: 'application-audit',
 };
 
+/**
+ * Audit checks that say a card has nothing to apply, rather than that one
+ * attempt at it was wrong. A question failed only on these — it restates the
+ * card, or renames the card's example — tells us about the card; a question
+ * failed on CORRECT or ONE RIGHT ANSWER tells us about the question. See
+ * "audit-confirmed skips" in generateQuestionsForCards.
+ */
+const NOT_APPLICABLE_CHECKS = new Set(['APPLIED', 'NEW']);
+
 /** Other cards offered per batch, as raw material for wrong answers. */
 const NEIGHBOUR_LIMIT = 20;
 
@@ -140,6 +149,13 @@ export interface QuizGenerationOptions {
    * onBatch saves per batch. Application style only.
    */
   onSkip?: (cards: Flashcard[]) => Promise<void>;
+  /**
+   * Fired for every question the audit rejected, with the checks it named
+   * (empty when it named none). For diagnosis only — the question is dropped
+   * either way. tools/test-application.mjs prints these on a real run, which is
+   * the only way to judge whether a check is rejecting fairly.
+   */
+  onAuditReject?: (card: Flashcard, question: LlmQuizQuestion, failed: string[]) => void;
 }
 
 /**
@@ -416,7 +432,7 @@ async function auditQuestions(
   deckCards: Flashcard[],
   settings: AiSettings,
   signal?: AbortSignal
-): Promise<LlmQuizQuestion[]> {
+): Promise<{ kept: LlmQuizQuestion[]; rejected: Map<string, { question: LlmQuizQuestion; failed: string[] }> }> {
   // The application audit also gets every card in the batch. contextCards
   // leaves the batch out (it was written for generation, where those cards
   // are already in the payload), so a sibling card that makes a wrong option
@@ -469,11 +485,19 @@ async function auditQuestions(
     // Counted over rejected questions alone: a reply that names a check
     // beside "ok": true is contradicting itself, and the verdict wins.
     const byCheck = new Map<string, number>();
-    if (task === 'application-audit') {
-      for (const [id, names] of parseAuditFailures(text)) {
-        if (verdicts.get(id) === true) continue;
-        for (const name of names) byCheck.set(name, (byCheck.get(name) ?? 0) + 1);
-      }
+    const failures = task === 'application-audit' ? parseAuditFailures(text) : new Map<string, string[]>();
+    for (const [id, names] of failures) {
+      if (verdicts.get(id) === true) continue;
+      for (const name of names) byCheck.set(name, (byCheck.get(name) ?? 0) + 1);
+    }
+    // Only an explicit "ok": false is a rejection here. A question with no
+    // verdict at all — a truncated or malformed reply — is dropped like one,
+    // but says nothing about the card, so it is not reported as rejected.
+    const rejected = new Map<string, { question: LlmQuizQuestion; failed: string[] }>();
+    for (const item of parsed) {
+      if (verdicts.get(item.id) !== false) continue;
+      const failed = (failures.get(item.id) ?? []).map((name) => name.toUpperCase());
+      rejected.set(item.id, { question: item, failed });
     }
     if (flagged > 0) {
       const named = [...byCheck]
@@ -486,10 +510,10 @@ async function auditQuestions(
           `${named ? `; ${named}` : ''}); dropped for retry.`
       );
     }
-    return kept;
+    return { kept, rejected };
   } catch (err) {
     console.error(`${task} failed; dropping the batch rather than trusting it unaudited:`, err);
-    return [];
+    return { kept: [], rejected: new Map() };
   }
 }
 
@@ -521,6 +545,8 @@ export async function generateQuestionsForCards(
   let firstError: string | null = null;
   let aborted = false;
   const notApplicable = new Set<string>();
+  /** Per card: how many of its questions the audit rejected only on NOT_APPLICABLE_CHECKS. */
+  const applicabilityRejections = new Map<string, number>();
 
   /**
    * Runs one batch and returns the cards it left without a question.
@@ -573,7 +599,32 @@ export async function generateQuestionsForCards(
     // drops flows through exactly like one the model never wrote: its card
     // stays unanswered and is retried, rather than needing separate handling.
     if (auditTask && parsed.length > 0) {
-      parsed = await auditQuestions(auditTask, parsed, batch, deckCards, settings, options.signal);
+      const audit = await auditQuestions(auditTask, parsed, batch, deckCards, settings, options.signal);
+      parsed = audit.kept;
+
+      // Audit-confirmed skips. A card whose question is rejected in BOTH passes,
+      // each time only for restating the card or renaming its example, has been
+      // shown twice to have nothing to apply that the audit will accept. Left as
+      // a failure it would be offered again on every visit to the setup screen,
+      // and charged for again, to be rejected again. It is recorded as a skip
+      // instead — lifted, like any skip, when the card is edited. One such
+      // rejection is not enough: a single bad attempt is what the retry is for.
+      const confirmed: Flashcard[] = [];
+      for (const [id, { question, failed }] of audit.rejected) {
+        const card = batch[Number(id.replace(/^q/i, '')) - 1];
+        if (!card) continue;
+        options.onAuditReject?.(card, question, failed);
+        if (!isApplication || failed.length === 0) continue;
+        if (!failed.every((name) => NOT_APPLICABLE_CHECKS.has(name))) continue;
+        const count = (applicabilityRejections.get(card.id) ?? 0) + 1;
+        applicabilityRejections.set(card.id, count);
+        if (count >= 2 && !notApplicable.has(card.id)) confirmed.push(card);
+      }
+      if (confirmed.length > 0) {
+        for (const card of confirmed) notApplicable.add(card.id);
+        skippedCards.push(...confirmed);
+        await options.onSkip?.(confirmed);
+      }
     }
 
     const now = Date.now();
